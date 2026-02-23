@@ -6,6 +6,7 @@ export const productService = {
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .eq('is_active', true) // Filter active only
       .order('name');
     
     if (error) throw error;
@@ -36,9 +37,10 @@ export const productService = {
   },
 
   async delete(id: string) {
+    // Soft delete
     const { error } = await supabase
       .from('products')
-      .delete()
+      .update({ is_active: false })
       .eq('id', id);
     
     if (error) throw error;

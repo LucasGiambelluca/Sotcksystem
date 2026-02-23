@@ -1,0 +1,29 @@
+flow_id: "main_menu"
+version: "1.0.0"
+triggers:
+  - intent: "MAIN_MENU"
+  - keyword: ["menu", "hola", "inicio", "empezar"]
+
+states:
+  WELCOME:
+    message_template: "¡Bienvenido a nuestro servicio de pedidos! ¿Qué te gustaría hacer hoy?"
+    actions: []
+    transitions:
+      - on: "VIEW_CATALOG"
+        target: "CATALOG_FLOW"
+      - on: "ORDER"
+        target: "ORDER_FLOW"
+      - on: "SUPPORT"
+        target: "SUPPORT_FLOW"
+      - on: "TIMEOUT"
+        target: "WELCOME"
+        after: "10m"
+
+  CATALOG_FLOW:
+    type: "final"
+
+  ORDER_FLOW:
+    type: "final"
+
+  SUPPORT_FLOW:
+    type: "final"

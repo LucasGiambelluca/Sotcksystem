@@ -1,0 +1,219 @@
+ DEPRECATED  `test.poolOptions` was removed in Vitest 4. All previous `poolOptions` are now top-level options. Please, refer to the migration guide: https://vitest.dev/guide/migration#pool-rework
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mC:/Users/Lucas/Desktop/Sotcksystem/whatsapp-server[39m
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts
+[22m[39m[dotenv@17.3.1] injecting env (2) from .env -- tip: ­ƒöÉ encrypt with Dotenvx: https://dotenvx.com
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts
+[22m[39mÔ£à Redis Connected
+
+stderr | src/__tests__/integration/flow-engine.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[22m[39m[FlowEngine] ­ƒô® New message from 1234567890: "hola"
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[22m[39m[FlowEngine] End of flow reached.
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+[22m[39m
+ÔöîÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÉ
+Ôöé  MESSAGE PROCESSED                  Ôöé
+Ôöé  Phone: 1234567890                    Ôöé
+Ôöé  Input: "hola"Ôöé
+Ôöé  Flow: 22db7b29-3e8b-43dc-b71f-c2c31607b7b5                    Ôöé
+Ôöé  Responses: 0     Ôöé
+Ôöé  Time: 1018ms  Ôöé
+ÔööÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÿ
+
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] ­ƒô® New message from 1234567891: "hola"
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] ­ƒöì Searching flow for: "hola"
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] ­ƒôè Supabase result: {
+  found: [33m1[39m,
+  firstId: [32m'22db7b29-3e8b-43dc-b71f-c2c31607b7b5'[39m,
+  error: [1mnull[22m
+}
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] ­ƒöì Found flow: 22db7b29-3e8b-43dc-b71f-c2c31607b7b5
+[FlowEngine] Starting flow "Flujo inicial" (22db7b29-3e8b-43dc-b71f-c2c31607b7b5)
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] Executing Node: input (start)
+[FlowEngine] Advancing from start to dndnode_2
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] Executing Node: messageNode (dndnode_2)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] Advancing from dndnode_2 to dndnode_1
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] Executing Node: catalogNode (dndnode_1)
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ÔÜÖ´©Å  suppress all logs with { quiet: true }
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39mÔ£à Redis Connected
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] Node dndnode_1 waiting for input.
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m
+ÔöîÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÉ
+Ôöé  MESSAGE PROCESSED                  Ôöé
+Ôöé  Phone: 1234567891                    Ôöé
+Ôöé  Input: "hola"Ôöé
+Ôöé  Flow: 22db7b29-3e8b-43dc-b71f-c2c31607b7b5                    Ôöé
+Ôöé  Responses: 2     Ôöé
+Ôöé  Time: 2255ms  Ôöé
+ÔööÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÿ
+
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] ­ƒô® New message from 1234567891: "Lucas"
+
+stderr | src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m[FlowEngine] End of flow reached.
+
+[90mstdout[2m | src/__tests__/integration/flow-engine.test.ts[2m > [22m[2mFlowEngine Integration[2m > [22m[2mdebe capturar la respuesta de una pregunta y continuar al siguiente nodo
+[22m[39m
+ÔöîÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÉ
+Ôöé  MESSAGE PROCESSED                  Ôöé
+Ôöé  Phone: 1234567891                    Ôöé
+Ôöé  Input: "Lucas"Ôöé
+Ôöé  Flow: 22db7b29-3e8b-43dc-b71f-c2c31607b7b5                    Ôöé
+Ôöé  Responses: 0     Ôöé
+Ôöé  Time: 1046ms  Ôöé
+ÔööÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÿ
+
+
+ [31mÔØ»[39m src/__tests__/integration/flow-engine.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 8668[2mms[22m[39m
+[31m     [31m├ù[31m debe iniciar un flujo y responder con el primer mensaje y la primera pregunta[39m[33m 3251[2mms[22m[39m
+[31m     [31m├ù[31m debe capturar la respuesta de una pregunta y continuar al siguiente nodo[39m[33m 5414[2mms[22m[39m
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Tests 2 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
+
+ FAIL  src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe iniciar un flujo y responder con el primer mensaje y la primera pregunta
+AssertionError: expected '' to contain '┬íHola! ┬┐C├│mo est├ís?'
+
+- Expected
++ Received
+
+- ┬íHola! ┬┐C├│mo est├ís?
+
+ ÔØ» src/__tests__/integration/flow-engine.test.ts:57:26
+     55|         const template = response.currentStateDefinition.message_templÔÇª
+     56|         
+     57|         expect(template).toContain('┬íHola! ┬┐C├│mo est├ís?');
+       |                          ^
+     58|         expect(template).toContain('┬┐Cu├íl es tu nombre?');
+     59|     });
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»
+
+ FAIL  src/__tests__/integration/flow-engine.test.ts > FlowEngine Integration > debe capturar la respuesta de una pregunta y continuar al siguiente nodo
+AssertionError: expected '' to contain 'NUESTRO MEN├Ü'
+
+- Expected
++ Received
+
+- NUESTRO MEN├Ü
+
+ ÔØ» src/__tests__/integration/flow-engine.test.ts:73:26
+     71|         
+     72|         // Deber├¡a mostrar el cat├ílogo (catalogNode)
+     73|         expect(template).toContain('NUESTRO MEN├Ü');
+       |                          ^
+     74|         expect(template).toContain('Hamburguesa');
+     75|         expect(template).toContain('Agua');
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m   Start at [22m 12:27:15
+[2m   Duration [22m 11.20s[2m (transform 162ms, setup 481ms, import 1.53s, tests 8.67s, environment 0ms)[22m
+

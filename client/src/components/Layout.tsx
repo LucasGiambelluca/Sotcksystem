@@ -1,21 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2 } from 'lucide-react';
 import clsx from 'clsx';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
+import { supabase } from '../supabaseClient';
 import systemLogo from '../assets/systemlogo.png';
+import { getTotalUnreadCount } from '../services/whatsappService';
 
 export default function Layout() {
   const { signOut } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [waUnread, setWaUnread] = useState(0);
+
+  useEffect(() => {
+    getTotalUnreadCount().then(setWaUnread);
+    const interval = setInterval(() => {
+      getTotalUnreadCount().then(setWaUnread);
+    }, 10000); // Refresh every 10s
+
+    // Listen for new Handover requests globally
+    const channel = supabase.channel('global-whatsapp-alerts')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
+         const oldRecord = payload.old as any;
+         const newRecord = payload.new as any;
+         if (newRecord.status === 'HANDOVER' && oldRecord.status !== 'HANDOVER') {
+             toast.error(`Atención requerida: ${newRecord.contact_name || newRecord.phone}`, {
+                description: 'Un cliente solicitó asistencia humana.',
+                duration: 10000,
+             });
+         }
+      })
+      .subscribe();
+
+    return () => {
+        clearInterval(interval);
+        supabase.removeChannel(channel);
+    };
+  }, []);
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Inventario', path: '/products', icon: Package },
+    { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
+    { name: 'Reportes', path: '/claims', icon: MessageCircle },
+    { name: 'Rutas', path: '/routes', icon: MapPin },
+    { name: 'Configuración', path: '/settings', icon: Settings },
+    { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle, badge: waUnread },
+    { name: 'Grupos', path: '/whatsapp/groups', icon: Users },
+    { name: 'Bot Builder', path: '/whatsapp/builder', icon: Share2 },
   ];
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -85,7 +121,12 @@ export default function Layout() {
                 )}
               >
                 <Icon size={22} className={clsx(isActive ? 'text-white' : 'text-gray-500 group-hover:text-white')} />
-                <span className="font-medium">{item.name}</span>
+                <span className="font-medium flex-1">{item.name}</span>
+                {(item as any).badge > 0 && (
+                  <span className="bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {(item as any).badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -106,8 +147,8 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pt-16 md:pt-0">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 h-screen overflow-y-auto pt-16 md:pt-0 bg-gray-50 flex flex-col">
+        <div className={location.pathname.startsWith('/whatsapp') ? 'flex-1 flex flex-col' : 'flex-1 max-w-7xl w-full mx-auto'}>
           <Outlet />
         </div>
       </main>

@@ -1,0 +1,109 @@
+services:
+  # ==========================================
+  # FRONTEND - Nginx sirviendo React SPA
+  # ==========================================
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3001}
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    container_name: stock-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # BACKEND - Node.js + Baileys + API
+  # ==========================================
+  backend:
+    build:
+      context: ./whatsapp-server
+      dockerfile: Dockerfile
+    container_name: stock-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      # Database directa
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis (nombre del servicio Docker)
+      - REDIS_URL=redis://redis:6379
+      # Baileys session paths
+      - BAILEYS_SESSION_PATH=/app/sessions/auth_info_baileys
+      - BAILEYS_STORE_PATH=/app/sessions/baileys_store.json
+      # Google Maps (opcional)
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+      # Seguridad
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+    volumes:
+      - baileys_sessions:/app/sessions
+      - backend_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # REDIS - Cache y coordinación
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+# ==========================================
+# VOLÚMENES NOMBRADOS
+# ==========================================
+volumes:
+  baileys_sessions:
+    driver: local
+  backend_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+# ==========================================
+# REDES
+# ==========================================
+networks:
+  stock-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,118 @@
+const MESSAGES = require('../config/messages');
+
+module.exports = {
+    step: 'welcome',
+    
+    // Explicit enter method
+    async enter(session) {
+        return [
+            MESSAGES.WELCOME.MENU(session.data.pushName)
+        ];
+    },
+
+    async handle(text, session) {
+        const clean = text.toLowerCase().trim();
+
+        // 1. Check if user wants to order immediately
+        // If they type a number or "pedir", go to order
+        if (/\d/.test(clean) || clean.includes('pedir') || clean.includes('ordenar') || clean.includes('quiero')) {
+            // Transition to Order
+            // We pass the text to Order flow to parse
+            const orderFlow = require('./order.flow');
+            
+            // Artificial transition: we want to execute Order's handle with this text
+            // But router expects nextStep.
+            // If we return nextStep: 'order', the router will call order.enter().
+            // But we want the text to be processed as an item.
+            
+            // Option A: Just go to 'order' and let the user re-type? No, bad UX.
+            // Option B: "Forward" the text?
+            // The router updates step to 'order'.
+            // But the text was consumed by 'welcome'.
+            
+            // Fix: We can return nextStep: 'order'.
+            // But 'order.enter' just says "What do you want?".
+            // If the user already said "2 burgers", we should process it.
+            
+            // Let's use a "Forwarding" hack or just duplicate logic?
+            // Better: We can return `data` with pre-filled items?
+            // No, logic is in Order flow.
+            
+            // BEST APPROACH for linear router:
+            // Just return nextStep: 'order'. 
+            // AND in `order.flow.js` handle(), we should be able to process initial text?
+            // No, handle is called on NEXT message.
+            
+            // ALTERNATIVE: Process it HERE using Parser, then save to session, then go to Order.
+            const Parser = require('../core/parser');
+            const items = Parser.parse(clean);
+            if (items.length > 0) {
+                // If we parsed items, we save them and go to 'order'
+                // Router will merge data.
+                // We might want to trigger the "Added" message from Order flow.
+                
+                // Let's keep it simple:
+                // If "pedir", just go to order.
+                // If "2 burgers", ideally we add it. 
+                // Let's try to add it here.
+                
+                // But we need ProductService here.
+                const productService = require('../services/productService');
+                const verifiedItems = [];
+                let totalAdded = 0;
+                
+                for (const item of items) {
+                     const product = await productService.findProduct(item.product);
+                     if (product) {
+                         verifiedItems.push({
+                             qty: item.qty,
+                             name: product.name,
+                             price: product.price,
+                             product_id: product.id
+                         });
+                         totalAdded += product.price * item.qty;
+                     }
+                }
+                
+                if (verifiedItems.length > 0) {
+                     return {
+                         nextStep: 'order',
+                         data: { items: verifiedItems, total: totalAdded },
+                         messages: [
+                             `✅ Empezamos con: ${verifiedItems.map(i => `${i.qty}x ${i.name}`).join(', ')}`,
+                             `💰 Total: $${totalAdded}`,
+                             `¿Algo más? Escribí otro producto o "confirmar".`
+                         ]
+                     };
+                }
+            }
+            
+            return { 
+                nextStep: 'order',
+                messages: ["🍽️ ¡Dale! ¿Qué te gustaría pedir? (Ej: '2 hamburguesas')"]
+            };
+        }
+
+        // 2. Check for Cart commands
+        if (['ver carrito', 'carrito', 'mi pedido'].includes(clean)) {
+             const items = session.data.items || [];
+             if (items.length === 0) {
+                 return { 
+                    nextStep: 'order',
+                    messages: [MESSAGES.ORDER.CART_EMPTY] 
+                 };
+             }
+             
+             const total = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+             const itemsTxt = items.map(i => `• ${i.qty}x ${i.name} ($${i.price * i.qty})`).join('\n');
+             
+             return { 
+                 nextStep: 'order',
+                 messages: [MESSAGES.ORDER.CART_STATUS(itemsTxt, total)] 
+             };
+        }
+
+        // 3. Otherwise, re-show menu (maybe they said "Hola" again)
+        return this.enter(session);
+    }
+};

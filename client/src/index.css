@@ -1,3 +1,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .animate-intro-logo {
+    animation: introLogo 0.8s ease-out forwards;
+  }
+  
+  .animate-pulse-logo {
+    animation: pulseLogo 1.2s ease-in-out infinite 0.8s;
+  }
+  
+  .animate-zoom-explosion {
+    animation: zoomExplosion 1.2s ease-in forwards;
+    will-change: transform, opacity;
+  }
+
+  .animate-reveal-login {
+    animation: revealLogin 0.8s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+  }
+
+  .animate-fade-out-screen {
+    animation: fadeOutScreen 0.6s ease-in forwards;
+  }
+}
+
+@keyframes introLogo {
+  from { transform: scale(0); opacity: 0; filter: blur(10px); }
+  to { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+@keyframes pulseLogo {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px theme('colors.primary.500')); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 0 15px theme('colors.primary.500')); }
+}
+
+@keyframes zoomExplosion {
+  0% { transform: scale(1); filter: blur(0); opacity: 1; }
+  20% { transform: scale(1.1); filter: blur(0); opacity: 1; }
+  100% { transform: scale(60); filter: blur(10px); opacity: 0; }
+}
+
+@keyframes fadeOutScreen {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@keyframes revealLogin {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}

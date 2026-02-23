@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Premium Login</title>
+    <style>
+        :root {
+            --primary-color: #6366f1; /* Color de tu marca */
+            --bg-dark: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- SPLASH SCREEN ANIMATION --- */
+        .splash-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            animation: fadeOutScreen 0.6s ease-in forwards 2.8s;
+        }
+
+        .logo-container svg {
+            width: 120px;
+            fill: white;
+            /* La magia: Aparece, pulsa y explota hacia la cámara */
+            animation: 
+                introLogo 0.8s ease-out forwards,
+                pulseLogo 1.2s ease-in-out infinite 0.8s,
+                zoomExplosion 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards 2.2s;
+        }
+
+        @keyframes introLogo {
+            from { transform: scale(0); opacity: 0; filter: blur(10px); }
+            to { transform: scale(1); opacity: 1; filter: blur(0); }
+        }
+
+        @keyframes pulseLogo {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px var(--primary-color)); }
+            50% { transform: scale(1.05); filter: drop-shadow(0 0 15px var(--primary-color)); }
+        }
+
+        @keyframes zoomExplosion {
+            to { transform: scale(60); opacity: 0; }
+        }
+
+        @keyframes fadeOutScreen {
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        /* --- LOGIN FORM DESIGN --- */
+        .login-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transform: translateY(30px);
+            animation: revealLogin 1s ease-out forwards 2.8s;
+        }
+
+        @keyframes revealLogin {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-card h2 { color: white; margin-bottom: 30px; font-weight: 500; }
+
+        .input-group { margin-bottom: 20px; text-align: left; }
+
+        .input-group label { display: block; color: #94a3b8; margin-bottom: 8px; font-size: 0.9rem; }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: white;
+            outline: none;
+            transition: 0.3s;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus { border-color: var(--primary-color); box-shadow: 0 0 10px rgba(99, 102, 241, 0.3); }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover { background: #4f46e5; transform: translateY(-2px); }
+
+        .mini-logo { width: 40px; margin-bottom: 15px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <div class="splash-layer">
+        <div class="logo-container">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="login-card">
+        <svg class="mini-logo" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <h2>Bienvenido de nuevo</h2>
+        <form id="loginForm">
+            <div class="input-group">
+                <label>Correo electrónico</label>
+                <input type="email" placeholder="tu@empresa.com" required>
+            </div>
+            <div class="input-group">
+                <label>Contraseña</label>
+                <input type="password" placeholder="••••••••" required>
+            </div>
+            <button type="submit">Entrar al Panel</button>
+        </form>
+    </div>
+
+    <script>
+        // Lógica simple para manejar el evento de Login
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('¡Iniciando sesión en tu SaaS!');
+        });
+    </script>
+</body>
+</html>

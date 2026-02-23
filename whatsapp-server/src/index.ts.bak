@@ -1,0 +1,113 @@
+import express from 'express';
+import * as QRCode from 'qrcode';
+import { BaileysAdapter } from './core/gateway/baileys.adapter';
+import { ConversationRouter } from './core/engine/conversation.router';
+import { SessionStore } from './core/engine/session.store';
+
+console.log('Initializing application...');
+
+async function main() {
+    console.log('Starting WhatsApp Bot...');
+    const app = express();
+    const port = 3000;
+
+    let currentQR: string | null = null;
+    let status = 'disconnected';
+
+    const adapter = new BaileysAdapter();
+    const sessionStore = new SessionStore();
+    const router = new ConversationRouter(adapter);
+
+    try {
+        const ev = await adapter.initialize((update) => {
+            console.log('Connection Update:', JSON.stringify(update, null, 2));
+            const { qr, connection } = update;
+            if (qr) {
+                console.log('QR Code received via callback');
+                currentQR = qr;
+                status = 'scancode';
+            }
+            if (connection === 'open') {
+                status = 'connected';
+                currentQR = null;
+            }
+            if (connection === 'close') {
+                status = 'disconnected';
+            }
+        });
+
+        ev.on('messages.upsert', async (event) => {
+            console.log('Upsert Event:', JSON.stringify(event, null, 2));
+            const { messages, type } = event;
+            if (type !== 'notify') {
+                console.log('Skipping message type:', type);
+                // return; // Don't return yet, let's see what it is
+            }
+            for (const msg of messages) {
+                console.log('Processed message:', JSON.stringify(msg, null, 2));
+                
+                if (msg.key.fromMe) {
+                    console.log('Processing message from self (DEBUG MODE)');
+                    // continue; // Allow self-messages for testing
+                }
+
+                const remoteJid = msg.key.remoteJid;
+                console.log('Received message from:', remoteJid);
+                const session = await sessionStore.getSession(remoteJid) || { userId: remoteJid, cart: [], history: [] };
+                await router.routeMessage(msg, session);
+            }
+        });
+
+        app.use(express.urlencoded({ extended: true })); // Parse form data
+
+        app.get('/', async (req, res) => {
+            res.send(`
+                <html>
+                    <head>
+                        <title>WhatsApp Bot Manager</title>
+                        <meta http-equiv="refresh" content="5">
+                        <style>
+                            body { font-family: sans-serif; text-align: center; padding: 50px; }
+                            .status { padding: 10px; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
+                            .connected { background-color: #d4edda; color: #155724; }
+                            .disconnected { background-color: #f8d7da; color: #721c24; }
+                            .scancode { background-color: #fff3cd; color: #856404; }
+                            button { padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; }
+                            button:hover { background-color: #c82333; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>WhatsApp Bot Manager</h1>
+                        <div class="status ${status}">Status: ${status.toUpperCase()}</div>
+                        <br>
+                        ${currentQR ? `<img src="${await QRCode.toDataURL(currentQR)}" />` : ''}
+                        ${status === 'connected' ? 
+                            `<h3>Bot is active and running!</h3>
+                             <form action="/disconnect" method="POST">
+                                <button type="submit">Disconnect / Logout</button>
+                             </form>` 
+                            : ''}
+                        ${status === 'disconnected' ? '<h3>Waiting for connection in terminal...</h3>' : ''}
+                    </body>
+                </html>
+            `);
+        });
+
+        app.post('/disconnect', async (req, res) => {
+            console.log('Manual disconnect requested');
+            await adapter.logout();
+            status = 'disconnected'; // UI update will happen on refresh
+            res.redirect('/');
+        });
+
+        app.listen(port, () => {
+            console.log(`Web Interface running at http://localhost:${port}`);
+        });
+
+        console.log('Bot initialized successfully');
+    } catch (error) {
+        console.error('Failed to start bot:', error);
+    }
+}
+
+main();

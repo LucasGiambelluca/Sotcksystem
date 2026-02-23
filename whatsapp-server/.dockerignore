@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+dist
+.env
+.env.*
+*.log
+logs/
+sessions/
+auth_info_baileys/
+baileys_store.json
+coverage
+.git
+.gitignore
+README.md
+*.test.ts
+*.spec.ts

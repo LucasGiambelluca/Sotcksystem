@@ -1,0 +1,184 @@
+ DEPRECATED  `test.poolOptions` was removed in Vitest 4. All previous `poolOptions` are now top-level options. Please, refer to the migration guide: https://vitest.dev/guide/migration#pool-rework
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mC:/Users/Lucas/Desktop/Sotcksystem/whatsapp-server[39m
+
+[90mstdout[2m | src/__tests__/unit/OrderService.test.ts
+[22m[39m[dotenv@17.3.1] injecting env (2) from .env -- tip: ÔÜÖ´©Å  load multiple .env files with { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | src/__tests__/unit/OrderService.test.ts
+[22m[39mÔ£à Redis Connected
+
+stderr | src/__tests__/unit/OrderService.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[Setup] Warning deleting from orders: update or delete on table "orders" violates foreign key constraint "route_orders_order_id_fkey" on table "route_orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[Setup] Warning deleting from delivery_slots: update or delete on table "delivery_slots" violates foreign key constraint "orders_delivery_slot_id_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[Setup] Warning deleting from users: update or delete on table "users" violates foreign key constraint "orders_assigned_to_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[Setup] Warning deleting from preparation_queues: update or delete on table "preparation_queues" violates foreign key constraint "users_assigned_queue_id_fkey" on table "users"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[Setup] Warning deleting from flow_executions: column flow_executions.created_at does not exist
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[Setup] Warning deleting from orders: update or delete on table "orders" violates foreign key constraint "route_orders_order_id_fkey" on table "route_orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[Setup] Warning deleting from delivery_slots: update or delete on table "delivery_slots" violates foreign key constraint "orders_delivery_slot_id_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[Setup] Warning deleting from users: update or delete on table "users" violates foreign key constraint "orders_assigned_to_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[Setup] Warning deleting from preparation_queues: update or delete on table "preparation_queues" violates foreign key constraint "users_assigned_queue_id_fkey" on table "users"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[Setup] Warning deleting from flow_executions: column flow_executions.created_at does not exist
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[Setup] Warning deleting from orders: update or delete on table "orders" violates foreign key constraint "route_orders_order_id_fkey" on table "route_orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[Setup] Warning deleting from delivery_slots: update or delete on table "delivery_slots" violates foreign key constraint "orders_delivery_slot_id_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[Setup] Warning deleting from users: update or delete on table "users" violates foreign key constraint "orders_assigned_to_fkey" on table "orders"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[Setup] Warning deleting from preparation_queues: update or delete on table "preparation_queues" violates foreign key constraint "users_assigned_queue_id_fkey" on table "users"
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[Setup] Warning deleting from flow_executions: column flow_executions.created_at does not exist
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+
+ [31mÔØ»[39m src/__tests__/unit/OrderService.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 15526[2mms[22m[39m
+     [33m[2mÔ£ô[22m[39m debe crear un pedido y sus items correctamente [33m 5839[2mms[22m[39m
+     [33m[2mÔ£ô[22m[39m debe fallar si el slot no tiene disponibilidad [33m 3631[2mms[22m[39m
+[31m     [31m├ù[31m debe asignar autom├íticamente a un preparador si hay uno disponible[39m[33m 6052[2mms[22m[39m
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Tests 1 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
+
+ FAIL  src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
+AssertionError: expected '469749cf-5869-41a0-aac6-5c6e2a6fb7b0' to be '70a961e7-5908-4fe2-b4ab-bd15490d1d05' // Object.is equality
+
+Expected: "70a961e7-5908-4fe2-b4ab-bd15490d1d05"
+Received: "469749cf-5869-41a0-aac6-5c6e2a6fb7b0"
+
+ ÔØ» src/__tests__/unit/OrderService.test.ts:116:36
+    114|         // 4. Asignar
+    115|         const assignedPreparerId = await orderService.autoAssignOrder(ÔÇª
+    116|         expect(assignedPreparerId).toBe(preparer.id);
+       |                                    ^
+    117| 
+    118|         const { data: updatedOrder } = await testSupabase
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/1]ÔÄ»
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 12:52:20
+[2m   Duration [22m 17.84s[2m (transform 130ms, setup 351ms, import 1.49s, tests 15.53s, environment 0ms)[22m
+

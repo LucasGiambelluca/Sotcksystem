@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { productService } from '../services/productService';
 import type { Product } from '../types';
 import ExportButtons from '../components/ExportButtons';
+import Pagination from '../components/common/Pagination';
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -16,10 +17,13 @@ export default function Products() {
   const [formData, setFormData] = useState({ 
     name: '', 
     description: '', 
-    price: 0, 
+    price: 0,
     stock: 0,
     category: '' 
   });
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   useEffect(() => {
     loadProducts();
@@ -112,8 +116,21 @@ export default function Products() {
   };
 
   const filteredProducts = products.filter(product => 
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     (categoryFilter === '' || product.category === categoryFilter)
+  );
+
+  // Pagination logic
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Reset pagination when filters change
+  useEffect(() => {
+     setCurrentPage(1);
+  }, [searchTerm, categoryFilter]);
+
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[];
@@ -217,7 +234,7 @@ export default function Products() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50/80 transition-colors group">
                   <td className="px-6 py-4">
                     <input 
@@ -299,6 +316,14 @@ export default function Products() {
           </table>
         </div>
       </div>
+
+      <Pagination 
+         currentPage={currentPage}
+         totalPages={totalPages}
+         onPageChange={setCurrentPage}
+         itemsPerPage={itemsPerPage}
+         totalItems={totalItems}
+      />
 
       {/* Modal */}
       {isModalOpen && (
