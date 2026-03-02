@@ -3,14 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   getSession,
   saveSession,
-  createInstance,
-  getQRCode,
   getInstanceStatus,
-  setWebhook,
   activateDemoMode,
 } from '../services/whatsappService';
 import type { WhatsAppSession } from '../types';
-import { ArrowLeft, WifiOff, QrCode, RefreshCw, CheckCircle2, Settings, MessageSquare, Save } from 'lucide-react';
+import { ArrowLeft, WifiOff, QrCode, RefreshCw, CheckCircle2, Settings, MessageSquare, Save, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WA_SERVER = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -144,64 +141,76 @@ export default function WhatsAppConnect() {
     }
   }
 
-  async function handleConnect() {
-    if (!session) return;
-    setLoading(true);
-    setQrCode(null);
-    try {
-      if (!session.api_url?.includes('green-api.com')) {
-         await createInstance(session.instance_name, session.api_url!, session.api_key!);
-      }
 
-      const qrResult = await getQRCode(session.instance_name, session.api_key!);
-      
-      if (qrResult?.type === 'qrCode' || qrResult?.base64) {
-        setQrCode(qrResult.message || qrResult.base64);
-        setStatus('connecting');
-        await saveSession({ status: 'connecting', qr_code: qrResult.message || qrResult.base64 });
-        
-        const interval = setInterval(async () => {
-          const res = await getInstanceStatus(session.instance_name, session.api_key!);
-          if (res.stateInstance === 'authorized' || res.instance?.state === 'open') {
-            clearInterval(interval);
-            setStatus('connected');
-            await saveSession({ status: 'connected' });
-            toast.success('¡WhatsApp Conectado!');
-            
-            const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
-            await setWebhook(session.instance_name, session.api_key!, webhookUrl);
-          }
-        }, 3000);
-      } else if (qrResult?.type === 'alreadyLogged' || qrResult?.instance?.state === 'open') {
-        setStatus('connected');
-        await saveSession({ status: 'connected' });
-        toast.info('Ya estaba conectado');
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error('Error al conectar');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleLogout() {
     if (!confirm('¿Estás seguro de que deseas desconectar el bot? Deberás escanear el QR nuevamente para conectar.')) return;
-    
     setLoading(true);
     try {
-        const url = provider === 'INTERNAL' ? 'http://localhost:3001' : (provider === 'GREEN-API' ? 'https://api.green-api.com' : customApiUrl);
-        
-        await fetch(`${url}/api/sessions/logout`, { method: 'POST' });
+        await fetch(`${WA_SERVER}/api/sessions/logout`, { method: 'POST' });
         await saveSession({ status: 'disconnected', qr_code: null });
         setStatus('disconnected');
         setQrCode(null);
-        toast.success('Bot desconectado correctamente');
+        toast.success('Bot desconectado. Generando QR...');
+        // Auto-reconnect to show QR immediately
+        setTimeout(() => handleConnectAndPollQR(), 1500);
     } catch (e) {
         console.error(e);
         toast.error('Error al desconectar el bot');
-    } finally {
         setLoading(false);
+    }
+  }
+
+  async function handleConnectAndPollQR() {
+    setLoading(true);
+    setQrCode(null);
+    try {
+      // Start the bot process
+      await fetch(`${WA_SERVER}/api/sessions/start`, { method: 'POST' });
+      toast.info('Esperando QR...');
+
+      // Poll until QR is available (max 20 seconds)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch(`${WA_SERVER}/api/default/auth/qr`);
+          const data = await res.json();
+          if (data.qr) {
+            clearInterval(poll);
+            setQrCode(data.qr);
+            setStatus('connecting');
+            await saveSession({ status: 'connecting' });
+            toast.success('¡QR listo! Escaneá con WhatsApp');
+            setLoading(false);
+            // Poll for connection
+            const connPoll = setInterval(async () => {
+              const statusRes = await fetch(`${WA_SERVER}/api/health`);
+              const statusData = await statusRes.json();
+              if (statusData?.checks?.whatsapp === true || statusData?.status === 'healthy') {
+                clearInterval(connPoll);
+                setStatus('connected');
+                setQrCode(null);
+                await saveSession({ status: 'connected' });
+                toast.success('¡WhatsApp Conectado!');
+              }
+            }, 3000);
+          } else if (data.status === 'WORKING') {
+            clearInterval(poll);
+            setStatus('connected');
+            setLoading(false);
+            toast.info('El bot ya estaba conectado');
+          } else if (attempts >= 10) {
+            clearInterval(poll);
+            setLoading(false);
+            toast.error('Timeout esperando QR. Intentá de nuevo.');
+          }
+        } catch { /* keep polling */ }
+      }, 2000);
+    } catch (e) {
+      console.error(e);
+      toast.error('Error al iniciar el bot');
+      setLoading(false);
     }
   }
 
@@ -348,37 +357,47 @@ export default function WhatsAppConnect() {
              'Escanea el código QR para conectar tu cuenta.'}
           </p>
 
-          {(status === 'connected' || status === 'demo_mode') && (
-            <div className="flex justify-center mb-6">
+          {/* Disconnect / Demo button — always visible when session exists */}
+          <div className="flex justify-center gap-3 mb-6 flex-wrap">
+            {(status === 'connected' || status === 'demo_mode') && (
                 <button
                    onClick={handleLogout}
                    disabled={loading}
-                   className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium flex items-center disabled:opacity-50 transition-colors"
+                   className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium flex items-center gap-2 disabled:opacity-50 transition-colors"
                 >
-                   {loading ? <RefreshCw className="animate-spin w-4 h-4 mr-2" /> : <WifiOff className="w-4 h-4 mr-2" />}
-                   Desconectar Bot
+                   {loading ? <RefreshCw className="animate-spin w-4 h-4" /> : <Unplug className="w-4 h-4" />}
+                   Desconectar y mostrar QR
                 </button>
-            </div>
-          )}
+            )}
+            {status === 'disconnected' && !qrCode && (
+                <button
+                   onClick={handleConnectAndPollQR}
+                   disabled={loading}
+                   className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2 disabled:opacity-50 transition-colors"
+                >
+                   {loading ? <RefreshCw className="animate-spin w-4 h-4" /> : <QrCode className="w-4 h-4" />}
+                   {loading ? 'Generando QR...' : 'Conectar y ver QR'}
+                </button>
+            )}
+          </div>
 
           
-          {(status === 'disconnected' || status === 'connecting') && (
-            <div className="flex flex-col items-center">
-              {!qrCode ? (
-                <button
-                  onClick={handleConnect}
-                  disabled={loading}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center disabled:opacity-50"
-                >
-                  {loading ? <RefreshCw className="animate-spin mr-2" /> : <QrCode className="mr-2" />}
-                  Generar Código QR
-                </button>
-              ) : (
-                <div className="bg-white p-4 border rounded-lg shadow-sm">
-                  <img src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} alt="QR Code" className="w-64 h-64" />
-                  <p className="mt-2 text-sm text-gray-500">Escanea con tu WhatsApp</p>
-                </div>
-              )}
+          {(status === 'connecting') && qrCode && (
+            <div className="flex flex-col items-center gap-3">
+              <div className="bg-white p-4 border-2 border-green-400 rounded-xl shadow-lg">
+                <img src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} alt="QR Code" className="w-64 h-64" />
+              </div>
+              <p className="text-sm text-gray-500 flex items-center gap-2">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Esperando escaneo...
+              </p>
+              <button
+                onClick={handleConnectAndPollQR}
+                disabled={loading}
+                className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                Regenerar QR
+              </button>
             </div>
           )}
           
