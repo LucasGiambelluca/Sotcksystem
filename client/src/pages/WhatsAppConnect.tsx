@@ -12,6 +12,16 @@ import { toast } from 'sonner';
 
 const WA_SERVER = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// ngrok free tier shows a browser warning page - this header bypasses it
+const waFetch = (url: string, options: RequestInit = {}) => fetch(url, {
+  ...options,
+  headers: {
+    'ngrok-skip-browser-warning': 'true',
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  },
+});
+
 export default function WhatsAppConnect() {
   const navigate = useNavigate();
   const [session, setSession] = useState<WhatsAppSession | null>(null);
@@ -38,7 +48,7 @@ export default function WhatsAppConnect() {
 
   async function loadWelcomeConfig() {
     try {
-      const res = await fetch(`${WA_SERVER}/api/config`);
+      const res = await waFetch(`${WA_SERVER}/api/config`);
       const data = await res.json();
       if (data) {
         setWelcomeMessage(data.welcome_message || '');
@@ -52,7 +62,7 @@ export default function WhatsAppConnect() {
   async function saveWelcomeConfig() {
     setSavingWelcome(true);
     try {
-      await fetch(`${WA_SERVER}/api/config`, {
+      await waFetch(`${WA_SERVER}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ welcome_message: welcomeMessage, is_active: welcomeActive }),
@@ -147,7 +157,7 @@ export default function WhatsAppConnect() {
     if (!confirm('¿Estás seguro de que deseas desconectar el bot? Deberás escanear el QR nuevamente para conectar.')) return;
     setLoading(true);
     try {
-        await fetch(`${WA_SERVER}/api/sessions/logout`, { method: 'POST' });
+        await waFetch(`${WA_SERVER}/api/sessions/logout`, { method: 'POST' });
         await saveSession({ status: 'disconnected', qr_code: null });
         setStatus('disconnected');
         setQrCode(null);
@@ -166,7 +176,7 @@ export default function WhatsAppConnect() {
     setQrCode(null);
     try {
       // Start the bot process
-      await fetch(`${WA_SERVER}/api/sessions/start`, { method: 'POST' });
+      await waFetch(`${WA_SERVER}/api/sessions/start`, { method: 'POST' });
       toast.info('Esperando QR...');
 
       // Poll until QR is available (max 20 seconds)
@@ -174,7 +184,7 @@ export default function WhatsAppConnect() {
       const poll = setInterval(async () => {
         attempts++;
         try {
-          const res = await fetch(`${WA_SERVER}/api/default/auth/qr`);
+          const res = await waFetch(`${WA_SERVER}/api/default/auth/qr`);
           const data = await res.json();
           if (data.qr) {
             clearInterval(poll);
@@ -185,7 +195,7 @@ export default function WhatsAppConnect() {
             setLoading(false);
             // Poll for connection
             const connPoll = setInterval(async () => {
-              const statusRes = await fetch(`${WA_SERVER}/api/health`);
+              const statusRes = await waFetch(`${WA_SERVER}/api/health`);
               const statusData = await statusRes.json();
               if (statusData?.checks?.whatsapp === true || statusData?.status === 'healthy') {
                 clearInterval(connPoll);
