@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2 } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, DollarSign } from 'lucide-react';
 import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
@@ -52,6 +52,7 @@ export default function Layout() {
     { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle, badge: waUnread },
     { name: 'Grupos', path: '/whatsapp/groups', icon: Users },
     { name: 'Bot Builder', path: '/whatsapp/builder', icon: Share2 },
+    { name: 'Pricing Demo', path: '/admin/pricing-demo', icon: DollarSign },
   ];
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);

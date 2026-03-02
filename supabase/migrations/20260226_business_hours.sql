@@ -1,0 +1,1 @@
+ALTER TABLE whatsapp_config ADD COLUMN IF NOT EXISTS business_hours JSONB DEFAULT '{"isActive": false, "days": [1,2,3,4,5], "startTime": "09:00", "endTime": "18:00", "timezone": "America/Argentina/Buenos_Aires"}'::jsonb;

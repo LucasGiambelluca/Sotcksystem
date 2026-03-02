@@ -18,6 +18,8 @@ const nodeItems = [
   { type: 'timerNode', icon: Clock, label: 'Timer / Espera', desc: 'Pausa el flujo.', bg: 'bg-blue-100', text: 'text-blue-600' },
   { type: 'reportNode', icon: AlertTriangle, label: 'Reporte', desc: 'Crea reclamo/queja.', bg: 'bg-red-100', text: 'text-red-600' },
   { type: 'handoverNode', icon: HelpCircle, label: 'Asesor Humano', desc: 'Pausa el bot y avisa.', bg: 'bg-rose-100', text: 'text-rose-600' },
+  { type: 'businessHoursNode', icon: Store, label: 'Horario Atención', desc: 'Detecta si el local está abierto.', bg: 'bg-orange-100', text: 'text-orange-600' },
+  { type: 'sendCatalogNode', icon: ShoppingBag, label: 'Enviar Catálogo', desc: 'Envía link del catálogo online.', bg: 'bg-emerald-100', text: 'text-emerald-600' },
 ];
 
 export default function Sidebar() {

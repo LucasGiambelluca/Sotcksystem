@@ -1,0 +1,125 @@
+services:
+  # ==========================================
+  # CADDY - Reverse proxy con HTTPS automático (Let's Encrypt)
+  # ==========================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: stock-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - stock-network
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+
+  # ==========================================
+  # FRONTEND - Nginx sirviendo React SPA
+  # ==========================================
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    container_name: stock-frontend
+    # Puerto NO expuesto directamente — acceso solo vía Caddy
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # BACKEND - Node.js + Baileys + API
+  # ==========================================
+  backend:
+    build:
+      context: ./whatsapp-server
+      dockerfile: Dockerfile
+    container_name: stock-backend
+    # Puerto NO expuesto directamente — acceso solo vía Caddy
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - BAILEYS_SESSION_PATH=/app/sessions/auth_info_baileys
+      - BAILEYS_STORE_PATH=/app/sessions/baileys_store.json
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - FRONTEND_URL=${FRONTEND_URL}
+    volumes:
+      - baileys_sessions:/app/sessions
+      - backend_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      # El health check ahora siempre retorna 200 (app.ts fue actualizado)
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # REDIS - Cache y coordinación
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  baileys_sessions:
+    driver: local
+  backend_logs:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  stock-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

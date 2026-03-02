@@ -145,6 +145,15 @@ export default function RoutePlanner() {
         fetchRouteData();
     }, [id]);
 
+    const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = {
+            ...options.headers,
+            'Authorization': session ? `Bearer ${session.access_token}` : '',
+        };
+        return fetch(url, { ...options, headers });
+    };
+
     const fetchRouteData = async () => {
         if (!id) return;
         setLoading(true);
@@ -209,7 +218,7 @@ export default function RoutePlanner() {
 
         try {
             // Call API
-            const response = await fetch(`http://localhost:3001/api/logistics/routes/${id}/sequence`, {
+            const response = await fetchWithAuth(`http://localhost:3001/api/logistics/routes/${id}/sequence`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ new_sequence: updates })
@@ -232,7 +241,7 @@ export default function RoutePlanner() {
         setOptimizing(true);
         setOptimizationMetrics(null);
         try {
-            const response = await fetch(`http://localhost:3001/api/logistics/routes/${id}/optimize`, {
+            const response = await fetchWithAuth(`http://localhost:3001/api/logistics/routes/${id}/optimize`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ strategy: optimizationStrategy })
@@ -263,7 +272,7 @@ export default function RoutePlanner() {
 
     const handleGetNavigation = async () => {
         try {
-            const response = await fetch(`http://localhost:3001/api/logistics/routes/${id}/navigation-url`);
+            const response = await fetchWithAuth(`http://localhost:3001/api/logistics/routes/${id}/navigation-url`);
             const data = await response.json();
             
             if (data.primary_url) {
@@ -280,7 +289,7 @@ export default function RoutePlanner() {
     const handleShareRoute = async () => {
         setSharing(true);
         try {
-            const response = await fetch(`http://localhost:3001/api/logistics/routes/${id}/share`, {
+            const response = await fetchWithAuth(`http://localhost:3001/api/logistics/routes/${id}/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: driverPhone })

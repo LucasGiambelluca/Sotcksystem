@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown, Image, ExternalLink, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '../services/productService';
+import { supabase } from '../supabaseClient';
 import type { Product } from '../types';
 import ExportButtons from '../components/ExportButtons';
 import Pagination from '../components/common/Pagination';
@@ -14,13 +15,20 @@ export default function Products() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    description: '', 
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
     price: 0,
     stock: 0,
-    category: '' 
+    category: '',
+    image_url_1: '' as string | null,
+    image_url_2: '' as string | null,
+    auto_refill: false,
+    auto_refill_qty: 0,
   });
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const img1Ref = useRef<HTMLInputElement>(null);
+  const img2Ref = useRef<HTMLInputElement>(null);
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
@@ -48,13 +56,21 @@ export default function Products() {
         description: formData.description,
         price: Number(formData.price),
         stock: Number(formData.stock),
-        category: formData.category
+        category: formData.category,
+        image_url_1: formData.image_url_1 || null,
+        image_url_2: formData.image_url_2 || null,
+        auto_refill: formData.auto_refill,
+        auto_refill_qty: formData.auto_refill ? Number(formData.auto_refill_qty) : 0,
       };
 
       if (editingProduct) {
         await productService.update(editingProduct.id, productData);
         toast.success('Producto actualizado correctamente');
       } else {
+        if (products.length >= 100) {
+          toast.error('Límite de 100 productos alcanzado. Eliminá alguno para agregar uno nuevo.');
+          return;
+        }
         await productService.create(productData);
         toast.success('Producto creado correctamente');
       }
@@ -63,7 +79,7 @@ export default function Products() {
     } catch (error: any) {
       console.error('Error saving product:', error);
       if (error?.code === 'PGRST204') {
-        toast.error('Error: Falta la columna "category". Ejecute el SQL necesario.');
+        toast.error('Error: columna faltante.');
       } else {
         toast.error('Error al guardar el producto');
       }
@@ -95,16 +111,20 @@ export default function Products() {
   const openModal = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData({ 
-        name: product.name, 
-        description: product.description || '', 
+      setFormData({
+        name: product.name,
+        description: product.description || '',
         price: product.price,
         stock: product.stock,
-        category: product.category || ''
+        category: product.category || '',
+        image_url_1: product.image_url_1 || '',
+        image_url_2: product.image_url_2 || '',
+        auto_refill: (product as any).auto_refill || false,
+        auto_refill_qty: (product as any).auto_refill_qty || 0,
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', description: '', price: 0, stock: 0, category: '' });
+      setFormData({ name: '', description: '', price: 0, stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
     }
     setIsModalOpen(true);
   };
@@ -112,8 +132,26 @@ export default function Products() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
-    setFormData({ name: '', description: '', price: 0, stock: 0, category: '' });
+    setFormData({ name: '', description: '', price: 0, stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
   };
+
+  async function uploadImage(file: File, slot: 1 | 2, tempId: string) {
+    setUploadingImg(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${tempId}_${slot}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('product-images').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+      setFormData(prev => ({ ...prev, [`image_url_${slot}`]: data.publicUrl }));
+      toast.success(`Imagen ${slot} subida correctamente`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al subir la imagen. ¿Existe el bucket product-images en Supabase Storage?');
+    } finally {
+      setUploadingImg(false);
+    }
+  }
 
   const filteredProducts = products.filter(product => 
     (categoryFilter === '' || product.category === categoryFilter)
@@ -174,6 +212,16 @@ export default function Products() {
               { header: 'Descripción', key: 'description' }
             ]}
           />
+          <a
+            href="/catalog"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center space-x-2 hover:bg-emerald-700 shadow transition w-full sm:w-auto"
+          >
+            <ShoppingBag size={18} />
+            <span className="font-medium">Ver Catálogo</span>
+            <ExternalLink size={14} />
+          </a>
           <button
             onClick={() => openModal()}
             className="bg-primary-600 text-white px-5 py-2.5 rounded-xl flex items-center justify-center space-x-2 hover:bg-primary-700 shadow-lg shadow-primary-900/20 transition-all w-full sm:w-auto"
@@ -246,8 +294,11 @@ export default function Products() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-4">
-                      <div className="bg-primary-50 p-3 rounded-xl text-primary-600">
-                        <Package size={20} />
+                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                        {product.image_url_1
+                          ? <img src={product.image_url_1} alt={product.name} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><Package size={20} className="text-gray-400" /></div>
+                        }
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900">{product.name}</div>
@@ -368,6 +419,56 @@ export default function Products() {
                   rows={2}
                 />
               </div>
+
+              {/* Image Upload: 2 slots */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                  <Image size={14} /> Fotos del producto (máx. 2)
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {([1, 2] as const).map(slot => {
+                    const urlKey = `image_url_${slot}` as 'image_url_1' | 'image_url_2';
+                    const currentUrl = formData[urlKey];
+                    return (
+                      <div key={slot} className="relative">
+                        <div
+                          className="w-full h-28 rounded-xl border-2 border-dashed border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors"
+                          onClick={() => (slot === 1 ? img1Ref : img2Ref).current?.click()}
+                        >
+                          {currentUrl ? (
+                            <img src={currentUrl} alt={`Foto ${slot}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center text-gray-400 gap-1">
+                              <Image size={22} />
+                              <span className="text-xs">Foto {slot}</span>
+                            </div>
+                          )}
+                        </div>
+                        {currentUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, [urlKey]: '' }))}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
+                        <input
+                          ref={slot === 1 ? img1Ref : img2Ref}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) uploadImage(f, slot, editingProduct?.id || `new_${Date.now()}`);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                {uploadingImg && <p className="text-xs text-primary-600 mt-1 animate-pulse">Subiendo imagen...</p>}
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Precio *</label>
@@ -393,6 +494,33 @@ export default function Products() {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Auto-Refill Toggle */}
+              <div className="border border-gray-200 rounded-xl p-4 bg-amber-50/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">🔄 Renovar stock automáticamente</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Se repone todos los días a las 06:00 AM</p>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer" onClick={() => setFormData(prev => ({ ...prev, auto_refill: !prev.auto_refill }))}>
+                    <input type="checkbox" className="sr-only peer" checked={formData.auto_refill} onChange={() => {}} />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </div>
+                </div>
+                {formData.auto_refill && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reponer hasta (unidades)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={formData.auto_refill_qty}
+                      onChange={(e) => setFormData({ ...formData, auto_refill_qty: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      placeholder="Ej: 20"
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-end space-x-3 pt-4">

@@ -36,6 +36,8 @@ import ReportNode from '../components/bot-builder/ReportNode';
 import StockCheckNode from '../components/bot-builder/StockCheckNode';
 import AddToCartNode from '../components/bot-builder/AddToCartNode';
 import HandoverNode from '../components/bot-builder/HandoverNode';
+import BusinessHoursNode from '../components/bot-builder/BusinessHoursNode';
+import SendCatalogNode from '../components/bot-builder/SendCatalogNode';
 
 // Register custom node types
 const nodeTypes = {
@@ -55,6 +57,8 @@ const nodeTypes = {
   stockCheckNode: StockCheckNode,
   addToCartNode: AddToCartNode,
   handoverNode: HandoverNode,
+  businessHoursNode: BusinessHoursNode,
+  sendCatalogNode: SendCatalogNode,
 };
 
 const initialNodes: Node[] = [
@@ -189,6 +193,7 @@ export default function BotBuilder() {
             message: type === 'threadNode' ? '' : (type === 'handoverNode' ? 'Te estamos transfiriendo con un asesor humano. Por favor, aguarda un momento.' : undefined),
             duration: type === 'timerNode' ? 1000 : undefined,
             showTyping: type === 'timerNode' ? true : undefined,
+            // businessHoursNode has no extra configurable data – reads from global settings
             
             // Callbacks
             onDelete: () => deleteNode(newNode.id),

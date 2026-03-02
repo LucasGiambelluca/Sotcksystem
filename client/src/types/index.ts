@@ -13,7 +13,20 @@ export interface Product {
   price: number;
   stock: number;
   category?: string;
+  image_url_1?: string | null;
+  image_url_2?: string | null;
   created_at: string;
+}
+
+export interface PublicCatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category?: string;
+  image_url_1?: string | null;
+  image_url_2?: string | null;
+  in_stock: boolean;
 }
 
 export interface Movement {
@@ -165,4 +178,16 @@ export interface WhatsAppConfig {
   template_cancelled?: string;
   checkout_message?: string;
   sileo_api_key?: string;
+  business_hours?: {
+    isActive: boolean;
+    days: number[]; // 0=Sunday, 1=Monday...
+    startTime: string; // "09:00"
+    endTime: string; // "18:00"
+    timezone: string;
+  };
+  catalog_banner_url?: string;
+  catalog_logo_url?: string;
+  catalog_business_name?: string;
+  catalog_accent_color?: string;
+  whatsapp_phone?: string;
 }

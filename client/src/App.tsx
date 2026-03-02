@@ -21,6 +21,8 @@ import Settings from './pages/Settings';
 import KitchenDashboard from './pages/KitchenDashboard';
 import DriverView from './pages/DriverView';
 import ClaimsPanel from './pages/ClaimsPanel';
+import Catalog from './pages/Catalog';
+import PricingPresentation from './pages/PricingPresentation';
 
 function App() {
   return (
@@ -29,6 +31,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/driver/:id" element={<DriverView />} />
+          <Route path="/catalog" element={<Catalog />} />
           
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
@@ -49,6 +52,7 @@ function App() {
               <Route path="/whatsapp/groups" element={<WhatsAppGroups />} />
               <Route path="/whatsapp/builder" element={<BotBuilder />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/admin/pricing-demo" element={<PricingPresentation />} />
             </Route>
           </Route>
         </Routes>

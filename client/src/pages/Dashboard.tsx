@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Users, Package, DollarSign, TrendingUp, AlertCircle, Activity, ArrowRight, MessageCircle, Truck, Settings } from 'lucide-react';
 import { clientService } from '../services/clientService';
 import { productService } from '../services/productService';
@@ -41,11 +41,65 @@ export default function Dashboard() {
   
   const [pendingWhatsAppOrders, setPendingWhatsAppOrders] = useState<any[]>([]);
   const [upcomingRoutes, setUpcomingRoutes] = useState<any[]>([]);
+  const [ordersEnCamino, setOrdersEnCamino] = useState<any[]>([]);
+  const [ordersEntregadosHoy, setOrdersEntregadosHoy] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Sound refs & debounce
+  const lastSoundTime = useRef<number>(0);
+  const SOUND_COOLDOWN_MS = 10000; // max 1 sound per 10 seconds
+
+  const playSound = useCallback((type: 'newOrder' | 'cancel') => {
+    const now = Date.now();
+    if (now - lastSoundTime.current < SOUND_COOLDOWN_MS) return;
+    lastSoundTime.current = now;
+    // Simple Web Audio API beeps — no asset files needed
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === 'newOrder') {
+      osc.frequency.value = 880; // A5 — bright ping
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.6);
+    } else {
+      osc.frequency.value = 220; // A3 — low alert
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8);
+    }
+  }, []);
 
   useEffect(() => {
     loadStats();
-  }, []);
+
+    // Supabase Realtime — listen for new orders and play sounds
+    const channel = supabase
+      .channel('dashboard-order-alerts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => {
+          playSound('newOrder');
+          loadStats(); // Refresh counters
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'status=eq.CANCELLED' },
+        () => {
+          playSound('cancel');
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [playSound]);
 
   const loadStats = async () => {
     try {
@@ -61,13 +115,37 @@ export default function Dashboard() {
       }
 
       // 2. Load Stats
-      const [clients, products, movements, waOrders, routes] = await Promise.all([
+      // Operating Day: starts at 06:00 AM Buenos Aires (UTC-3)
+      // so "today" starts at 09:00 UTC (06:00 - (-3h) = 09:00 UTC)
+      const now = new Date();
+      const utcH = now.getUTCHours();
+      const cutoffUTC = new Date(now);
+      // If current time is before 09:00 UTC (06:00 ART), use previous day's 09:00 UTC as start
+      if (utcH < 9) {
+        cutoffUTC.setUTCDate(cutoffUTC.getUTCDate() - 1);
+      }
+      cutoffUTC.setUTCHours(9, 0, 0, 0);
+      const operativeDayStart = cutoffUTC.toISOString();
+
+      const [clients, products, movements, waOrders, routes, enCamino, entregados] = await Promise.all([
         clientService.getAll(),
         productService.getAll(),
         supabase.from('movements').select('*').order('created_at', { ascending: false }).limit(10),
         supabase.from('orders').select('*, clients(*)').eq('channel', 'WHATSAPP').eq('status', 'PENDING').limit(5),
-        supabase.from('routes').select('*').gte('date', new Date().toISOString().split('T')[0]).order('date', { ascending: true }).limit(5)
+        supabase.from('routes').select('*').gte('date', new Date().toISOString().split('T')[0]).order('date', { ascending: true }).limit(5),
+        // Orders currently in transit
+        supabase.from('orders')
+          .select('id, phone, status, out_at, delivered_by, clients(name)')
+          .eq('status', 'OUT_FOR_DELIVERY'),
+        // Orders delivered today (operating day)
+        supabase.from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'DELIVERED')
+          .gte('delivered_at', operativeDayStart)
       ]);
+
+      setOrdersEnCamino(enCamino.data || []);
+      setOrdersEntregadosHoy(entregados.count || 0);
 
       const totalDebt = (movements.data || []).reduce((acc: number, curr: { type: string; amount: number }) => {
         if (curr.type === 'DEBT') return acc + curr.amount;
@@ -104,6 +182,7 @@ export default function Dashboard() {
       
       setPendingWhatsAppOrders(waOrders.data || []);
       setUpcomingRoutes(routes.data || []);
+
 
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -196,56 +275,92 @@ export default function Dashboard() {
       )}
       
       {dashboardConfig.stats && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 animate-in fade-in zoom-in-95">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 mb-6 md:mb-8 animate-in fade-in zoom-in-95">
         {/* Card: Clientes */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-blue-50 p-3 rounded-xl">
-              <Users className="text-blue-600" size={24} />
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-blue-50 p-2.5 rounded-xl">
+              <Users className="text-blue-600" size={20} />
             </div>
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">Clientes Totales</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalClients}</p>
+          <h3 className="text-gray-500 text-xs font-medium">Clientes</h3>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalClients}</p>
         </div>
 
         {/* Card: Productos */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-purple-50 p-3 rounded-xl">
-              <Package className="text-purple-600" size={24} />
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-purple-50 p-2.5 rounded-xl">
+              <Package className="text-purple-600" size={20} />
             </div>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">Productos</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
+          <h3 className="text-gray-500 text-xs font-medium">Productos</h3>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
         </div>
 
         {/* Card: Deuda */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-red-50 p-3 rounded-xl">
-              <DollarSign className="text-red-600" size={24} />
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-red-50 p-2.5 rounded-xl">
+              <DollarSign className="text-red-600" size={20} />
             </div>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">Deuda Total</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-1">${stats.totalDebt.toFixed(2)}</p>
+          <h3 className="text-gray-500 text-xs font-medium">Deuda Total</h3>
+          <p className="text-2xl font-bold text-gray-900 mt-1">${stats.totalDebt.toFixed(2)}</p>
         </div>
 
         {/* Card: Stock Bajo */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-yellow-50 p-3 rounded-xl">
-              <AlertCircle className="text-yellow-600" size={24} />
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-yellow-50 p-2.5 rounded-xl">
+              <AlertCircle className="text-yellow-600" size={20} />
             </div>
             {stats.lowStockProducts > 0 && (
               <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">Atención</span>
             )}
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">Stock Bajo</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{stats.lowStockProducts}</p>
+          <h3 className="text-gray-500 text-xs font-medium">Stock Bajo</h3>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.lowStockProducts}</p>
+        </div>
+
+        {/* Card: En Camino */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-orange-50 p-2.5 rounded-xl">
+              <Truck className="text-orange-600" size={20} />
+            </div>
+            {ordersEnCamino.length > 0 && (
+              <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                Activo
+              </span>
+            )}
+          </div>
+          <h3 className="text-gray-500 text-xs font-medium">En Camino</h3>
+          <p className="text-2xl font-bold text-orange-600 mt-1">{ordersEnCamino.length}</p>
+          {ordersEnCamino.length > 0 && (
+            <p className="text-xs text-gray-400 mt-1 truncate">
+              {ordersEnCamino[0]?.clients?.name || 'Pedidos'}...
+            </p>
+          )}
+        </div>
+
+        {/* Card: Entregados Hoy */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-green-50 p-2.5 rounded-xl">
+              <TrendingUp className="text-green-600" size={20} />
+            </div>
+          </div>
+          <h3 className="text-gray-500 text-xs font-medium">Entregados Hoy</h3>
+          <p className="text-2xl font-bold text-green-600 mt-1">{ordersEntregadosHoy}</p>
+          <p className="text-xs text-gray-400 mt-1">jornada operativa</p>
         </div>
       </div>
       )}
+
+
 
       {(dashboardConfig.whatsapp || dashboardConfig.routes) && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-8">

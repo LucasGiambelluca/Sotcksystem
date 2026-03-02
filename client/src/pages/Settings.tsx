@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
-import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power } from 'lucide-react';
+import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store } from 'lucide-react';
 import type { WhatsAppConfig } from '../types';
 
 interface DeliverySlot {
@@ -22,7 +22,7 @@ interface ShippingZone {
 }
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'logistics' | 'whatsapp'>('logistics');
+  const [activeTab, setActiveTab] = useState<'logistics' | 'whatsapp' | 'catalog'>('logistics');
   const [slots, setSlots] = useState<DeliverySlot[]>([]);
   const [zones, setZones] = useState<ShippingZone[]>([]);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
@@ -63,19 +63,27 @@ export default function Settings() {
       if (zonesRes.data) setZones(zonesRes.data);
       else if (zonesRes.error) console.error('Error loading zones:', zonesRes.error);
 
-      // Load WhatsApp Config
-      const waRes = await supabase.from('whatsapp_config').select('*').single();
+      // Load WhatsApp Config - use maybeSingle to avoid error if multiple rows
+      const waRes = await supabase
+        .from('whatsapp_config')
+        .select('*')
+        .order('id', { ascending: false }) // Always read the latest row
+        .limit(1)
+        .maybeSingle();
       
       if (waRes.data) {
           setWaConfig(waRes.data);
+      } else if (!waRes.data && !waRes.error) {
+          // Table is empty — create ONE default row
+          const { data: newRow, error: insertErr } = await supabase
+            .from('whatsapp_config')
+            .insert({ welcome_message: '' })
+            .select()
+            .single();
+          if (newRow) setWaConfig(newRow);
+          if (insertErr) console.error('Error creating default WA config:', insertErr);
       } else if (waRes.error) {
           console.error('Error loading WA config:', waRes.error);
-          // If not found, try to create it
-          if (waRes.error.code === 'PGRST116') {
-             const { data, error } = await supabase.from('whatsapp_config').insert({}).select().single();
-             if (data) setWaConfig(data);
-             if (error) console.error('Error creating default WA config:', error);
-          }
       }
 
     } catch (error) {
@@ -154,7 +162,13 @@ export default function Settings() {
           template_delivered: waConfig.template_delivered,
           template_cancelled: waConfig.template_cancelled,
           checkout_message: waConfig.checkout_message,
-          sileo_api_key: waConfig.sileo_api_key
+          sileo_api_key: waConfig.sileo_api_key,
+          business_hours: waConfig.business_hours,
+          catalog_business_name: waConfig.catalog_business_name,
+          catalog_accent_color: waConfig.catalog_accent_color,
+          catalog_logo_url: waConfig.catalog_logo_url,
+          catalog_banner_url: waConfig.catalog_banner_url,
+          whatsapp_phone: waConfig.whatsapp_phone
         })
         .eq('id', waConfig.id);
 
@@ -205,6 +219,15 @@ export default function Settings() {
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
             WhatsApp Bot
+          </div>
+        </button>
+        <button
+          className={`px-4 py-2 font-medium ${activeTab === 'catalog' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('catalog')}
+        >
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4" />
+            Catálogo Público
           </div>
         </button>
       </div>
@@ -438,6 +461,109 @@ export default function Settings() {
                 </div>
             </div>
 
+            {/* Business Hours Settings */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                        <Clock className="text-orange-600" />
+                        <h2 className="text-lg font-semibold">Horarios de Atención</h2>
+                    </div>
+                </div>
+                
+                <div className="mb-4">
+                     <label className="flex items-center gap-2 cursor-pointer mb-4">
+                        <input 
+                            type="checkbox" 
+                            checked={waConfig.business_hours?.isActive ?? false}
+                            onChange={(e) => setWaConfig({
+                                ...waConfig, 
+                                business_hours: { 
+                                    ...(waConfig.business_hours || { days: [1,2,3,4,5], startTime: '09:00', endTime: '18:00', timezone: 'America/Argentina/Buenos_Aires' }), 
+                                    isActive: e.target.checked 
+                                }
+                            })}
+                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                        />
+                        <span className="text-gray-700 font-medium">Habilitar control de horarios global</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mb-4">Si está habilitado, los flujos podrán consultar estos horarios para determinar si el local está abierto.</p>
+
+                    <div className={`space-y-4 ${(waConfig.business_hours?.isActive ?? false) ? '' : 'opacity-50 pointer-events-none'}`}>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Días Abierto (0=Domingo, 1=Lunes...)</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day, idx) => (
+                                    <label key={idx} className="flex items-center gap-1 bg-gray-50 px-3 py-1.5 rounded border cursor-pointer hover:bg-gray-100">
+                                        <input 
+                                            type="checkbox"
+                                            checked={(waConfig.business_hours?.days || []).includes(idx)}
+                                            onChange={(e) => {
+                                                const currentDays = waConfig.business_hours?.days || [];
+                                                const newDays = e.target.checked 
+                                                    ? [...currentDays, idx]
+                                                    : currentDays.filter(d => d !== idx);
+                                                
+                                                setWaConfig({
+                                                    ...waConfig,
+                                                    business_hours: {
+                                                        ...(waConfig.business_hours || { isActive: false, days: [], startTime: '09:00', endTime: '18:00', timezone: 'America/Argentina/Buenos_Aires' }),
+                                                        days: newDays
+                                                    }
+                                                });
+                                            }}
+                                            className="text-orange-600 rounded focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{day}</span>
+                                    </label>
+                                ))}
+                            </div>
+                         </div>
+
+                         <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Hora Apertura</label>
+                                <input 
+                                    type="time" 
+                                    value={waConfig.business_hours?.startTime || '09:00'}
+                                    onChange={(e) => setWaConfig({
+                                        ...waConfig,
+                                        business_hours: {
+                                            ...(waConfig.business_hours || { isActive: false, days: [1,2,3,4,5], endTime: '18:00', timezone: 'America/Argentina/Buenos_Aires' }),
+                                            startTime: e.target.value
+                                        }
+                                    })}
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Hora Cierre</label>
+                                <input 
+                                    type="time" 
+                                    value={waConfig.business_hours?.endTime || '18:00'}
+                                    onChange={(e) => setWaConfig({
+                                        ...waConfig,
+                                        business_hours: {
+                                            ...(waConfig.business_hours || { isActive: false, days: [1,2,3,4,5], startTime: '09:00', timezone: 'America/Argentina/Buenos_Aires' }),
+                                            endTime: e.target.value
+                                        }
+                                    })}
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
+                                />
+                            </div>
+                         </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                        <button
+                            onClick={saveWaConfig}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium transition"
+                        >
+                            <Save size={16} />
+                            Guardar Horarios
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {/* Notification Templates */}
             <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center gap-2 mb-6">
@@ -528,6 +654,166 @@ export default function Settings() {
                     </button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {activeTab === 'catalog' && waConfig && (
+        <div className="space-y-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center gap-2 mb-6">
+              <Store className="text-blue-600" />
+              <h2 className="text-lg font-semibold">Diseño del Catálogo Público</h2>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Negocio</label>
+                <input 
+                  type="text"
+                  value={waConfig.catalog_business_name || ''}
+                  onChange={(e) => setWaConfig({...waConfig, catalog_business_name: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: Mi Pizzería"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Número de WhatsApp (Ventas)</label>
+                <input 
+                  type="text"
+                  value={waConfig.whatsapp_phone || ''}
+                  onChange={(e) => setWaConfig({...waConfig, whatsapp_phone: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono"
+                  placeholder="Ej: 5491123456789 (Sin + ni guiones)"
+                />
+                <p className="text-xs text-gray-500 mt-1">El número donde llegarán los pedidos del catálogo.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Color de Acento (Hexadecimal)</label>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="color"
+                    value={waConfig.catalog_accent_color || '#dc2626'}
+                    onChange={(e) => setWaConfig({...waConfig, catalog_accent_color: e.target.value})}
+                    className="h-10 w-20 p-1 border rounded cursor-pointer"
+                  />
+                  <input 
+                    type="text"
+                    value={waConfig.catalog_accent_color || '#dc2626'}
+                    onChange={(e) => setWaConfig({...waConfig, catalog_accent_color: e.target.value})}
+                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                    placeholder="#DC2626"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                    <span>Logo (URL)</span>
+                    <button 
+                      type="button" 
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      className="text-blue-600 text-xs hover:underline"
+                    >
+                      Subir archivo
+                    </button>
+                  </label>
+                  <input 
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const toastId = toast.loading('Subiendo logo...');
+                      try {
+                        const path = `branding/logo_${Date.now()}.${file.name.split('.').pop()}`;
+                        const { error } = await supabase.storage.from('product-images').upload(path, file);
+                        if (error) throw error;
+                        const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+                        setWaConfig({...waConfig, catalog_logo_url: data.publicUrl});
+                        toast.success('Logo subido correctamente', { id: toastId });
+                      } catch (err) {
+                        toast.error('Error al subir logo', { id: toastId });
+                      }
+                    }}
+                  />
+                  <input 
+                    type="text"
+                    value={waConfig.catalog_logo_url || ''}
+                    onChange={(e) => setWaConfig({...waConfig, catalog_logo_url: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    placeholder="https://..."
+                  />
+                  {waConfig.catalog_logo_url && (
+                    <div className="mt-2 h-20 w-20 rounded-full border bg-gray-50 overflow-hidden flex items-center justify-center">
+                      <img src={waConfig.catalog_logo_url} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                    <span>Banner (URL)</span>
+                    <button 
+                      type="button" 
+                      onClick={() => document.getElementById('banner-upload')?.click()}
+                      className="text-blue-600 text-xs hover:underline"
+                    >
+                      Subir archivo
+                    </button>
+                  </label>
+                  <input 
+                    id="banner-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const toastId = toast.loading('Subiendo banner...');
+                      try {
+                        const path = `branding/banner_${Date.now()}.${file.name.split('.').pop()}`;
+                        const { error } = await supabase.storage.from('product-images').upload(path, file);
+                        if (error) throw error;
+                        const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+                        setWaConfig({...waConfig, catalog_banner_url: data.publicUrl});
+                        toast.success('Banner subido correctamente', { id: toastId });
+                      } catch (err) {
+                        toast.error('Error al subir banner', { id: toastId });
+                      }
+                    }}
+                  />
+                  <input 
+                    type="text"
+                    value={waConfig.catalog_banner_url || ''}
+                    onChange={(e) => setWaConfig({...waConfig, catalog_banner_url: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    placeholder="https://..."
+                  />
+                  {waConfig.catalog_banner_url && (
+                    <div className="mt-2 h-24 w-full rounded-xl border bg-gray-50 overflow-hidden">
+                      <img src={waConfig.catalog_banner_url} alt="Banner preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end pt-4 border-t">
+                  <button 
+                      onClick={saveWaConfig}
+                      className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                      <Save size={18} />
+                      Guardar Diseño
+                  </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

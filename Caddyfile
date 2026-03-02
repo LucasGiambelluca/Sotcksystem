@@ -1,0 +1,37 @@
+# Reemplazá TUDOMINIO.COM con tu dominio real
+# Si no tenés dominio, usá la IP directamente (ver comentario más abajo)
+
+# --- Panel de administración (Frontend) ---
+panel.TUDOMINIO.COM {
+    reverse_proxy frontend:80
+}
+
+# --- API Backend ---
+api.TUDOMINIO.COM {
+    reverse_proxy backend:3001
+
+    # Timeout largo para operaciones de Baileys
+    reverse_proxy backend:3001 {
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 60s
+        }
+    }
+}
+
+# ============================================================
+# OPCIÓN SIN DOMINIO (solo IP pública) — descomentar si aplica
+# Nota: sin HTTPS, el escaneo de QR desde el panel puede tener limitaciones
+# ============================================================
+# :80 {
+#     @frontend path /
+#     handle @frontend {
+#         reverse_proxy frontend:80
+#     }
+#     handle /api/* {
+#         reverse_proxy backend:3001
+#     }
+#     handle /health {
+#         reverse_proxy backend:3001
+#     }
+# }

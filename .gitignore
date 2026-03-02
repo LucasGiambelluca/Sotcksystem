@@ -1,5 +1,18 @@
 node_modules
+node_modules_old
 .env
 .DS_Store
 dist
 coverage
+
+# Baileys session data (sensible — solo va en el volumen Docker)
+whatsapp-server/auth_info_baileys/
+whatsapp-server/auth_test/
+whatsapp-server/baileys_store*.json
+
+# Logs de debug (generados en desarrollo, no van al repo)
+*.log
+whatsapp-server/integration_output.log
+
+# Archivos temporales y de test
+tmp/
