@@ -13,9 +13,9 @@ import type { Product, OrderWithDetails } from '../types';
 console.log('=== Test 1: WhatsApp Text Parser ===');
 
 const mockProducts: Product[] = [
-  { id: '1', name: 'Coca Cola', price: 150, stock: 100, description: null, category: 'Bebidas', created_at: '' },
-  { id: '2', name: 'Pan Integral', price: 80, stock: 50, description: null, category: 'Panadería', created_at: '' },
-  { id: '3', name: 'Leche Entera', price: 120, stock: 30, description: null, category: 'Lácteos', created_at: '' },
+  { id: '1', name: 'Coca Cola', price: 150, stock: 100, production_stock: 0, min_stock: 10, description: null, category: 'Bebidas', created_at: '' },
+  { id: '2', name: 'Pan Integral', price: 80, stock: 50, production_stock: 0, min_stock: 10, description: null, category: 'Panadería', created_at: '' },
+  { id: '3', name: 'Leche Entera', price: 120, stock: 30, production_stock: 0, min_stock: 10, description: null, category: 'Lácteos', created_at: '' },
 ];
 
 const whatsappText = `

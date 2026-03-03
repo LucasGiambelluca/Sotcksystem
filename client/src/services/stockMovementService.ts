@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import type { StockMovement, StockMovementType, Product } from '../types';
+import type { StockMovement } from '../types';
 
 export const stockMovementService = {
   /**
