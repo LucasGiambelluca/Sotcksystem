@@ -2,14 +2,39 @@ import { NodeExecutor, NodeExecutionResult, ExecutionContext } from './types';
 
 export class CreateOrderExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
-        const rawItems = context.order_items || [];
-        const items = Array.isArray(rawItems) ? rawItems : [];
-
-        const total = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * (i.qty || i.quantity || 1)), 0);
+        let items = Array.isArray(context.order_items) ? context.order_items : [];
+        let total = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * (i.qty || i.quantity || 1)), 0);
+        let pushName = context.pushName;
+        const { supabase } = require('../../config/database');
+        
+        // V2: Process Draft Orders automatically
+        if (context.draft_order_id) {
+            const { data: draftOrder } = await supabase.from('draft_orders').select('*').eq('id', context.draft_order_id).single();
+            if (draftOrder && draftOrder.items) {
+                 items = Array.isArray(draftOrder.items) ? draftOrder.items : [];
+                 total = draftOrder.total;
+                 pushName = draftOrder.push_name || pushName;
+                 
+                 // Strict Stock Re-Validation for Catalog V2
+                 const { productService } = require('../../services/ProductService');
+                 for (const item of items) {
+                     const product = await productService.findProduct(item.product_id || item.product);
+                     if (!product) {
+                         return { messages: [`❌ El producto ${item.name} ya no está disponible.`], wait_for_input: false };
+                     }
+                     if (product.stock < item.qty && !product.auto_refill) {
+                         return { messages: [`⚠️ Perdón, nos quedamos sin stock de ${item.name} (Quedan ${product.stock}).\n\nPor favor, escribí *menú* para empezar un nuevo pedido con el stock actualizado.`], wait_for_input: false };
+                     }
+                 }
+                 
+                 // Mark draft as converted
+                 await supabase.from('draft_orders').update({ status: 'converted' }).eq('id', context.draft_order_id);
+            }
+        }
         
         // Extract address - try multiple possible variable names and typos
         const address = context.direccion || context.dirección || context.address || context.delivery_address || context.domicilio || context.dirrecion || context.respuesta || null;
-        const deliveryType = context.tipo_entrega || context.delivery_type || context.respuesta_envio || null;
+        const deliveryType = context.tipo_entrega || context.delivery_type || context.respuesta_envio || context.delivery_method || null;
         
         // Extract delivery date
         const deliveryDate = context.fecha_entrega || context.fecha || context.date || context.delivery_date || null;
@@ -26,7 +51,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                 address: address,
                 deliveryDate: deliveryDate,
                 paymentMethod: context.metodo_pago || context.payment_method,
-                pushName: context.pushName,
+                pushName: pushName,
                 chatContext: { ...context, delivery_date: deliveryDate, delivery_type: deliveryType }
             });
 

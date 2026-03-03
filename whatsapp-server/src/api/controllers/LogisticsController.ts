@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { OptimizationService } from '../../core/logistics/optimization/OptimizationService';
 import { MapsUrlService } from '../../core/logistics/routing/MapsUrlService';
 import { RouteNotificationService } from '../../core/logistics/notifications/RouteNotificationService';
-import { supabase } from '../../config/database'; // Adjust path if needed
+import { supabase } from '../../config/database';
+import { whatsappClient } from '../../infrastructure/whatsapp/WhatsAppClient';
 
 export class LogisticsController {
     private optimizationService: OptimizationService;
@@ -153,8 +154,132 @@ export class LogisticsController {
     }
 
     /**
+     * POST /api/logistics/routes/:id/dispatch
+     * Mark route as ACTIVE, set all orders to OUT_FOR_DELIVERY,
+     * and send a WhatsApp notification to each client.
+     */
+    dispatchRoute = async (req: Request, res: Response) => {
+        const { id } = req.params;
+        try {
+            // 1. Fetch route
+            const { data: route, error: routeErr } = await supabase
+                .from('routes')
+                .select('id, name, estimated_duration_min, total_distance_km')
+                .eq('id', id)
+                .single();
+
+            if (routeErr || !route) return res.status(404).json({ error: 'Ruta no encontrada' });
+
+            // 2. Fetch route_orders with client phone and name
+            const { data: routeOrders, error: roErr } = await supabase
+                .from('route_orders')
+                .select(`
+                    id,
+                    sequence_number,
+                    estimated_travel_time_min,
+                    order:orders (
+                        id,
+                        phone,
+                        client:clients ( name, phone )
+                    )
+                `)
+                .eq('route_id', id)
+                .order('sequence_number', { ascending: true });
+
+            if (roErr) throw roErr;
+
+            // 3. Update route status to ACTIVE
+            await supabase
+                .from('routes')
+                .update({ status: 'ACTIVE' })
+                .eq('id', id);
+
+            // 4. Bulk update orders to OUT_FOR_DELIVERY
+            const orderIds = (routeOrders || []).map((ro: any) => ro.order?.id).filter(Boolean);
+            if (orderIds.length > 0) {
+                await supabase
+                    .from('orders')
+                    .update({ status: 'OUT_FOR_DELIVERY', out_at: new Date().toISOString() })
+                    .in('id', orderIds);
+            }
+
+            // 5. Send WhatsApp to each client
+            let notified = 0;
+            const etaMin = route.estimated_duration_min || 30;
+            for (const ro of (routeOrders as any[] || [])) {
+                const phone = ro.order?.phone || ro.order?.client?.phone;
+                const name = ro.order?.client?.name || 'cliente';
+
+                if (!phone) continue;
+
+                const msg = [
+                    `🛵 ¡Hola ${name}!`,
+                    `Tu pedido ya salió de nuestro local y está en camino. 🎉`,
+                    `⏱️ Tiempo estimado de llegada: ~${etaMin} min.`,
+                    `¡Estate atento al timbre! 🔔`
+                ].join('\n');
+
+                try {
+                    await (whatsappClient as any).sendTextMessage(phone, msg);
+                    notified++;
+                } catch (wErr: any) {
+                    console.warn(`[dispatchRoute] Could not notify ${phone}:`, wErr.message);
+                }
+            }
+
+            console.log(`[dispatchRoute] Route ${id} dispatched. ${notified}/${(routeOrders || []).length} clients notified.`);
+            res.json({ success: true, notified, total: (routeOrders || []).length });
+
+        } catch (error: any) {
+            console.error('[LogisticsController] dispatchRoute Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    /**
+     * POST /api/logistics/routes/:id/complete
+     * Mark route as COMPLETED and bulk-mark all its orders as DELIVERED.
+     * Triggered when the driver returns to the store.
+     */
+    completeRoute = async (req: Request, res: Response) => {
+        const { id } = req.params;
+        try {
+            // 1. Fetch all route_orders to get the parent order IDs
+            const { data: routeOrders, error: roErr } = await supabase
+                .from('route_orders')
+                .select('id, order_id')
+                .eq('route_id', id);
+
+            if (roErr) throw roErr;
+
+            const orderIds = (routeOrders || []).map((ro: any) => ro.order_id).filter(Boolean);
+
+            // 2. Bulk update orders -> DELIVERED
+            if (orderIds.length > 0) {
+                await supabase
+                    .from('orders')
+                    .update({ status: 'DELIVERED', delivered_at: new Date().toISOString() })
+                    .in('id', orderIds);
+            }
+
+            // 3. Mark route as COMPLETED
+            await supabase
+                .from('routes')
+                .update({ status: 'COMPLETED' })
+                .eq('id', id);
+
+            console.log(`[completeRoute] Route ${id} completed. ${orderIds.length} orders marked as DELIVERED.`);
+            res.json({ success: true, completed: orderIds.length });
+
+        } catch (error: any) {
+            console.error('[LogisticsController] completeRoute Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    /**
      * GET /api/driver/routes/:id
-     * Public endpoint for driver view
+     * Public endpoint for driver view (no auth)
      */
     getDriverRoute = async (req: Request, res: Response) => {
         const { id } = req.params;
@@ -170,25 +295,22 @@ export class LogisticsController {
             const { data: orders } = await supabase
                 .from('route_orders')
                 .select(`
-                    id, 
-                    sequence_number, 
-                    estimated_arrival, 
+                    id,
+                    sequence_number,
+                    estimated_arrival,
                     status,
                     formatted_address,
                     delivery_lat,
                     delivery_lng,
                     order:orders (
-                        id, 
+                        id,
                         client:clients (name, phone)
                     )
                 `)
                 .eq('route_id', id)
                 .order('sequence_number', { ascending: true });
 
-            res.json({
-                route,
-                orders: orders || []
-            });
+            res.json({ route, orders: orders || [] });
 
         } catch (error: any) {
             res.status(500).json({ error: error.message });
@@ -197,7 +319,7 @@ export class LogisticsController {
 
     /**
      * POST /api/driver/orders/:id/status
-     * Update status (DELIVERED, FAILED)
+     * Update delivery status for a single route_order (DELIVERED or FAILED)
      */
     updateOrderDeliveryStatus = async (req: Request, res: Response) => {
         const { id } = req.params; // route_order_id
@@ -206,22 +328,18 @@ export class LogisticsController {
         try {
             const { error } = await supabase
                 .from('route_orders')
-                .update({ 
-                    status, 
+                .update({
+                    status,
                     notes: reason ? `Motivo: ${reason}` : null,
                     completed_at: new Date().toISOString()
                 })
                 .eq('id', id);
 
             if (error) throw error;
-            
-            // If delivered, update main order status too?
-            // Ideally yes, but keeping it simple for MVP. 
-            // The route_order status is enough for the dashboard.
-
             res.json({ success: true });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     }
 }
+

@@ -123,8 +123,24 @@ export class OptimizationService {
             return { success: false, message: 'No se pudieron geolocalizar los pedidos.' };
         }
 
+        // Build Matrix for real driving distances
+        const allPoints = [startPoint, ...ordersToOptimize];
+        const matrix = await this.calculator.getDistanceMatrixPrecalculated(allPoints);
+        
+        const haversineFn = (a: Point, b: Point) => this.calculator.haversine(a, b);
+        
+        const distanceFn = (a: Point, b: Point) => {
+            if (matrix) {
+                const i = allPoints.findIndex(p => p.id === a.id);
+                const j = allPoints.findIndex(p => p.id === b.id);
+                if (i !== -1 && j !== -1 && matrix[i] && matrix[i][j] !== undefined) {
+                    return matrix[i][j]; // Real driving distance in km
+                }
+            }
+            return haversineFn(a, b); // Fallback to straight line
+        };
+
         // Log input order
-        const distanceFn = (a: Point, b: Point) => this.calculator.haversine(a, b);
         console.log(`[Optimization] Input order (${ordersToOptimize.length} stops):`);
         ordersToOptimize.forEach((p, i) => {
             const distFromStart = distanceFn(startPoint, p);

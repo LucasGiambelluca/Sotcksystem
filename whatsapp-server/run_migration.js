@@ -11,7 +11,7 @@ async function run() {
     const client = new Client({ connectionString: dbUrl });
     try {
         await client.connect();
-        const sql = fs.readFileSync(__dirname + '/../supabase/migrations/20260220_dashboard_config.sql', 'utf8');
+        const sql = fs.readFileSync(__dirname + '/../supabase/migrations/20260226_business_hours.sql', 'utf8');
         await client.query(sql);
         console.log("Migration executed successfully.");
     } catch (err) {

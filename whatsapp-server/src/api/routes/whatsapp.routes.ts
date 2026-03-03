@@ -32,12 +32,7 @@ router.post('/sessions/logout', async (req, res) => {
 
 // Single Message Sending API
 router.post('/send-message', async (req, res) => {
-    const sock = whatsappClient.getSock();
     const { phone, message } = req.body;
-
-    if (!sock) {
-        return res.status(503).json({ error: 'WhatsApp service not ready' });
-    }
 
     if (!phone || !message) {
         return res.status(400).json({ error: 'Missing phone or message' });
@@ -53,13 +48,12 @@ router.post('/send-message', async (req, res) => {
             jid = `${phone}@s.whatsapp.net`;
         }
         
-        console.log(`📤 Sending message to ${jid}`);
-        await sock.sendMessage(jid, { text: message });
-        console.log(`✅ Message sent to ${jid}`);
-        res.json({ success: true, message: 'Message sent' });
+        console.log(`📤 Enqueueing message to ${jid} via WhatsAppClient`);
+        await whatsappClient.sendMessage(jid, { text: message });
+        res.json({ success: true, message: 'Message queued' });
     } catch (error) {
-        console.error('Error sending message:', error);
-        res.status(500).json({ error: 'Failed to send message' });
+        console.error('Error queueing message:', error);
+        res.status(500).json({ error: 'Failed to queue message' });
     }
 });
 

@@ -22,25 +22,47 @@ class ProductService {
 
     async findProduct(searchTerm: string): Promise<Product | null> {
         const products = await this.repository.getAll();
-        const availableProducts = products.filter(p => p.stock > 0);
+        
+        console.log(`[ProductService] findProduct: Term="${searchTerm}". Total loaded products: ${products.length}`);
+        
+        // Search ALL products regardless of stock — stock validation happens at order creation
+        if (products.length === 0) return null;
 
-        if (availableProducts.length === 0) return null;
+        // 0. Check for exact ID match first
+        const exactIdMatch = products.find(p => p.id === searchTerm);
+        if (exactIdMatch) {
+            console.log(`[ProductService] Exact ID Match found for "${searchTerm}" -> "${exactIdMatch.name}"`);
+            return exactIdMatch;
+        }
 
         const cleanTerm = this.normalize(searchTerm);
+        console.log(`[ProductService] Normalized term: "${cleanTerm}"`);
+        
         let bestMatch: Product | null = null;
         let maxScore = 0;
 
-        for (const product of availableProducts) {
-            const score = this.calculateScore(cleanTerm, this.normalize(product.name));
+        for (const product of products) {
+            const cleanProdName = this.normalize(product.name);
+            
+            // 1. Exact match bypass
+            if (cleanProdName === cleanTerm || cleanProdName.includes(cleanTerm)) {
+                console.log(`[ProductService] Exact Match found for "${searchTerm}" -> "${product.name}"`);
+                return product; // Immediate return for perfect match
+            }
+
+            const score = this.calculateScore(cleanTerm, cleanProdName);
             if (score > maxScore) {
                 maxScore = score;
                 bestMatch = product;
             }
         }
 
+        console.log(`[ProductService] Search "${searchTerm}" -> Best Match: "${bestMatch?.name}" (Score: ${maxScore})`);
+
         // Threshold for acceptance (0-1 range)
         return maxScore > 0.4 ? bestMatch : null;
     }
+
 
     private normalize(text: string): string {
         return text.toLowerCase()

@@ -5,8 +5,23 @@ import qrcode from 'qrcode';
 import { supabase } from '../../config/database';
 import fs from 'fs';
 import path from 'path';
-import Router from '../../core/router';
+import ConversationRouter from '../../core/engine/conversation.router';
 import { default as storageService } from '../../services/storageService';
+import { Mutex } from 'async-mutex';
+
+// Anti-ban configuration
+const MIN_TYPING_DELAY = 1000;
+const MAX_TYPING_DELAY = 3000;
+const MIN_SEND_DELAY = 2000;
+const MAX_SEND_DELAY = 5000;
+const BOT_LOOP_THRESHOLD = 5;
+const BOT_LOOP_WINDOW_MS = 10000;
+
+interface MessageHistory {
+    count: number;
+    firstMessageAt: number;
+}
+
 
 const AUTH_DIR = process.env.BAILEYS_SESSION_PATH || path.join(__dirname, '../../../auth_info_baileys');
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -18,6 +33,10 @@ class WhatsAppClient {
     private qrCodeData: string | null = null;
     private status: WhatsAppStatus = 'STOPPED';
     private reconnectAttempts = 0;
+    
+    // Anti-ban state
+    private sendMutex = new Mutex();
+    private userSendHistory: Map<string, MessageHistory> = new Map();
 
     public getSock() {
         return this.sock;
@@ -152,7 +171,7 @@ class WhatsAppClient {
                          }
 
                          // Process vote through Router
-                         const responses = await Router.handlePollUpdate(phone, voteHash);
+                         const responses = await ConversationRouter.handlePollUpdate(phone, voteHash);
                          
                          for (const response of (responses || [])) {
                              await this.sendFormattedMessage(remoteJid, response);
@@ -207,7 +226,7 @@ class WhatsAppClient {
                     // Save inbound message
                     await this.saveInboundMessageDB(phone, pushName, text, fileContext ? 'image' : 'text', msg.key?.id);
 
-                    const responses = await Router.processMessage(phone, text, pushName, fileContext || {});
+                    const responses = await ConversationRouter.processMessage(phone, text, pushName, fileContext || {});
                     for (const response of responses) {
                         await this.sendFormattedMessage(remoteJid, response);
                     }
@@ -218,56 +237,160 @@ class WhatsAppClient {
         });
     }
 
+    public async sendMessage(to: string, message: { text: string }): Promise<void> {
+        if (!this.sock) {
+            console.error('Socket not initialized');
+            return;
+        }
+
+        const jid = to.includes('@s.whatsapp.net') || to.includes('@g.us') || to.includes('@status')
+            ? to 
+            : `${to}@s.whatsapp.net`;
+
+        // Bot loop detection mechanism
+        const now = Date.now();
+        const history = this.userSendHistory.get(jid) || { count: 0, firstMessageAt: now };
+        
+        if (now - history.firstMessageAt > BOT_LOOP_WINDOW_MS) {
+            history.count = 1;
+            history.firstMessageAt = now;
+        } else {
+            history.count++;
+            if (history.count > BOT_LOOP_THRESHOLD) {
+                console.warn(`[Anti-Ban] Bot loop detected for ${jid}. Dropping outbound message.`);
+                return; // Drop message to break loop
+            }
+        }
+        this.userSendHistory.set(jid, history);
+
+        // Enqueue sending to prevent rapid bursts
+        await this.sendMutex.runExclusive(async () => {
+            try {
+                if (message.text) {
+                    await this.simulateTyping(jid, message.text.length);
+                }
+
+                const sentMsg = await this.sock.sendMessage(jid, message);
+                console.log(`[Anti-Ban] Message sent to ${jid}`);
+                
+                if (sentMsg && message.text) {
+                    await this.saveOutboundMessageDB(jid, message.text, 'text', sentMsg.key?.id);
+                }
+
+                // Pause before processing the next message in queue
+                const sendDelayMs = Math.floor(Math.random() * (MAX_SEND_DELAY - MIN_SEND_DELAY + 1) + MIN_SEND_DELAY);
+                await new Promise(resolve => setTimeout(resolve, sendDelayMs));
+            } catch (error) {
+                console.error(`Failed to send message to ${jid}:`, error);
+            }
+        });
+    }
+
+    private async simulateTyping(to: string, textLength: number) {
+        if (!this.sock) return;
+        try {
+            await this.sock.presenceSubscribe(to);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await this.sock.sendPresenceUpdate('composing', to);
+            
+            const calcDelay = Math.min(Math.max(textLength * 50, MIN_TYPING_DELAY), MAX_TYPING_DELAY);
+            await new Promise(resolve => setTimeout(resolve, calcDelay));
+            
+            await this.sock.sendPresenceUpdate('paused', to);
+            await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+            console.error('Failed to simulate typing:', error);
+        }
+    }
+
     private async sendFormattedMessage(jid: string, response: any) {
         if (!this.sock) return;
 
         // Ensure JID is formatted correctly for Baileys
         const finalJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
 
-        try {
-            let sentMsg: any = null;
-            let textToSave = '';
-            let msgType: 'text'|'poll'|'image'|'document' = 'text'; // Added 'document' type
-
-            if (typeof response === 'string') {
-                sentMsg = await this.sock.sendMessage(finalJid, { text: response });
-                textToSave = response;
-            } else if (typeof response === 'object' && response !== null) {
-                if (response.poll) {
-                    sentMsg = await this.sock.sendMessage(finalJid, { poll: response.poll });
-                    textToSave = `[Encuesta: ${response.poll.name}]`;
-                    msgType = 'poll';
-                } else if (response.text) {
-                    sentMsg = await this.sock.sendMessage(finalJid, { text: response.text });
-                    textToSave = response.text;
-                } else if (response.document) {
-                    sentMsg = await this.sock.sendMessage(finalJid, { 
-                        document: response.document, 
-                        mimetype: response.mimetype || 'application/pdf', 
-                        fileName: response.fileName || 'document.pdf',
-                        caption: response.caption 
-                    });
-                    textToSave = `[Documento: ${response.fileName || 'archivo'}]`;
-                    msgType = 'document'; // Set type for document
-                } else if (response.image) {
-                    sentMsg = await this.sock.sendMessage(finalJid, { 
-                        image: response.image, 
-                        caption: response.caption 
-                    });
-                    textToSave = response.caption || '[Imagen]';
-                    msgType = 'image';
-                } else if (response.message) {
-                    sentMsg = await this.sock.sendMessage(finalJid, { text: response.message });
-                    textToSave = response.message;
-                }
+        // Bot loop detection
+        const now = Date.now();
+        const history = this.userSendHistory.get(finalJid) || { count: 0, firstMessageAt: now };
+        
+        if (now - history.firstMessageAt > BOT_LOOP_WINDOW_MS) {
+            history.count = 1;
+            history.firstMessageAt = now;
+        } else {
+            history.count++;
+            if (history.count > BOT_LOOP_THRESHOLD) {
+                console.warn(`[Anti-Ban] Bot loop detected for ${finalJid}. Dropping outbound message.`);
+                return;
             }
-
-            if (sentMsg && textToSave) {
-                await this.saveOutboundMessageDB(finalJid, textToSave, msgType, sentMsg.key?.id);
-            }
-        } catch (error) {
-            console.error(`Error sending message to ${jid}:`, error);
         }
+        this.userSendHistory.set(finalJid, history);
+
+        await this.sendMutex.runExclusive(async () => {
+            try {
+                if (!response) {
+                    console.warn(`[WhatsAppClient] Dropping empty/undefined message to ${finalJid}`);
+                    return;
+                }
+
+                let sentMsg: any = null;
+                let textToSave = '';
+                let msgType: 'text'|'poll'|'image'|'document' = 'text';
+
+                // Typing Indicator
+                let textLength = 0;
+                if (typeof response === 'string') textLength = response.length;
+                else if (response.text) textLength = response.text.length;
+                else if (response.message) textLength = response.message.length;
+                
+                if (textLength > 0) {
+                    await this.simulateTyping(finalJid, textLength);
+                }
+
+                if (typeof response === 'string') {
+                    sentMsg = await this.sock.sendMessage(finalJid, { text: response });
+                    textToSave = response;
+                } else if (typeof response === 'object' && response !== null) {
+                    if (response.poll) {
+                        sentMsg = await this.sock.sendMessage(finalJid, { poll: response.poll });
+                        textToSave = `[Encuesta: ${response.poll.name}]`;
+                        msgType = 'poll';
+                    } else if (response.text) {
+                        sentMsg = await this.sock.sendMessage(finalJid, { text: response.text });
+                        textToSave = response.text;
+                    } else if (response.document) {
+                        sentMsg = await this.sock.sendMessage(finalJid, { 
+                            document: response.document, 
+                            mimetype: response.mimetype || 'application/pdf', 
+                            fileName: response.fileName || 'document.pdf',
+                            caption: response.caption 
+                        });
+                        textToSave = `[Documento: ${response.fileName || 'archivo'}]`;
+                        msgType = 'document';
+                    } else if (response.image) {
+                        sentMsg = await this.sock.sendMessage(finalJid, { 
+                            image: response.image, 
+                            caption: response.caption 
+                        });
+                        textToSave = response.caption || '[Imagen]';
+                        msgType = 'image';
+                    } else if (response.message) {
+                        sentMsg = await this.sock.sendMessage(finalJid, { text: response.message });
+                        textToSave = response.message;
+                    }
+                }
+
+                if (sentMsg && textToSave) {
+                    await this.saveOutboundMessageDB(finalJid, textToSave, msgType, sentMsg.key?.id);
+                }
+
+                // Pause before next message (Anti-ban queue logic)
+                const sendDelayMs = Math.floor(Math.random() * (MAX_SEND_DELAY - MIN_SEND_DELAY + 1) + MIN_SEND_DELAY);
+                await new Promise(resolve => setTimeout(resolve, sendDelayMs));
+
+            } catch (error) {
+                console.error(`Error sending message to ${jid}:`, error);
+            }
+        });
     }
 
     private async saveOutboundMessageDB(phone: string, text: string, type: 'text' | 'image' | 'poll' | 'document' = 'text', wa_id: string = '') {

@@ -3,162 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaaS Premium Login</title>
+    <title>StockSystem - Propuesta STPPI Bahía Blanca</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary-color: #6366f1; /* Color de tu marca */
-            --bg-dark: #0f172a;
-            --glass-bg: rgba(255, 255, 255, 0.05);
+            --primary: #2563eb;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --accent: #38bdf8;
         }
 
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-dark);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background-color: var(--light);
+            color: var(--dark);
+            margin: 0;
+            padding: 20px;
         }
 
-        /* --- SPLASH SCREEN ANIMATION --- */
-        .splash-layer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--bg-dark);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            animation: fadeOutScreen 0.6s ease-in forwards 2.8s;
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
 
-        .logo-container svg {
-            width: 120px;
-            fill: white;
-            /* La magia: Aparece, pulsa y explota hacia la cámara */
-            animation: 
-                introLogo 0.8s ease-out forwards,
-                pulseLogo 1.2s ease-in-out infinite 0.8s,
-                zoomExplosion 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards 2.2s;
-        }
-
-        @keyframes introLogo {
-            from { transform: scale(0); opacity: 0; filter: blur(10px); }
-            to { transform: scale(1); opacity: 1; filter: blur(0); }
-        }
-
-        @keyframes pulseLogo {
-            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px var(--primary-color)); }
-            50% { transform: scale(1.05); filter: drop-shadow(0 0 15px var(--primary-color)); }
-        }
-
-        @keyframes zoomExplosion {
-            to { transform: scale(60); opacity: 0; }
-        }
-
-        @keyframes fadeOutScreen {
-            to { opacity: 0; visibility: hidden; }
-        }
-
-        /* --- LOGIN FORM DESIGN --- */
-        .login-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 40px;
-            border-radius: 20px;
-            width: 100%;
-            max-width: 380px;
+        header {
             text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            opacity: 0;
-            transform: translateY(30px);
-            animation: revealLogin 1s ease-out forwards 2.8s;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
         }
 
-        @keyframes revealLogin {
-            to { opacity: 1; transform: translateY(0); }
+        h1 { color: var(--primary); margin: 0; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
-        .login-card h2 { color: white; margin-bottom: 30px; font-weight: 500; }
+        .card {
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid var(--primary);
+        }
 
-        .input-group { margin-bottom: 20px; text-align: left; }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 30px;
+        }
 
-        .input-group label { display: block; color: #94a3b8; margin-bottom: 8px; font-size: 0.9rem; }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
+        .interactive-section {
+            background: var(--dark);
             color: white;
-            outline: none;
-            transition: 0.3s;
-            box-sizing: border-box;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 20px;
         }
-
-        .input-group input:focus { border-color: var(--primary-color); box-shadow: 0 0 10px rgba(99, 102, 241, 0.3); }
 
         button {
-            width: 100%;
-            padding: 12px;
-            background: var(--primary-color);
-            color: white;
+            background: var(--accent);
             border: none;
-            border-radius: 8px;
-            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
             cursor: pointer;
             transition: 0.3s;
+        }
+
+        button:hover { background: var(--primary); color: white; }
+
+        .stat-box {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            color: var(--dark);
+            border-radius: 8px;
             margin-top: 10px;
         }
 
-        button:hover { background: #4f46e5; transform: translateY(-2px); }
-
-        .mini-logo { width: 40px; margin-bottom: 15px; opacity: 0.8; }
+        .highlight { color: var(--accent); font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="splash-layer">
-        <div class="logo-container">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
+<div class="container">
+    <header>
+        <h1>Propuesta Tecnológica STPPI</h1>
+        <p>Modernización y Eficiencia para el Transporte en Bahía Blanca</p>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <h3>El Problema</h3>
+            <p>La nueva ordenanza exige seguros comerciales y revisiones que aumentan el costo operativo del chofer en un <strong>35%</strong> aprox.</p>
+        </div>
+        <div class="card">
+            <h3>Nuestra Solución</h3>
+            <p>Unificar la demanda para bajar costos de seguros y mantenimiento mediante el <strong>Hub Tecnológico StockSystem</strong>.</p>
         </div>
     </div>
 
-    <div class="login-card">
-        <svg class="mini-logo" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-        </svg>
-        <h2>Bienvenido de nuevo</h2>
-        <form id="loginForm">
-            <div class="input-group">
-                <label>Correo electrónico</label>
-                <input type="email" placeholder="tu@empresa.com" required>
-            </div>
-            <div class="input-group">
-                <label>Contraseña</label>
-                <input type="password" placeholder="••••••••" required>
-            </div>
-            <button type="submit">Entrar al Panel</button>
-        </form>
+    <h3>Estadística Estimada: Parque Automotor Apps (Bahía Blanca)</h3>
+    <div class="chart-container">
+        <canvas id="antiguedadChart"></canvas>
     </div>
 
-    <script>
-        // Lógica simple para manejar el evento de Login
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            alert('¡Iniciando sesión en tu SaaS!');
-        });
-    </script>
+    <div class="interactive-section">
+        <h3>Simulador de Ahorro Colectivo</h3>
+        <p>Si logramos agrupar a los choferes, estos son los números:</p>
+        
+        <label>Cantidad de Choferes en la Red:</label>
+        <input type="range" id="driverRange" min="100" max="2000" value="500" style="width:100%">
+        
+        <div class="grid" style="margin-top: 20px;">
+            <div class="stat-box">
+                <small>Conductores</small>
+                <div id="countDisplay" class="highlight">500</div>
+            </div>
+            <div class="stat-box">
+                <small>Ahorro Mensual Estimado</small>
+                <div id="savingDisplay" class="highlight">$25.000.000</div>
+            </div>
+        </div>
+        <p><small>*Basado en un ahorro de $50.000 por mes entre seguro y service.</small></p>
+    </div>
+
+    <footer style="margin-top: 40px; text-align: center; font-size: 0.8em; color: #64748b;">
+        Desarrollado por StockSystem | Enfoque en Soluciones Reales
+    </footer>
+</div>
+
+<script>
+    // Gráfico de Antigüedad
+    const ctx = document.getElementById('antiguedadChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['2011-2013', '2014-2017', '2018-2021', '2022-2025'],
+            datasets: [{
+                label: '% de Autos en Plataformas',
+                data: [15, 45, 30, 10], // Estimación real de mercado
+                backgroundColor: '#2563eb'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+        }
+    });
+
+    // Simulador Interactivo
+    const range = document.getElementById('driverRange');
+    const countDisp = document.getElementById('countDisplay');
+    const savingDisp = document.getElementById('savingDisplay');
+
+    range.addEventListener('input', (e) => {
+        const val = e.target.value;
+        countDisp.innerText = val;
+        const savings = val * 50000;
+        savingDisp.innerText = '$' + savings.toLocaleString('es-AR');
+    });
+</script>
+
 </body>
 </html>

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import app from './api/app';
 import { whatsappClient } from './infrastructure/whatsapp/WhatsAppClient';
+import { stockCronService } from './services/StockCronService';
 
 const PORT = process.env.PORT || 3001;
 
@@ -17,6 +18,10 @@ async function bootstrap() {
     } catch (error) {
         console.error('❌ Failed to initialize WhatsApp Client:', error);
     }
+
+    // 3. Start Background Jobs
+    stockCronService.start();
+    console.log('📅 Background cron jobs started.');
 }
 
 // Global error handling to prevent Baileys connection drops from taking down the whole Express server

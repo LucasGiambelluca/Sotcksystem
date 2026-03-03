@@ -9,5 +9,7 @@ router.post('/routes/:id/optimize', controller.optimizeRoute);
 router.post('/routes/:id/sequence', controller.updateSequence);
 router.get('/routes/:id/navigation-url', controller.getNavigationUrl);
 router.post('/routes/:id/share', controller.shareRoute);
+router.post('/routes/:id/dispatch', controller.dispatchRoute);
+router.post('/routes/:id/complete', controller.completeRoute);
 
 export default router;

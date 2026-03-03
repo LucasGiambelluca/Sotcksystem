@@ -27,14 +27,31 @@ export class DistanceCalculator {
     // FASE 1: Haversine (Cheap, Fast, Good enough for local sorting)
     const haversineMatrix = this.calculateHaversineMatrix(origins, destinations);
     
-    // FASE 2: Refinement (Optional)
-    // If we were implementing a strict TSP with time windows, we'd need real traffic data.
-    // For now, Haversine is usually sufficient for "clustering" and Nearest Neighbor.
-    // We will stick to Haversine for the "Fast" strategy.
-    
-    // If Google Matrix is absolutely needed for final ETA calculation, we can add it here.
-    
     return haversineMatrix;
+  }
+
+  /**
+   * Fetches an N x N distance/duration matrix using OSRM free public API.
+   * This provides real street-level driving costs instead of straight lines.
+   */
+  async getDistanceMatrixPrecalculated(points: LatLng[]): Promise<number[][] | null> {
+      try {
+          if (points.length < 2) return null;
+          
+          // Format: lng,lat;lng,lat...
+          const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+          // annotations=distance gives distances in meters, duration in seconds
+          const url = `http://router.project-osrm.org/table/v1/driving/${coords}?annotations=distance`;
+          
+          const response = await axios.get(url);
+          if (response.data.code === 'Ok' && response.data.distances) {
+              // Return distances in KM
+              return response.data.distances.map((row: number[]) => row.map(d => d / 1000));
+          }
+      } catch (e: any) {
+          console.warn('[DistanceCalculator] OSRM Table API failed, will fallback to Haversine:', e.message);
+      }
+      return null;
   }
 
   private calculateHaversineMatrix(origins: LatLng[], destinations: LatLng[]): number[][] {

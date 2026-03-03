@@ -25,6 +25,9 @@ import { StockCheckExecutor } from '../../core/executors/StockCheckExecutor';
 import { AddToCartExecutor } from '../../core/executors/AddToCartExecutor';
 
 import { HandoverExecutor } from '../../core/executors/HandoverExecutor';
+import { BusinessHoursExecutor } from '../../core/executors/BusinessHoursExecutor';
+import { SendCatalogExecutor } from '../../core/executors/SendCatalogExecutor';
+import { SendMediaExecutor } from '../../core/executors/SendMediaExecutor';
 
 // Registry
 const nodeExecutors: Record<string, NodeExecutor> = {
@@ -45,6 +48,9 @@ const nodeExecutors: Record<string, NodeExecutor> = {
     'stockCheckNode': new StockCheckExecutor(),
     'addToCartNode': new AddToCartExecutor(),
     'handoverNode': new HandoverExecutor(),
+    'businessHoursNode': new BusinessHoursExecutor(),
+    'sendCatalogNode': new SendCatalogExecutor(),
+    'sendMediaNode': new SendMediaExecutor(),
     
     // Start / Input nodes
     'input': new StartNodeExecutor(),
@@ -340,6 +346,36 @@ export class FlowEngine {
                  console.log(`[FlowEngine] Parsing order items for: ${input}`);
                  const items = await this.orderService.parseOrderText(input);
                  execution.context = { ...execution.context, order_items: items };
+             } else if (currentNode.type === 'sendCatalogNode') {
+                 // User responded to the catalog link with their WhatsApp catalog message
+                 // e.g. "Hola! Quiero hacer el siguiente pedido:\n- Hamburguesa x2 — $40\nTotal: $20"
+                 console.log(`[FlowEngine] Parsing catalog reply for sendCatalogNode: ${input}`);
+                 const Parser = require('../../core/parser');
+                 const catalogItems = Parser.parseCatalogOrder(input);
+                 if (catalogItems && catalogItems.length > 0) {
+                     // Use ProductService to verify each item and get price from DB
+                     const { productService } = require('../../services/ProductService');
+                     const verifiedItems = [];
+                     for (const item of catalogItems) {
+                         const product = await productService.findProduct(item.product);
+                         if (product) {
+                             verifiedItems.push({
+                                 product_id: product.id,
+                                 qty: item.qty,
+                                 price: product.price,
+                                 name: product.name
+                             });
+                         }
+                     }
+                     execution.context = { ...execution.context, order_items: verifiedItems };
+                     console.log(`[FlowEngine] ✅ sendCatalogNode parsed ${verifiedItems.length} items`);
+                 } else {
+                     // Fallback: try parseOrderText for free-text format
+                     const items = await this.orderService.parseOrderText(input);
+                     execution.context = { ...execution.context, order_items: items };
+                     console.log(`[FlowEngine] sendCatalogNode used fallback parser: ${items.length} items`);
+                 }
+
              } else if (currentNode.type === 'pollNode') {
                  // Resolve numbered input to option text (e.g. "1" → "Envío")
                  const options = currentNode.data.options || ['Sí', 'No'];
@@ -353,7 +389,7 @@ export class FlowEngine {
                      if (match) resolved = match;
                  }
                  console.log(`[FlowEngine] Poll resolved: "${input}" → "${resolved}"`);
-                 const varName = currentNode.data.variable || 'poll_response';
+                 const varName = currentNode.data.variable || currentNode.data.contextKey || 'poll_response';
                  execution.context = { ...execution.context, [varName]: resolved };
              } else if (currentNode.type === 'slotNode') {
                  const selection = parseInt(input.trim());
@@ -368,7 +404,7 @@ export class FlowEngine {
              }
 
              // 2. Guardado genérico del input (skip for nodes that handle their own context)
-             if (currentNode.type !== 'catalogNode' && currentNode.type !== 'slotNode' && currentNode.type !== 'pollNode' && currentNode.type !== 'stockCheckNode') {
+             if (currentNode.type !== 'catalogNode' && currentNode.type !== 'sendCatalogNode' && currentNode.type !== 'slotNode' && currentNode.type !== 'pollNode' && currentNode.type !== 'stockCheckNode') {
                  const varName = (currentNode.data.variable || 'temp_input').trim();
                  console.log(`[FlowEngine] Saving input "${input}" to variable "${varName}"`);
                  execution.context = { ...execution.context, [varName]: input };

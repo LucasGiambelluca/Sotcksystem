@@ -38,6 +38,7 @@ import AddToCartNode from '../components/bot-builder/AddToCartNode';
 import HandoverNode from '../components/bot-builder/HandoverNode';
 import BusinessHoursNode from '../components/bot-builder/BusinessHoursNode';
 import SendCatalogNode from '../components/bot-builder/SendCatalogNode';
+import SendMediaNode from '../components/bot-builder/SendMediaNode';
 
 // Register custom node types
 const nodeTypes = {
@@ -59,6 +60,7 @@ const nodeTypes = {
   handoverNode: HandoverNode,
   businessHoursNode: BusinessHoursNode,
   sendCatalogNode: SendCatalogNode,
+  sendMediaNode: SendMediaNode,
 };
 
 const initialNodes: Node[] = [
@@ -125,6 +127,11 @@ export default function BotBuilder() {
               onChangeReportType: (t: string) => updateNodeData(n.id, { reportType: t }),
               onChangePriority: (p: string) => updateNodeData(n.id, { priority: p }),
               onChangeMessage: (m: string) => updateNodeData(n.id, { message: m }),
+              onChangeMediaUrl: (u: string) => updateNodeData(n.id, { mediaUrl: u }),
+              onChangeCaption: (c: string) => updateNodeData(n.id, { caption: c }),
+              onChangeMediaType: (t: string) => updateNodeData(n.id, { mediaType: t }),
+              onChangeFileName: (n_name: string) => updateNodeData(n.id, { fileName: n_name }),
+              onChangeMimeType: (m: string) => updateNodeData(n.id, { mimetype: m }),
               onDelete: () => deleteNode(n.id),
           }
       }));
@@ -183,6 +190,9 @@ export default function BotBuilder() {
         data: { 
             // Default data
             text: type === 'messageNode' || type === 'mediaUploadNode' ? '' : undefined,
+            caption: type === 'sendMediaNode' ? '' : undefined,
+            mediaUrl: type === 'sendMediaNode' ? '' : undefined,
+            mediaType: type === 'sendMediaNode' ? '' : undefined,
             question: type === 'questionNode' || type === 'pollNode' || type === 'stockCheckNode' ? '' : undefined,
             variable: type === 'questionNode' || type === 'pollNode' || type === 'mediaUploadNode' || type === 'stockCheckNode' ? (type === 'mediaUploadNode' ? 'file_url' : type === 'stockCheckNode' ? 'stock_result' : 'respuesta') : undefined,
             productVariable: type === 'addToCartNode' ? 'stock_result' : undefined,
@@ -212,6 +222,11 @@ export default function BotBuilder() {
             onChangeReportType: (t: string) => updateNodeData(newNode.id, { reportType: t }),
             onChangePriority: (p: string) => updateNodeData(newNode.id, { priority: p }),
             onChangeMessage: (m: string) => updateNodeData(newNode.id, { message: m }),
+            onChangeMediaUrl: (u: string) => updateNodeData(newNode.id, { mediaUrl: u }),
+            onChangeCaption: (c: string) => updateNodeData(newNode.id, { caption: c }),
+            onChangeMediaType: (t: string) => updateNodeData(newNode.id, { mediaType: t }),
+            onChangeFileName: (n_name: string) => updateNodeData(newNode.id, { fileName: n_name }),
+            onChangeMimeType: (m: string) => updateNodeData(newNode.id, { mimetype: m }),
         },
       };
 
@@ -226,7 +241,7 @@ export default function BotBuilder() {
     
     // Clean up nodes data before saving
     const cleanNodes = flow.nodes.map((n: any) => {
-        const { onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, onChangeReportType, onChangePriority, ...restData } = n.data;
+        const { onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, ...restData } = n.data;
         return { ...n, data: restData };
     });
 

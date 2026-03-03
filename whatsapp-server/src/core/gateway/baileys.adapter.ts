@@ -4,21 +4,41 @@ import makeWASocket, {
     WASocket,
     ConnectionState,
     BaileysEventMap,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    delay
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
 import pino from 'pino';
+import { Mutex } from 'async-mutex';
 
 import * as QRCode from 'qrcode';
+import { IWhatsAppGateway, IWhatsAppMessage } from './whatsapp.interface';
 
-export class BaileysAdapter {
+// Anti-ban configuration
+const MIN_TYPING_DELAY = 1000;
+const MAX_TYPING_DELAY = 3000;
+const MIN_SEND_DELAY = 2000;
+const MAX_SEND_DELAY = 5000;
+const BOT_LOOP_THRESHOLD = 5; // Max messages to the same user
+const BOT_LOOP_WINDOW_MS = 10000; // in a 10-second window
+
+interface MessageHistory {
+    count: number;
+    firstMessageAt: number;
+}
+
+export class BaileysAdapter implements IWhatsAppGateway {
     private sock: WASocket | null = null;
     private authState: any;
     private saveCreds: any;
     private readonly authDir: string;
     private readonly logger: any;
+    
+    // Anti-ban state
+    private sendMutex = new Mutex();
+    private userSendHistory: Map<string, MessageHistory> = new Map();
 
     constructor(authDir: string = './auth_info_baileys') {
         this.authDir = authDir;
@@ -102,17 +122,72 @@ export class BaileysAdapter {
         }
     }
 
-    async sendMessage(to: string, content: any) {
+    private async simulateTyping(to: string, textLength: number) {
+        if (!this.sock) return;
+        try {
+            // First we need to send regular presence to ensure the other side knows we're online
+            await this.sock.presenceSubscribe(to);
+            await delay(500);
+
+            // Emit the writing status
+            await this.sock.sendPresenceUpdate('composing', to);
+            
+            // 50ms per character, capped between MIN and MAX delays
+            const calcDelay = Math.min(Math.max(textLength * 50, MIN_TYPING_DELAY), MAX_TYPING_DELAY);
+            await delay(calcDelay);
+            
+            // Revert the writing status back to paused
+            await this.sock.sendPresenceUpdate('paused', to);
+            // Pequeña pausa adicional antes de despachar el mensaje real
+            await delay(200); 
+        } catch (error) {
+            this.logger.error('Failed to simulate typing:', error);
+        }
+    }
+
+    async sendMessage(to: string, content: IWhatsAppMessage): Promise<void> {
         if (!this.sock) {
             console.error('Socket not initialized');
             return;
         }
-        try {
-            await this.sock.sendMessage(to, content);
-            console.log(`Message sent to ${to}`);
-        } catch (error) {
-            console.error(`Failed to send message to ${to}:`, error);
+
+        const jid = to.includes('@s.whatsapp.net') || to.includes('@g.us') 
+            ? to 
+            : `${to}@s.whatsapp.net`;
+
+        // Bot loop detection mechanism
+        const now = Date.now();
+        const history = this.userSendHistory.get(jid) || { count: 0, firstMessageAt: now };
+        
+        if (now - history.firstMessageAt > BOT_LOOP_WINDOW_MS) {
+            history.count = 1;
+            history.firstMessageAt = now;
+        } else {
+            history.count++;
+            if (history.count > BOT_LOOP_THRESHOLD) {
+                this.logger.warn(`[Anti-Ban] Bot loop detected for ${jid}. Dropping outbound message.`);
+                return; // Drop message to break loop
+            }
         }
+        this.userSendHistory.set(jid, history);
+
+        // Enqueue sending to prevent rapid bursts
+        await this.sendMutex.runExclusive(async () => {
+            try {
+                if (content.text) {
+                    await this.simulateTyping(jid, content.text.length);
+                }
+
+                await this.sock!.sendMessage(jid, content as any);
+                this.logger.info(`[Anti-Ban] Message sent to ${jid}`);
+
+                // Pause before processing the next message in queue
+                const sendDelayMs = Math.floor(Math.random() * (MAX_SEND_DELAY - MIN_SEND_DELAY + 1) + MIN_SEND_DELAY);
+                await delay(sendDelayMs);
+            } catch (error) {
+                console.error(`Failed to send message to ${jid}:`, error);
+            }
+        });
     }
 
     async logout() {

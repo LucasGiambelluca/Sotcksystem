@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch } from 'lucide-react';
+import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image } from 'lucide-react';
 
 const nodeItems = [
   { type: 'messageNode', icon: MessageSquare, label: 'Mensaje', desc: 'Envía un texto simple.', bg: 'bg-blue-100', text: 'text-blue-600' },
@@ -20,6 +20,7 @@ const nodeItems = [
   { type: 'handoverNode', icon: HelpCircle, label: 'Asesor Humano', desc: 'Pausa el bot y avisa.', bg: 'bg-rose-100', text: 'text-rose-600' },
   { type: 'businessHoursNode', icon: Store, label: 'Horario Atención', desc: 'Detecta si el local está abierto.', bg: 'bg-orange-100', text: 'text-orange-600' },
   { type: 'sendCatalogNode', icon: ShoppingBag, label: 'Enviar Catálogo', desc: 'Envía link del catálogo online.', bg: 'bg-emerald-100', text: 'text-emerald-600' },
+  { type: 'sendMediaNode', icon: Image, label: 'Enviar Multimedia', desc: 'Envía imagen o PDF.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
 ];
 
 export default function Sidebar() {
