@@ -23,6 +23,7 @@ import DriverView from './pages/DriverView';
 import ClaimsPanel from './pages/ClaimsPanel';
 import Catalog from './pages/Catalog';
 import PricingPresentation from './pages/PricingPresentation';
+import StockReports from './pages/StockReports';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
               <Route path="/clients" element={<Clients />} />
               <Route path="/clients/:id" element={<ClientDetails />} />
               <Route path="/products" element={<Products />} />
+              <Route path="/stock-reports" element={<StockReports />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/claims" element={<ClaimsPanel />} />
               <Route path="/kitchen" element={<KitchenDashboard />} />

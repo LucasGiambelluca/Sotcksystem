@@ -11,10 +11,23 @@ export interface Product {
   name: string;
   description: string | null;
   price: number;
-  stock: number;
+  stock: number; // Current Warehouse Stock
+  production_stock: number; // Current Production Stock
+  min_stock: number; // Minimum stock threshold for Warehouse
   category?: string;
   image_url_1?: string | null;
   image_url_2?: string | null;
+  created_at: string;
+}
+
+export type StockMovementType = 'PURCHASE' | 'TRANSFER' | 'SALE' | 'ADJUSTMENT';
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  type: StockMovementType;
+  quantity: number;
+  description: string | null;
   created_at: string;
 }
 

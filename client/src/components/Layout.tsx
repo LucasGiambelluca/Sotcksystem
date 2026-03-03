@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, DollarSign, FileText } from 'lucide-react';
 import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
@@ -45,6 +45,7 @@ export default function Layout() {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Inventario', path: '/products', icon: Package },
+    { name: 'Reportes de Stock', path: '/stock-reports', icon: FileText },
     { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
     { name: 'Reportes', path: '/claims', icon: MessageCircle },
     { name: 'Rutas', path: '/routes', icon: MapPin },

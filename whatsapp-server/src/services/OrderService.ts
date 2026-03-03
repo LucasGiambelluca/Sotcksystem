@@ -107,10 +107,16 @@ export class OrderService {
             });
             
             if (stockError) {
-                // Fallback manual
-                const { data: prod } = await this.db.from('products').select('stock').eq('id', item.product_id).single();
+                // Fallback manual (update production stock and movement)
+                const { data: prod } = await this.db.from('products').select('id, production_stock').eq('id', item.product_id).single();
                 if (prod) {
-                    await this.db.from('products').update({ stock: Math.max(0, prod.stock - item.qty) }).eq('id', item.product_id);
+                    await this.db.from('products').update({ production_stock: Math.max(0, prod.production_stock - item.qty) }).eq('id', item.product_id);
+                    await this.db.from('stock_movements').insert({
+                        product_id: item.product_id,
+                        type: 'SALE',
+                        quantity: item.qty,
+                        description: 'Venta fallback (Pedido Creado)'
+                    });
                 }
             }
         }

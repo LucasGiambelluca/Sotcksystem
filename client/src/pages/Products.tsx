@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown, Image, ExternalLink, ShoppingBag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown, Image, ExternalLink, ShoppingBag, ArrowRightLeft, ArrowDownToLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '../services/productService';
+import { stockMovementService } from '../services/stockMovementService';
 import { supabase } from '../supabaseClient';
 import type { Product } from '../types';
 import ExportButtons from '../components/ExportButtons';
@@ -15,11 +16,21 @@ export default function Products() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // Modals state for stock actions
+  const [activeActionProduct, setActiveActionProduct] = useState<Product | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [actionQuantity, setActionQuantity] = useState(0);
+  const [actionDescription, setActionDescription] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: 0,
     stock: 0,
+    production_stock: 0,
+    min_stock: 0,
     category: '',
     image_url_1: '' as string | null,
     image_url_2: '' as string | null,
@@ -56,6 +67,8 @@ export default function Products() {
         description: formData.description,
         price: Number(formData.price),
         stock: Number(formData.stock),
+        production_stock: Number(formData.production_stock),
+        min_stock: Number(formData.min_stock),
         category: formData.category,
         image_url_1: formData.image_url_1 || null,
         image_url_2: formData.image_url_2 || null,
@@ -116,6 +129,8 @@ export default function Products() {
         description: product.description || '',
         price: product.price,
         stock: product.stock,
+        production_stock: product.production_stock || 0,
+        min_stock: product.min_stock || 0,
         category: product.category || '',
         image_url_1: product.image_url_1 || '',
         image_url_2: product.image_url_2 || '',
@@ -124,7 +139,7 @@ export default function Products() {
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', description: '', price: 0, stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
+      setFormData({ name: '', description: '', price: 0, stock: 0, production_stock: 0, min_stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
     }
     setIsModalOpen(true);
   };
@@ -132,7 +147,44 @@ export default function Products() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
-    setFormData({ name: '', description: '', price: 0, stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
+    setFormData({ name: '', description: '', price: 0, stock: 0, production_stock: 0, min_stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
+  };
+
+  // --- ACTIONS MODALS ---
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeActionProduct || actionQuantity <= 0) return;
+    try {
+      await stockMovementService.registerPurchase(activeActionProduct.id, actionQuantity, actionDescription || 'Ingreso manual de stock', activeActionProduct.stock);
+      toast.success(`Ingresadas ${actionQuantity} unidades al depósito`);
+      closeActionModals();
+      loadProducts();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al registrar ingreso');
+    }
+  };
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeActionProduct || actionQuantity <= 0) return;
+    try {
+      await stockMovementService.transferToProduction(activeActionProduct.id, actionQuantity, actionDescription || 'Transferencia a producción', activeActionProduct.stock, activeActionProduct.production_stock);
+      toast.success(`${actionQuantity} unidades movidas a producción`);
+      closeActionModals();
+      loadProducts();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al transferir stock');
+    }
+  };
+
+  const closeActionModals = () => {
+    setIsTransferModalOpen(false);
+    setIsPurchaseModalOpen(false);
+    setActiveActionProduct(null);
+    setActionQuantity(0);
+    setActionDescription('');
   };
 
   async function uploadImage(file: File, slot: 1 | 2, tempId: string) {
@@ -277,7 +329,8 @@ export default function Products() {
                 <th className="px-6 py-4">Producto</th>
                 <th className="px-6 py-4">Categoría</th>
                 <th className="px-6 py-4">Precio</th>
-                <th className="px-6 py-4">Stock</th>
+                <th className="px-6 py-4">Depósito</th>
+                <th className="px-6 py-4">Producción</th>
                 <th className="px-6 py-4 text-right">Acciones</th>
               </tr>
             </thead>
@@ -316,27 +369,51 @@ export default function Products() {
                     <div className="flex flex-col space-y-2 max-w-[120px]">
                       <div className="flex justify-between items-center">
                         <span className={`text-sm font-medium ${
-                          product.stock > 10 ? 'text-green-700' : product.stock > 0 ? 'text-yellow-700' : 'text-red-700'
+                          product.stock > product.min_stock ? 'text-green-700' : product.stock > 0 ? 'text-yellow-700' : 'text-red-700'
                         }`}>
-                          {product.stock} unid.
+                          {product.stock} un.
                         </span>
+                        {product.stock <= product.min_stock && (
+                           <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-md font-bold" title={`Stock mínimo: ${product.min_stock}`}>
+                             ¡BAJO!
+                           </span>
+                        )}
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                         <div 
                           className={`h-full rounded-full transition-all duration-500 ${
-                            product.stock > 10 ? 'bg-green-500' : product.stock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                            product.stock > product.min_stock ? 'bg-green-500' : product.stock > 0 ? 'bg-yellow-500' : 'bg-red-500'
                           }`}
-                          style={{ width: `${Math.min((product.stock / 20) * 100, 100)}%` }}
+                          style={{ width: `${Math.min((product.stock / (product.min_stock * 2 || 20)) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                     <span className="font-bold text-gray-800 bg-blue-50 text-blue-800 px-3 py-1 rounded-lg">
+                        {product.production_stock} un.
+                     </span>
+                  </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => { setActiveActionProduct(product); setIsPurchaseModalOpen(true); }}
+                        className="bg-emerald-50 text-emerald-600 p-2 rounded-lg hover:bg-emerald-100 transition-colors"
+                        title="Ingreso de Depósito (Compra/Recepción)"
+                      >
+                        <ArrowDownToLine size={18} />
+                      </button>
+                      <button 
+                        onClick={() => { setActiveActionProduct(product); setIsTransferModalOpen(true); }}
+                        className="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-100 transition-colors"
+                        title="Transferir a Producción (Cocina)"
+                      >
+                        <ArrowRightLeft size={18} />
+                      </button>
                       <button 
                         onClick={() => openModal(product)}
-                        className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-100 transition-colors"
-                        title="Editar"
+                        className="bg-gray-50 text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors ml-2 border border-gray-100"
+                        title="Editar Detalle Completo"
                       >
                         <Pencil size={18} />
                       </button>
@@ -485,12 +562,35 @@ export default function Products() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Inicial *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Minimo (Alarma) *</label>
+                  <input
+                    type="number"
+                    value={formData.min_stock}
+                    onChange={(e) => setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                    placeholder="Mostrar alerta si es menor que..."
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 bg-gray-100 px-2 py-1 rounded w-max text-xs">Stock Depósito</label>
                   <input
                     type="number"
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 bg-blue-100 text-blue-800 px-2 py-1 rounded w-max text-xs">Stock Producción</label>
+                  <input
+                    type="number"
+                    value={formData.production_stock}
+                    onChange={(e) => setFormData({ ...formData, production_stock: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50/30 transition-all"
                     required
                   />
                 </div>
@@ -539,6 +639,104 @@ export default function Products() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- Purchase Item Modal --- */}
+      {isPurchaseModalOpen && activeActionProduct && (
+        <div className="fixed inset-0 bg-dark-bg/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-xl font-bold text-gray-800 flex items-center"><ArrowDownToLine className="text-emerald-500 mr-2"/> Ingreso a Depósito</h3>
+                 <button onClick={closeActionModals} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
+              </div>
+              <p className="text-sm text-gray-500 mb-6">Recepcionar stock del proveedor para el producto <b>{activeActionProduct.name}</b></p>
+              
+              <form onSubmit={handlePurchaseSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad Recibida</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={actionQuantity}
+                    onChange={(e) => setActionQuantity(Math.floor(Number(e.target.value)))}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-xs text-emerald-600 mt-2 font-medium">Nuevo stock depósito será: {activeActionProduct.stock + actionQuantity}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nota (Opcional)</label>
+                  <input
+                    type="text"
+                    value={actionDescription}
+                    onChange={(e) => setActionDescription(e.target.value)}
+                    placeholder="Ej. Remito #1234, Proveedor ABC"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <button type="submit" className="w-full bg-emerald-600 text-white rounded-xl py-3 font-medium hover:bg-emerald-700 transition">Confirmar Ingreso</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Transfer to Production Modal --- */}
+      {isTransferModalOpen && activeActionProduct && (
+        <div className="fixed inset-0 bg-dark-bg/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-xl font-bold text-gray-800 flex items-center"><ArrowRightLeft className="text-indigo-500 mr-2"/> Transferir a Producción</h3>
+                 <button onClick={closeActionModals} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
+              </div>
+              <p className="text-sm text-gray-500 mb-6">Mover stock del depósito actual a la línea de elaboración. Producto: <b>{activeActionProduct.name}</b></p>
+
+              <form onSubmit={handleTransferSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad a Mover (Disp: {activeActionProduct.stock})</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={activeActionProduct.stock}
+                    value={actionQuantity}
+                    onChange={(e) => setActionQuantity(Math.floor(Number(e.target.value)))}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                    required
+                  />
+                  {actionQuantity > activeActionProduct.stock && (
+                     <p className="text-xs text-red-500 mt-1">Supera el stock disponible en depósito.</p>
+                  )}
+                  {actionQuantity > 0 && actionQuantity <= activeActionProduct.stock && (
+                      <p className="text-xs text-indigo-600 mt-2 font-medium">Nuevo stock producción será: {activeActionProduct.production_stock + actionQuantity}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nota (Opcional)</label>
+                  <input
+                    type="text"
+                    value={actionDescription}
+                    onChange={(e) => setActionDescription(e.target.value)}
+                    placeholder="Ej. Uso en cocina / Lote A"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={actionQuantity > activeActionProduct.stock || actionQuantity <= 0}
+                  className="w-full bg-indigo-600 text-white rounded-xl py-3 font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirmar Transferencia
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

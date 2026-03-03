@@ -3,7 +3,9 @@ export interface Product {
     name: string;
     description?: string;
     price: number;
-    stock: number;
+    stock: number;         // Current Warehouse Stock
+    production_stock: number; // Current Production Stock
+    min_stock: number;     // Minimum stock threshold for Warehouse
     image_url?: string;
     category?: string;
     created_at?: string;
