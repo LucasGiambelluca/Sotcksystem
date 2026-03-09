@@ -1,9 +1,8 @@
-
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { Search, Trash2 } from 'lucide-react';
 
-const OrderStatusNode = ({ data, id }: { data: any, id: string }) => {
+const OrderStatusNode = ({ data }: { data: any }) => {
   return (
     <div className="bg-white border-2 border-indigo-500 rounded-lg shadow-lg min-w-[200px] overflow-hidden">
       <div className="bg-indigo-500 p-2 flex items-center justify-between text-white">
