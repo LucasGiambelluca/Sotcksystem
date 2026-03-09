@@ -217,8 +217,8 @@ export default function Dashboard() {
   if (loading) return <div className="p-8 flex justify-center text-primary-600">Cargando dashboard...</div>;
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+    <div className="p-3 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-8 gap-3 md:gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Panel de Control</h1>
           <p className="text-gray-500 mt-1 text-sm md:text-base">Resumen general de tu negocio</p>
@@ -277,85 +277,85 @@ export default function Dashboard() {
       {dashboardConfig.stats && (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 mb-6 md:mb-8 animate-in fade-in zoom-in-95">
         {/* Card: Clientes */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-blue-50 p-2.5 rounded-xl">
-              <Users className="text-blue-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-blue-50 p-2 md:p-2.5 rounded-xl">
+              <Users className="text-blue-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
-            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
+            <span className="text-[10px] md:text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
           </div>
           <h3 className="text-gray-500 text-xs font-medium">Clientes</h3>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalClients}</p>
+          <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{stats.totalClients}</p>
         </div>
 
         {/* Card: Productos */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-purple-50 p-2.5 rounded-xl">
-              <Package className="text-purple-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-purple-50 p-2 md:p-2.5 rounded-xl">
+              <Package className="text-purple-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
           </div>
           <h3 className="text-gray-500 text-xs font-medium">Productos</h3>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
+          <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
         </div>
 
         {/* Card: Deuda */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-red-50 p-2.5 rounded-xl">
-              <DollarSign className="text-red-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-red-50 p-2 md:p-2.5 rounded-xl">
+              <DollarSign className="text-red-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
           </div>
           <h3 className="text-gray-500 text-xs font-medium">Deuda Total</h3>
-          <p className="text-2xl font-bold text-gray-900 mt-1">${stats.totalDebt.toFixed(2)}</p>
+          <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">${stats.totalDebt.toFixed(2)}</p>
         </div>
 
         {/* Card: Stock Bajo */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-yellow-50 p-2.5 rounded-xl">
-              <AlertCircle className="text-yellow-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-yellow-50 p-2 md:p-2.5 rounded-xl">
+              <AlertCircle className="text-yellow-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
             {stats.lowStockProducts > 0 && (
-              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">Atención</span>
+              <span className="text-[10px] md:text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">Atención</span>
             )}
           </div>
           <h3 className="text-gray-500 text-xs font-medium">Stock Bajo</h3>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.lowStockProducts}</p>
+          <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{stats.lowStockProducts}</p>
         </div>
 
         {/* Card: En Camino */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-orange-50 p-2.5 rounded-xl">
-              <Truck className="text-orange-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-orange-50 p-2 md:p-2.5 rounded-xl">
+              <Truck className="text-orange-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
             {ordersEnCamino.length > 0 && (
-              <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
-                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+              <span className="flex items-center gap-1 text-[10px] md:text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-orange-500 rounded-full animate-pulse"></span>
                 Activo
               </span>
             )}
           </div>
           <h3 className="text-gray-500 text-xs font-medium">En Camino</h3>
-          <p className="text-2xl font-bold text-orange-600 mt-1">{ordersEnCamino.length}</p>
+          <p className="text-xl md:text-2xl font-bold text-orange-600 mt-1">{ordersEnCamino.length}</p>
           {ordersEnCamino.length > 0 && (
-            <p className="text-xs text-gray-400 mt-1 truncate">
+            <p className="text-[10px] md:text-xs text-gray-400 mt-1 truncate">
               {ordersEnCamino[0]?.clients?.name || 'Pedidos'}...
             </p>
           )}
         </div>
 
         {/* Card: Entregados Hoy */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="bg-green-50 p-2.5 rounded-xl">
-              <TrendingUp className="text-green-600" size={20} />
+        <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-green-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="bg-green-50 p-2 md:p-2.5 rounded-xl">
+              <TrendingUp className="text-green-600 w-5 h-5 md:w-5 md:h-5" />
             </div>
           </div>
           <h3 className="text-gray-500 text-xs font-medium">Entregados Hoy</h3>
-          <p className="text-2xl font-bold text-green-600 mt-1">{ordersEntregadosHoy}</p>
-          <p className="text-xs text-gray-400 mt-1">jornada operativa</p>
+          <p className="text-xl md:text-2xl font-bold text-green-600 mt-1">{ordersEntregadosHoy}</p>
+          <p className="text-[10px] md:text-xs text-gray-400 mt-1">jornada operativa</p>
         </div>
       </div>
       )}
@@ -366,20 +366,20 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-8">
         {/* WhatsApp Pending Orders */}
         {dashboardConfig.whatsapp && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-full animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                    <div className="bg-green-50 p-2 rounded-lg">
-                        <MessageCircle className="text-green-600" size={24} />
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 h-full animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+                <div className="flex items-center space-x-2 md:space-x-3">
+                    <div className="bg-green-50 p-1.5 md:p-2 rounded-lg">
+                        <MessageCircle className="text-green-600 w-5 h-5 md:w-6 md:h-6" />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">Pedidos WhatsApp</h2>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900">Pedidos WhatsApp</h2>
                 </div>
-                <Link to="/orders" className="text-sm text-green-600 hover:text-green-700 font-medium">
+                <Link to="/orders" className="text-xs md:text-sm text-green-600 hover:text-green-700 font-medium">
                     Ver todos
                 </Link>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {pendingWhatsAppOrders.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-4">No hay pedidos pendientes de WhatsApp</p>
                 ) : (
@@ -410,20 +410,20 @@ export default function Dashboard() {
 
         {/* Upcoming Deliveries */}
         {dashboardConfig.routes && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-full">
-            <div className="flex items-center justify-between mb-6">
-                 <div className="flex items-center space-x-3">
-                    <div className="bg-indigo-50 p-2 rounded-lg">
-                        <Truck className="text-indigo-600" size={24} />
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 h-full">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+                 <div className="flex items-center space-x-2 md:space-x-3">
+                    <div className="bg-indigo-50 p-1.5 md:p-2 rounded-lg">
+                        <Truck className="text-indigo-600 w-5 h-5 md:w-6 md:h-6" />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">Próximas Entregas</h2>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900">Próximas Entregas</h2>
                 </div>
-                <Link to="/routes" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                <Link to="/routes" className="text-xs md:text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                     Ver todas
                 </Link>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
                  {upcomingRoutes.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-4">No hay rutas programadas</p>
                 ) : (
@@ -451,32 +451,32 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
         {/* Resumen del Sistema */}
         {dashboardConfig.system && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="bg-primary-50 p-2 rounded-lg">
-                <Activity className="text-primary-600" size={24} />
+        <div className="space-y-4 md:space-y-6">
+          <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center space-x-2 md:space-x-3 mb-4 md:mb-6">
+              <div className="bg-primary-50 p-1.5 md:p-2 rounded-lg">
+                <Activity className="text-primary-600 w-5 h-5 md:w-6 md:h-6" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Estado del Sistema</h2>
+              <h2 className="text-lg md:text-xl font-bold text-gray-900">Estado del Sistema</h2>
             </div>
-            <div className="bg-blue-50 rounded-xl p-6 mb-6">
+            <div className="bg-blue-50 rounded-xl p-4 md:p-6 mb-4 md:mb-6">
               <div className="flex items-start space-x-3">
-                <div className="bg-blue-100 p-1.5 rounded-full mt-0.5">
-                  <TrendingUp className="text-blue-600" size={16} />
+                <div className="bg-blue-100 p-1.5 rounded-full mt-0.5 min-w-[28px] max-w-[28px]">
+                  <TrendingUp className="text-blue-600 w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-blue-900">Sistema Operativo</h4>
-                  <p className="text-blue-700 text-sm mt-1">
+                  <h4 className="font-semibold text-blue-900 text-sm md:text-base">Sistema Operativo</h4>
+                  <p className="text-blue-700 text-xs md:text-sm mt-1">
                     Todas las funciones están activas. La base de datos está conectada y sincronizada.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="space-y-3">
-               <Link to="/products" className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
+            <div className="space-y-2 md:space-y-3">
+               <Link to="/products" className="flex items-center justify-between p-3 md:p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
                   <div className="flex items-center space-x-3">
                     <Package size={20} className="text-gray-400 group-hover:text-primary-600" />
-                    <span className="font-medium text-gray-700 group-hover:text-gray-900">Gestionar Inventario</span>
+                    <span className="font-medium text-sm md:text-base text-gray-700 group-hover:text-gray-900">Gestionar Inventario</span>
                   </div>
                   <ArrowRight size={18} className="text-gray-400 group-hover:text-primary-600" />
                </Link>

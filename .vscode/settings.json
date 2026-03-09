@@ -1,10 +1,10 @@
 {
     "deno.enable": true,
     "deno.enablePaths": [
-        "./supabase/functions"
+        "supabase/functions"
     ],
-    "deno.importMap": "./supabase/functions/deno.json",
+    "deno.config": "./supabase/functions/deno.json",
     "deno.unstable": true,
     "deno.lint": true,
-    "deno.path": "C:\\Users\\Lucas\\.deno\\bin\\deno.exe"
+    "typescript.validate.enable": true
 }

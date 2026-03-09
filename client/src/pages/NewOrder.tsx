@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { createOrder, updateClient } from '../services/orderService';
 import { sendWhatsAppMessage } from '../services/whatsappService';
+import { catalogItemService } from '../services/productService';
 import WhatsAppImport from '../components/WhatsAppImport';
-import type { Client, Product } from '../types';
+import type { Client, CatalogItem } from '../types';
 import { Save, ArrowLeft, Plus, Trash2, MessageCircle, UserPlus, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -233,7 +234,7 @@ function EditAddressModal({
 export default function NewOrder() {
   const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false); // New state
   const [isEditAddressOpen, setIsEditAddressOpen] = useState(false);
@@ -253,13 +254,13 @@ export default function NewOrder() {
   }, []);
 
   async function loadData() {
-    const [clientsRes, productsRes] = await Promise.all([
+    const [clientsRes, catalogRes] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
-      supabase.from('products').select('*').order('name'),
+      catalogItemService.getAll(),
     ]);
 
     if (clientsRes.data) setClients(clientsRes.data as Client[]);
-    if (productsRes.data) setProducts(productsRes.data as Product[]);
+    setCatalogItems(catalogRes);
 
     // Check for WhatsApp inbox import (from "Convert to Order" button)
     const waItems = sessionStorage.getItem('whatsapp_order_items');
@@ -292,15 +293,15 @@ export default function NewOrder() {
   }
 
   const handleAddItem = () => {
-    if (products.length === 0) return;
-    const firstProduct = products[0];
+    if (catalogItems.length === 0) return;
+    const firstItem = catalogItems[0];
     setOrderItems([
       ...orderItems,
       {
-        product_id: firstProduct.id,
+        product_id: firstItem.id,
         quantity: 1,
-        unit_price: firstProduct.price,
-        product_name: firstProduct.name,
+        unit_price: firstItem.price,
+        product_name: firstItem.name,
       },
     ]);
   };
@@ -308,11 +309,11 @@ export default function NewOrder() {
   const updateItem = (index: number, field: keyof typeof orderItems[0], value: any) => {
     const newItems = [...orderItems];
     if (field === 'product_id') {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        newItems[index].product_id = product.id;
-        newItems[index].product_name = product.name;
-        newItems[index].unit_price = product.price;
+      const item = catalogItems.find((p) => p.id === value);
+      if (item) {
+        newItems[index].product_id = item.id;
+        newItems[index].product_name = item.name;
+        newItems[index].unit_price = item.is_special && item.special_price ? item.special_price : item.price;
       }
     } else {
       (newItems[index] as any)[field] = value;
@@ -579,9 +580,10 @@ export default function NewOrder() {
                       onChange={(e) => updateItem(index, 'product_id', e.target.value)}
                       className="w-full px-3 py-2 border rounded-lg bg-white"
                     >
-                      {products.map((p) => (
+                      {catalogItems.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (${p.price})
+                          {p.name} (${(p.is_special && p.special_price ? p.special_price : p.price).toLocaleString('es-AR')})
+                          {p.is_special ? ' ⭐' : ''}
                         </option>
                       ))}
                     </select>
@@ -649,7 +651,7 @@ export default function NewOrder() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleWhatsAppImport}
-        products={products}
+        products={catalogItems as any}
       />
 
       <QuickClientModal 

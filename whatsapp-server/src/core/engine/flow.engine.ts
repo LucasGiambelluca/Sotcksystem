@@ -23,6 +23,7 @@ import { StartNodeExecutor } from '../../core/executors/StartNodeExecutor';
 import { ReportExecutor } from '../../core/executors/ReportExecutor';
 import { StockCheckExecutor } from '../../core/executors/StockCheckExecutor';
 import { AddToCartExecutor } from '../../core/executors/AddToCartExecutor';
+import { OrderStatusExecutor } from '../../core/executors/OrderStatusExecutor';
 
 import { HandoverExecutor } from '../../core/executors/HandoverExecutor';
 import { BusinessHoursExecutor } from '../../core/executors/BusinessHoursExecutor';
@@ -51,6 +52,7 @@ const nodeExecutors: Record<string, NodeExecutor> = {
     'businessHoursNode': new BusinessHoursExecutor(),
     'sendCatalogNode': new SendCatalogExecutor(),
     'sendMediaNode': new SendMediaExecutor(),
+    'orderStatusNode': new OrderStatusExecutor(),
     
     // Start / Input nodes
     'input': new StartNodeExecutor(),
@@ -360,7 +362,7 @@ export class FlowEngine {
                          const product = await productService.findProduct(item.product);
                          if (product) {
                              verifiedItems.push({
-                                 product_id: product.id,
+                                 catalog_item_id: product.id,
                                  qty: item.qty,
                                  price: product.price,
                                  name: product.name
@@ -406,8 +408,17 @@ export class FlowEngine {
              // 2. Guardado genérico del input (skip for nodes that handle their own context)
              if (currentNode.type !== 'catalogNode' && currentNode.type !== 'sendCatalogNode' && currentNode.type !== 'slotNode' && currentNode.type !== 'pollNode' && currentNode.type !== 'stockCheckNode') {
                  const varName = (currentNode.data.variable || 'temp_input').trim();
-                 console.log(`[FlowEngine] Saving input "${input}" to variable "${varName}"`);
-                 execution.context = { ...execution.context, [varName]: input };
+                 
+                 if (input === '_LOCATION_RECEIVED_' && execution.context._location) {
+                     console.log(`[FlowEngine] Saving GPS Pin to variable "${varName}"`);
+                     execution.context[`${varName}_lat`] = execution.context._location.lat;
+                     execution.context[`${varName}_lng`] = execution.context._location.lng;
+                     // Guardamos un string legible en la variable original por si se usa en un resumen
+                     execution.context[varName] = `📍 Ubicación GPS (${execution.context._location.lat.toFixed(5)}, ${execution.context._location.lng.toFixed(5)})`;
+                 } else {
+                     console.log(`[FlowEngine] Saving input "${input}" to variable "${varName}"`);
+                     execution.context[varName] = input;
+                 }
              }
 
              // Special: Stock Check Node — process input and save structured result

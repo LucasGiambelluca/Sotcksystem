@@ -1,0 +1,119 @@
+[dotenv@17.3.1] injecting env (10) from .env -- tip: ÔÜÖ´©Å  write to custom object with { processEnv: myObject }
+ÔÅ® Skipped (already exists): Vac├¡o parrilla con guarnicion
+ÔÅ® Skipped (already exists): Carne al horno con guarnicion
+ÔÅ® Skipped (already exists): Canelones con salsa
+ÔÅ® Skipped (already exists): ├æoquis con bolognesa
+ÔÅ® Skipped (already exists): Tallarines con Bolognesa
+ÔÅ® Skipped (already exists): Lazagna x 500gs
+ÔÅ® Skipped (already exists): Guiso de lentejas
+ÔÅ® Skipped (already exists): 1/4 de pollo al disco
+ÔÅ® Skipped (already exists): Tiramisu para compartir
+ÔÅ® Skipped (already exists): Flan casero
+ÔÅ® Skipped (already exists): Bud├¡n de Pan
+ÔÅ® Skipped (already exists): Chocotorta
+ÔÅ® Skipped (already exists): Arroz Con Leche
+ÔÅ® Skipped (already exists): S├índ. de milanesa de ternera
+ÔÅ® Skipped (already exists): S├índ. milanesa de pollo
+ÔÅ® Skipped (already exists): Lengua a la Vinagreta 300gs
+ÔÅ® Skipped (already exists): Escabeche de Pollo 300gs
+ÔÅ® Skipped (already exists): Berenjena a la Vinagreta 300gs
+ÔÅ® Skipped (already exists): Pepinillos agridulces en vinagre
+ÔÅ® Skipped (already exists): Aceitunas negras cond.
+ÔÅ® Skipped (already exists): Nervios A La Vinegreta
+ÔÅ® Skipped (already exists): 300g arrollado de pollo
+ÔÅ® Skipped (already exists): 500g de arrollado de pollo
+ÔÅ® Skipped (already exists): 1 kg de arrollado de pollo
+ÔÅ® Skipped (already exists): Filet merluza sin guarnicion
+ÔÅ® Skipped (already exists): Merluza con guarnicion
+ÔÅ® Skipped (already exists): Pollo a la parrilla con fritas
+ÔÅ® Skipped (already exists): 1/4 pechuga con guarnici├│n
+ÔÅ® Skipped (already exists): Pollo entero a la parrilla
+ÔÅ® Skipped (already exists): 1/2 Pollo a la Parrilla
+ÔÅ® Skipped (already exists): 1/4 pata muslo con guarnici├│n
+ÔÅ® Skipped (already exists): Combo hamburguesa completa
+ÔÅ® Skipped (already exists): S├índwich de Hamburguesa
+ÔÅ® Skipped (already exists): Pollo ala pizza sin guarnicion
+ÔÅ® Skipped (already exists): Pollo ala pizza con guarnici├│n
+ÔÅ® Skipped (already exists): Huevo frito
+ÔÅ® Skipped (already exists): Triples de primavera
+ÔÅ® Skipped (already exists): Triples de jam├│n y queso c/u
+ÔÅ® Skipped (already exists): Empanada de Carne frita
+ÔÅ® Skipped (already exists): Empanada de Pollo al horno
+ÔÅ® Skipped (already exists): Emp.de j y q frita
+ÔÅ® Skipped (already exists): Empanada de Carne al horno
+ÔÅ® Skipped (already exists): Emp.de j y q al horno
+ÔÅ® Skipped (already exists): Empanada de Verdura al horno
+ÔÅ® Skipped (already exists): Patitas de pollo
+ÔÅ® Skipped (already exists): Porci├│n de pan
+ÔÅ® Skipped (already exists): Tira de pan franc├®s
+ÔÅ® Skipped (already exists): Pollo a la potuguesa.
+ÔÅ® Skipped (already exists): 1/2 tarta de Jam├│n y Queso
+ÔÅ® Skipped (already exists): 1/2 Tarta de Pollo
+ÔÅ® Skipped (already exists): 1/2 Tarta De Verduras
+ÔÅ® Skipped (already exists): 1/2 tarta j y q completa
+ÔÅ® Skipped (already exists): Doc. emp. carne
+ÔÅ® Skipped (already exists): Doc. emp. jyq
+ÔÅ® Skipped (already exists): Papas Fritas
+ÔÅ® Skipped (already exists): Papas al Horno
+ÔÅ® Skipped (already exists): Porci├│n de arroz amarillo
+ÔÅ® Skipped (already exists): 300g ensalada Rusa
+ÔÅ® Skipped (already exists): 600g. Ensalada Rusa
+ÔÅ® Skipped (already exists): 1 kg. Ensalada Rusa
+ÔÅ® Skipped (already exists): Tomate, Lechuga Y Cebolla
+ÔÅ® Skipped (already exists): Zanahoria Y Huevo
+ÔÅ® Skipped (already exists): Ensalada Mixta
+ÔÅ® Skipped (already exists): Ensalada De Tomate Y Lechuga
+ÔÅ® Skipped (already exists): Tortilla de Papa al Horno
+ÔÅ® Skipped (already exists): Verduras al Horno
+ÔÅ® Skipped (already exists): Pure de Papas
+ÔÅ® Skipped (already exists): Milanesa de Ternera
+ÔÅ® Skipped (already exists): Milanesa de Pollo
+ÔÅ® Skipped (already exists): Milanesa Napolitana de Carne
+ÔÅ® Skipped (already exists): Milanesa Napolitanade Pollo
+ÔÅ® Skipped (already exists): Mila. napo.carne c/guarnici├│n
+ÔÅ® Skipped (already exists): Mila. napo. pollo c/guarnici├│n
+ÔÅ® Skipped (already exists): Milanesa de Ternera a Caballo
+ÔÅ® Skipped (already exists): Milanesa de pechuga a caballo
+ÔÅ® Skipped (already exists): Milanesa de carne con omelette
+ÔÅ® Skipped (already exists): Milanesa de Pollo con Omelette
+ÔÅ® Skipped (already exists): Milanesa de carne c/guarnici├│n
+ÔÅ® Skipped (already exists): Milanesa de pollo c/guarnici├│n
+ÔÅ® Skipped (already exists): Sprite 1 1/2
+ÔÅ® Skipped (already exists): Sprite 2 1/4
+ÔÅ® Skipped (already exists): Gaseosa Coca-Cola 1.5 L.
+ÔÅ® Skipped (already exists): Coca Coca 2 1/4
+ÔÅ® Skipped (already exists): Fanta 2 1/4
+ÔÅ® Skipped (already exists): Gaseosa Coca Cola 500 Cc.
+ÔÅ® Skipped (already exists): Fanta 11/2
+ÔÅ® Skipped (already exists): Pepsi 1 1/2
+ÔÅ® Skipped (already exists): Pepsi 2
+ÔÅ® Skipped (already exists): 7 up 1 1/2
+ÔÅ® Skipped (already exists): 7 Up 2 1/2
+ÔÅ® Skipped (already exists): Mirinda 1 1/2
+ÔÅ® Skipped (already exists): Mirinda 2 1/4
+ÔÅ® Skipped (already exists): Coca cola sin az├║car 500cc
+ÔÅ® Skipped (already exists): Baggio Fresh 1, 5l
+ÔÅ® Skipped (already exists): Aquarius 1.5 L
+ÔÅ® Skipped (already exists): Jugo Clight Naranja, Naranja Dulce, limonada, pomelo rosado, naranja durazno, o manzana deliciosa. Aclarar sabor
+ÔÅ® Skipped (already exists): Te verde la Virginia
+ÔÅ® Skipped (already exists): Te de Frutilla La Virginia
+ÔÅ® Skipped (already exists): Te Boldo La Virginia
+ÔÅ® Skipped (already exists): Te de Tilo La Virginia
+ÔÅ® Skipped (already exists): Te comun
+ÔÅ® Skipped (already exists): Speed 475ml
+ÔÅ® Skipped (already exists): Monsters
+ÔÅ® Skipped (already exists): Cerveza brahma chopp 473ml
+ÔÅ® Skipped (already exists): Cerveza quilmes cl├ísica 473ml
+ÔÅ® Skipped (already exists): Cerveza andes rubia lata 710
+ÔÅ® Skipped (already exists): Cerveza Andes Roja 473 cm3
+ÔÅ® Skipped (already exists): Cerveza Budweiser Lata 710 ml
+ÔÅ® Skipped (already exists): Cerveza Quilmes Stout 473 cm3
+ÔÅ® Skipped (already exists): Vino tinto cafayate
+ÔÅ® Skipped (already exists): Vino Tinto Buenos Aires Malbec 750 ml
+ÔÅ® Skipped (already exists): Vino Tinto Malbec
+ÔÅ® Skipped (already exists): Dr. Lemon 473ml
+ÔÅ® Skipped (already exists): Gancia americano + lima lim├│n
+ÔÅ® Skipped (already exists): Cerveza Stela Artois 710
+ÔÅ® Skipped (already exists): Man├¡ King Con Cascara
+
+­ƒÄë Import completed! Inserted: 0. Skipped: 116.

@@ -33,10 +33,12 @@ class WhatsAppClient {
     private qrCodeData: string | null = null;
     private status: WhatsAppStatus = 'STOPPED';
     private reconnectAttempts = 0;
+    private sessionClearFailed = false; // Flag to prevent infinite restart loops
     
     // Anti-ban state
     private sendMutex = new Mutex();
     private userSendHistory: Map<string, MessageHistory> = new Map();
+    private cleanupInterval: NodeJS.Timeout | null = null;
 
     public getSock() {
         return this.sock;
@@ -51,6 +53,13 @@ class WhatsAppClient {
     }
 
     public async start() {
+        // Guard: do not restart if session clearing failed (prevents infinite loop)
+        if (this.sessionClearFailed) {
+            console.error('🚨 [CRITICAL] Cannot start: session directory could not be cleared. Manual intervention required.');
+            console.error(`🚨 Please manually delete the folder: ${AUTH_DIR}`);
+            return;
+        }
+
         if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
         console.log(`📁 Auth dir: ${AUTH_DIR}`);
         
@@ -63,9 +72,49 @@ class WhatsAppClient {
             version,
             auth: state,
             logger: pino({ level: 'silent' }) as any,
-            browser: Browsers.macOS('Desktop'),
+            browser: ['Mac OS', 'Chrome', '121.0.6167.159'],
             syncFullHistory: false
         });
+
+        // 🟢 Pairing Code Protocol (Alternative to QR Code)
+        if (process.env.PAIRING_PHONE_NUMBER && !this.sock.authState.creds.registered) {
+            setTimeout(async () => {
+                try {
+                    const phone = process.env.PAIRING_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '';
+                    console.log(`\n⏳ Solicitando Código de Emparejamiento para ${phone}...`);
+                    let code = await this.sock.requestPairingCode(phone);
+                    code = code?.match(/.{1,4}/g)?.join('-') || code;
+                    console.log('\n======================================================');
+                    console.log('🔗 CÓDIGO DE VINCULACIÓN DE WHATSAPP: ' + code);
+                    console.log('📌 INSTRUCCIONES EN TU CELULAR:');
+                    console.log('   1. Abrí WhatsApp > Dispositivos vinculados');
+                    console.log('   2. Tocar "Vincular un dispositivo"');
+                    console.log('   3. Abajo en la pantalla, tocá "Vincular con el número de teléfono"');
+                    console.log('   4. Ingresá el código alfanumérico que ves arriba');
+                    console.log('======================================================\n');
+                } catch (e: any) {
+                    console.error('❌ Error al solicitar código de vinculación:', e.message);
+                }
+            }, 3000);
+        }
+
+        // Fix 1: Periodic cleanup of anti-ban history to prevent memory leaks
+        if (!this.cleanupInterval) {
+            this.cleanupInterval = setInterval(() => {
+                const now = Date.now();
+                const TWO_HOURS = 2 * 60 * 60 * 1000;
+                let cleaned = 0;
+                for (const [jid, history] of this.userSendHistory.entries()) {
+                    if (now - history.firstMessageAt > TWO_HOURS) {
+                        this.userSendHistory.delete(jid);
+                        cleaned++;
+                    }
+                }
+                if (cleaned > 0) {
+                    console.log(`🧹 [Anti-Ban Cleanup] Removed ${cleaned} stale entries. Active: ${this.userSendHistory.size}`);
+                }
+            }, 60 * 60 * 1000); // Run every 1 hour
+        }
 
         this.sock.ev.on('creds.update', saveCreds);
 
@@ -75,11 +124,14 @@ class WhatsAppClient {
             if (qr) {
                 this.qrCodeData = await qrcode.toDataURL(qr);
                 this.status = 'SCAN_QR_CODE';
-                console.log('📱 QR Code generated. Scan it below:');
-                qrcode.toString(qr, { type: 'terminal', small: true }, (err, url) => {
-                    if (err) console.error(err);
-                    else console.log(url);
-                });
+                
+                if (!process.env.PAIRING_PHONE_NUMBER) {
+                    console.log('📱 QR Code generated. Scan it below:');
+                    qrcode.toString(qr, { type: 'terminal', small: true }, (err, url) => {
+                        if (err) console.error(err);
+                        else console.log(url);
+                    });
+                }
             }
 
             if (connection === 'close') {
@@ -93,8 +145,14 @@ class WhatsAppClient {
                 if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
                     console.error('❌ Logged out from WhatsApp. Session is invalid.');
                     this.clearSession(); // Remove corrupt/invalid session
-                    console.log('🔄 Restarting to request new QR code...');
-                    this.start(); // Auto-restart to generate new QR
+                    
+                    if (process.env.PAIRING_PHONE_NUMBER) {
+                        console.log('⏳ Esperando 10 segundos antes de solicitar un nuevo código (Para evitar bloqueos de WhatsApp)...');
+                        setTimeout(() => this.start(), 10000);
+                    } else {
+                        console.log('🔄 Restarting to request new QR code...');
+                        this.start(); // Auto-restart to generate new QR
+                    }
                 } else if (statusCode === DisconnectReason.restartRequired) {
                     console.log('🔄 Restart required. Reconnecting immediately...');
                     this.start();
@@ -201,6 +259,17 @@ class WhatsAppClient {
                 
                 if (msg.message.conversation) text = msg.message.conversation;
                 else if (msg.message.extendedTextMessage) text = msg.message.extendedTextMessage.text;
+
+                if (msg.message.locationMessage) {
+                    console.log(`[Location] Receiving GPS Pin from ${phone}...`);
+                    fileContext = { 
+                        _location: {
+                            lat: msg.message.locationMessage.degreesLatitude,
+                            lng: msg.message.locationMessage.degreesLongitude
+                        } 
+                    };
+                    text = '_LOCATION_RECEIVED_';
+                }
                 
                 if (msg.message.imageMessage || msg.message.documentMessage) {
                     console.log(`[Media] Receiving media from ${phone}...`);
@@ -468,13 +537,35 @@ class WhatsAppClient {
     }
     private clearSession() {
         console.log(`🗑️ Clearing corrupt or logged-out session at ${AUTH_DIR}`);
-        try {
-            if (fs.existsSync(AUTH_DIR)) {
-                fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        
+        const MAX_CLEAR_RETRIES = 5;
+        let cleared = false;
+
+        for (let attempt = 1; attempt <= MAX_CLEAR_RETRIES; attempt++) {
+            try {
+                if (fs.existsSync(AUTH_DIR)) {
+                    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+                }
+                cleared = true;
+                console.log(`✅ Session directory cleared successfully (attempt ${attempt}).`);
+                break;
+            } catch (err: any) {
+                console.error(`❌ Attempt ${attempt}/${MAX_CLEAR_RETRIES} to clear session failed: ${err.message}`);
+                if (attempt < MAX_CLEAR_RETRIES) {
+                    // Synchronous sleep (acceptable here since this is a recovery path, not main loop)
+                    const sleepMs = attempt * 1000; // 1s, 2s, 3s, 4s
+                    console.log(`⏳ Waiting ${sleepMs}ms before retry...`);
+                    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, sleepMs);
+                }
             }
-        } catch (err) {
-            console.error('❌ Failed to clear session directory:', err);
         }
+
+        if (!cleared) {
+            console.error('🚨 [CRITICAL] Could not clear session directory after all retries.');
+            console.error(`🚨 Please manually delete: ${AUTH_DIR}`);
+            this.sessionClearFailed = true; // Prevents infinite restart loop
+        }
+
         this.status = 'STOPPED';
         this.sock = null;
         this.qrCodeData = null;

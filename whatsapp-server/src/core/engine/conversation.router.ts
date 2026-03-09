@@ -61,8 +61,17 @@ export class ConversationRouter {
                             .update({ status: 'cancelled', completed_at: new Date() })
                             .eq('phone', phone).eq('status', 'active');
                         await supabase.from('draft_orders').update({ status: 'pending' }).eq('id', pendingDraft.id);
-                        
-                        const response = await this.flowEngine.processMessage(phone, "checkout_catalogo", { draft_order_id: pendingDraft.id });
+                    
+                    const payload: Record<string, any> = { draft_order_id: pendingDraft.id };
+                    // Recover metadata if stored in JSON or columns
+                    const meta = pendingDraft.metadata || {};
+                    const deliv = meta.delivery_method || pendingDraft.delivery_method;
+                    const pay = meta.payment_method || pendingDraft.payment_method;
+                    
+                    if (deliv) payload.delivery_method = deliv;
+                    if (pay) payload.payment_method = pay;
+
+                    const response = await this.flowEngine.processMessage(phone, "checkout_catalogo", payload);
                         const template = response?.currentStateDefinition?.message_template;
                         const flowMessages = Array.isArray(template) ? template : (template ? [template] : []);
                         return ['¡Excelente! Empecemos con el carrito.', ...flowMessages];
@@ -71,9 +80,12 @@ export class ConversationRouter {
             }
 
             // --- 2. PRE-CHECK: Catalog Order Detection (V2) ---
-            const catalogItems = Parser.parseCatalogOrder(text);
+            const catalogData = Parser.parseCatalogCheckout(text) || { items: Parser.parseCatalogOrder(text), metadata: null };
+            const catalogItems = catalogData.items;
+            const metadata = catalogData.metadata || {};
+
             if (catalogItems && catalogItems.length > 0) {
-                console.log(`[ConversationRouter] 🛒 Catalog order detected from ${phone}:`, catalogItems);
+                console.log(`[ConversationRouter] 🛒 Catalog order detected from ${phone}. Metadata:`, metadata);
                 const { productService } = require('../../services/ProductService');
                 
                 const verifiedItems = [];
@@ -83,7 +95,7 @@ export class ConversationRouter {
                 for (const item of catalogItems) {
                     const product = await productService.findProduct(item.product);
                     if (product) {
-                        verifiedItems.push({ qty: item.qty, name: product.name, price: product.price, product_id: product.id });
+                        verifiedItems.push({ qty: item.qty, name: product.name, price: product.price, catalog_item_id: product.id });
                         total += product.price * item.qty;
                     } else {
                         notFound.push(item.product);
@@ -94,18 +106,30 @@ export class ConversationRouter {
                     const { data: activeExec } = await supabase.from('flow_executions')
                         .select('id').eq('phone', phone).eq('status', 'active').maybeSingle();
 
-                    const { data: draftOrder } = await supabase.from('draft_orders').insert({
-                        phone,
-                        items: verifiedItems,
-                        total,
-                        push_name: pushName || 'Cliente',
-                        status: activeExec ? 'pending_override' : 'pending'
-                    }).select().single();
+                    const { data: draftOrder, error: draftOrderError } = await supabase.from('draft_orders').insert({
+                    phone,
+                    items: verifiedItems,
+                    total,
+                    push_name: (metadata as any).pushName || pushName || 'Cliente',
+                    status: activeExec ? 'pending_override' : 'pending',
+                    // Save metadata if columns exist (ignoring errors if not)
+                    metadata: metadata,
+                    delivery_method: (metadata as any).delivery_method,
+                    payment_method: (metadata as any).payment_method
+                }).select().single();
+
+                if (draftOrderError) {
+                    console.error('[ConversationRouter] Error creating draft_order:', draftOrderError);
+                }
 
                     if (activeExec) {
                         return ['⚠️ Tenés un proceso en curso (consulta/pedido).\n\n¿Querés cancelarlo y empezar con este nuevo carrito del catálogo?\n\nRespondé *SÍ* para usar el carrito, o *NO* para seguir con lo anterior.'];
                     } else if (draftOrder) {
-                        const response = await this.flowEngine.processMessage(phone, "checkout_catalogo", { draft_order_id: draftOrder.id });
+                        const payload: Record<string, any> = { draft_order_id: draftOrder.id };
+                        if ((metadata as any).delivery_method) payload.delivery_method = (metadata as any).delivery_method;
+                        if ((metadata as any).payment_method) payload.payment_method = (metadata as any).payment_method;
+                        
+                        const response = await this.flowEngine.processMessage(phone, "checkout_catalogo", payload);
                         let msg = `✅ *¡Carrito recibido!*\n`;
                         if (notFound.length > 0) msg += `\n⚠️ No encontramos stock de: ${notFound.join(', ')}\n\n`;
                         

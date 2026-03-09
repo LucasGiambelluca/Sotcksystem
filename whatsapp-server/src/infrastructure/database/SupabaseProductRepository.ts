@@ -1,6 +1,14 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IProductRepository, Product } from '../../domain/interfaces/IProductRepository';
 
+/**
+ * IMPORTANT: This repository now queries `catalog_items` table, NOT `products`.
+ * 
+ * - `products` = raw material inventory (flour, chicken, etc.) — managed internally
+ * - `catalog_items` = finished/elaborated products available for sale (pizza, grilled chicken, etc.)
+ * 
+ * The WhatsApp bot and public catalog use ONLY catalog_items.
+ */
 export class SupabaseProductRepository implements IProductRepository {
     private db: SupabaseClient;
 
@@ -10,13 +18,13 @@ export class SupabaseProductRepository implements IProductRepository {
 
     async getById(id: string): Promise<Product | null> {
         const { data, error } = await this.db
-            .from('products')
+            .from('catalog_items')
             .select('*')
             .eq('id', id)
             .single();
 
         if (error || !data) {
-            console.error(`Error fetching product ${id}:`, error);
+            console.error(`Error fetching catalog_item ${id}:`, error);
             return null;
         }
 
@@ -24,7 +32,10 @@ export class SupabaseProductRepository implements IProductRepository {
     }
 
     async getAll(filters?: { category?: string; search?: string }): Promise<Product[]> {
-        let query = this.db.from('products').select('*');
+        let query = this.db
+            .from('catalog_items')
+            .select('*')
+            .eq('is_active', true); // Only return active catalog items to the bot
 
         if (filters?.category) {
             query = query.ilike('category', `%${filters.category}%`);
@@ -36,7 +47,7 @@ export class SupabaseProductRepository implements IProductRepository {
         const { data, error } = await query;
         
         if (error) {
-            console.error('Error fetching products:', error);
+            console.error('Error fetching catalog_items:', error);
             return [];
         }
 
@@ -45,12 +56,12 @@ export class SupabaseProductRepository implements IProductRepository {
 
     async updateStock(id: string, newStock: number): Promise<void> {
         const { error } = await this.db
-            .from('products')
-            .update({ stock: Math.max(0, newStock) })
+            .from('catalog_items')
+            .update({ stock: Math.max(0, newStock), updated_at: new Date().toISOString() })
             .eq('id', id);
 
         if (error) {
-            throw new Error(`Failed to update stock for product ${id}: ${error.message}`);
+            throw new Error(`Failed to update stock for catalog_item ${id}: ${error.message}`);
         }
     }
 }

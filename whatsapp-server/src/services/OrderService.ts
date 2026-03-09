@@ -2,7 +2,8 @@ import { supabase } from '../config/database';
 import deliverySlotService from './DeliverySlotService';
 
 export interface OrderItem {
-    product_id: string;
+    product_id?: string;       // Legacy: raw material stock ID (nullable going forward)
+    catalog_item_id?: string;  // Primary: catalog item ID for finished products
     qty: number;
     price: number;
     name?: string;
@@ -83,13 +84,34 @@ export class OrderService {
             throw new Error(`Error creando orden: ${orderError.message}`);
         }
 
-        // 4. Crear los Items y actualizar Stock
-        const orderItemsData = items.map(item => ({
-            order_id: order.id,
-            product_id: item.product_id,
-            quantity: item.qty,
-            unit_price: item.price
-        }));
+        // 4. Crear los Items (con catalog_item_id para el trigger de comandas)
+        let fallbackProductId = null;
+
+        const orderItemsData = items.map(item => {
+            const row: any = {
+                order_id: order.id,
+                quantity: item.qty,
+                unit_price: item.price
+            };
+            // Primary key: catalog_item_id (used by station trigger)
+            if (item.catalog_item_id) row.catalog_item_id = item.catalog_item_id;
+            // Legacy fallback: product_id (will be removed once column is fully nullable)
+            if (item.product_id) row.product_id = item.product_id;
+            return row;
+        });
+
+        // Postgres requires product_id because of FK constraint. Inject a dummy if missing.
+        const needsFallback = orderItemsData.some(row => !row.product_id);
+        if (needsFallback) {
+            const { data: fallbackProd } = await this.db.from('products').select('id').limit(1).single();
+            if (fallbackProd) fallbackProductId = fallbackProd.id;
+            
+            orderItemsData.forEach(row => {
+                if (!row.product_id && fallbackProductId) {
+                    row.product_id = fallbackProductId;
+                }
+            });
+        }
 
         const { error: itemsError } = await this.db
             .from('order_items')
@@ -99,24 +121,29 @@ export class OrderService {
             console.error('[OrderService] Error guardando items:', itemsError);
         }
 
-        // 5. Descontar Stock (Atómico simplificado)
+        // 5. Descontar Stock de catalog_items (Atómico simplificado)
+        // NOTE: We decrement stock from catalog_items (finished products), NOT from products (raw materials)
         for (const item of items) {
-            const { error: stockError } = await this.db.rpc('decrement_product_stock', {
-                p_id: item.product_id,
+            const catalogId = item.catalog_item_id || item.product_id; // Prefer catalog_item_id
+            if (!catalogId) continue; // Skip if neither ID is available
+
+            const { error: stockError } = await this.db.rpc('decrement_catalog_item_stock', {
+                p_id: catalogId,
                 p_qty: item.qty
             });
             
             if (stockError) {
-                // Fallback manual (update production stock and movement)
-                const { data: prod } = await this.db.from('products').select('id, production_stock').eq('id', item.product_id).single();
-                if (prod) {
-                    await this.db.from('products').update({ production_stock: Math.max(0, prod.production_stock - item.qty) }).eq('id', item.product_id);
-                    await this.db.from('stock_movements').insert({
-                        product_id: item.product_id,
-                        type: 'SALE',
-                        quantity: item.qty,
-                        description: 'Venta fallback (Pedido Creado)'
-                    });
+                // Fallback manual: update stock directly on catalog_items
+                const { data: catItem } = await this.db
+                    .from('catalog_items')
+                    .select('id, stock')
+                    .eq('id', catalogId)
+                    .single();
+                if (catItem) {
+                    await this.db.from('catalog_items').update({
+                        stock: Math.max(0, catItem.stock - item.qty),
+                        updated_at: new Date().toISOString()
+                    }).eq('id', catalogId);
                 }
             }
         }
@@ -232,15 +259,15 @@ export class OrderService {
             
             if (bestMatch) {
                 // Check if we already added this product (merge quantities)
-                const existing = items.find(i => i.product_id === bestMatch.product.id);
+                const existing = items.find(i => i.catalog_item_id === bestMatch!.product.id || i.product_id === bestMatch!.product.id);
                 if (existing) {
                     existing.qty += qty;
                 } else {
                     items.push({
-                        product_id: bestMatch.product.id,
+                        catalog_item_id: bestMatch!.product.id,
                         qty: qty,
-                        price: bestMatch.product.price,
-                        name: bestMatch.product.name
+                        price: bestMatch!.product.price,
+                        name: bestMatch!.product.name
                     });
                 }
                 console.log(`[OrderParser] "${searchName}" → "${bestMatch.product.name}" (score: ${bestMatch.score.toFixed(2)}, qty: ${qty})`);

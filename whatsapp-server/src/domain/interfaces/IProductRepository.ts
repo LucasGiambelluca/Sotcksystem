@@ -8,6 +8,9 @@ export interface Product {
     min_stock: number;     // Minimum stock threshold for Warehouse
     image_url?: string;
     category?: string;
+    is_special?: boolean;
+    special_price?: number;
+    offer_label?: string;
     created_at?: string;
 }
 

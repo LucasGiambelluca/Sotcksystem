@@ -15,8 +15,10 @@ export interface Product {
   production_stock: number; // Current Production Stock
   min_stock: number; // Minimum stock threshold for Warehouse
   category?: string;
-  image_url_1?: string | null;
-  image_url_2?: string | null;
+  is_active?: boolean;
+  cost?: number; // Cost from provider
+  provider?: string | null; // Provider name
+  last_restock_date?: string | null; // Last entry date
   created_at: string;
 }
 
@@ -28,7 +30,43 @@ export interface StockMovement {
   type: StockMovementType;
   quantity: number;
   description: string | null;
+  shift_id?: string | null;
+  employee_id?: string | null;
   created_at: string;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  phone?: string | null;
+  pin_code?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  color: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export type ShiftStatus = 'ACTIVE' | 'CLOSED';
+
+export interface Shift {
+  id: string;
+  employee_id: string;
+  station_id: string;
+  start_time: string;
+  end_time?: string | null;
+  status: ShiftStatus;
+  notes?: string | null;
+  created_at: string;
+  // Joined fields
+  employee?: Employee;
+  station?: Station;
 }
 
 export interface PublicCatalogItem {
@@ -40,6 +78,9 @@ export interface PublicCatalogItem {
   image_url_1?: string | null;
   image_url_2?: string | null;
   in_stock: boolean;
+  is_special?: boolean;
+  special_price?: number | null;
+  offer_label?: string | null;
 }
 
 export interface Movement {
@@ -79,10 +120,63 @@ export interface OrderItem {
   id: string;
   order_id: string;
   product_id: string;
+  catalog_item_id?: string | null; // New: references catalog_items table
   quantity: number;
   unit_price: number;
   subtotal: number;
   created_at: string;
+}
+
+// CatalogItem: A finished/elaborated product sold to end customers (e.g. Pizza Napolitana)
+// This is separate from Product (raw material inventory - e.g. flour, chicken)
+export interface CatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  stock: number;
+  category: string;
+  image_url_1?: string | null;
+  image_url_2?: string | null;
+  station_id?: string | null;
+  is_active: boolean;
+  is_special?: boolean;
+  special_price?: number | null;
+  offer_label?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  station?: Station | null;
+}
+
+// RecipeComponent: A sub-item of a catalog item assigned to a specific station
+// Ej: CatalogItem "Combo Asado" -> RecipeComponent "Asado de tira" (station: Parrilla)
+export interface RecipeComponent {
+  id: string;
+  catalog_item_id: string;
+  name: string;
+  station_id: string | null;
+  sort_order: number;
+  created_at: string;
+  // Joined
+  station?: Station | null;
+}
+
+// OrderStationTask: A per-station ticket generated from an order
+export type TaskStatus = 'pending' | 'preparing' | 'ready';
+
+export interface OrderStationTask {
+  id: string;
+  order_id: string;
+  station_id: string;
+  status: TaskStatus;
+  items: { name: string; quantity: number; parent_item?: string }[];
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  // Joined
+  station?: Station | null;
+  order?: Order | null;
 }
 
 export type RouteStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED';
@@ -119,6 +213,9 @@ export interface ShippingZone {
   name: string;
   cost: number;
   is_active: boolean;
+  zone_type?: 'radius' | 'text_match';
+  max_radius_km?: number;
+  match_keywords?: string[];
 }
 
 // Extended types with relations for UI
@@ -203,4 +300,7 @@ export interface WhatsAppConfig {
   catalog_business_name?: string;
   catalog_accent_color?: string;
   whatsapp_phone?: string;
+  shipping_policy?: 'flex' | 'smart' | 'secure';
+  store_lat?: number;
+  store_lng?: number;
 }

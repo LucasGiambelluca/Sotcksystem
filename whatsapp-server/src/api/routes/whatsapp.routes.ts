@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { whatsappClient } from '../../infrastructure/whatsapp/WhatsAppClient';
+import { formatArgentinaPhone } from '../../utils/phoneFormatter';
 
 const router = Router();
 
@@ -39,14 +40,8 @@ router.post('/send-message', async (req, res) => {
     }
 
     try {
-        let jid: string;
-        if (phone.includes('@lid')) {
-            jid = phone;
-        } else if (phone.includes('@')) {
-            jid = phone.replace('@c.us', '@s.whatsapp.net');
-        } else {
-            jid = `${phone}@s.whatsapp.net`;
-        }
+        const sanitizedPhone = formatArgentinaPhone(phone);
+        const jid = `${sanitizedPhone}@s.whatsapp.net`;
         
         console.log(`📤 Enqueueing message to ${jid} via WhatsAppClient`);
         await whatsappClient.sendMessage(jid, { text: message });

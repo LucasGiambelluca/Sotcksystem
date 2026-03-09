@@ -63,6 +63,23 @@ class ProductService {
         return maxScore > 0.4 ? bestMatch : null;
     }
 
+    async massPriceUpdate(percentage: number): Promise<void> {
+        const { supabase } = require('../config/database');
+        const { error } = await supabase.rpc('update_all_catalog_prices', { p_percentage: percentage });
+        if (error) throw new Error(`Mass price update failed: ${error.message}`);
+    }
+
+    async toggleSpecial(id: string, isSpecial: boolean, specialPrice?: number, label?: string): Promise<void> {
+        const { supabase } = require('../config/database');
+        const { error } = await supabase.rpc('toggle_catalog_special', {
+            p_id: id,
+            p_is_special: isSpecial,
+            p_special_price: specialPrice,
+            p_label: label
+        });
+        if (error) throw new Error(`Toggle special failed: ${error.message}`);
+    }
+
 
     private normalize(text: string): string {
         return text.toLowerCase()

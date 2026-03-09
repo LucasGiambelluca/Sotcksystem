@@ -2,176 +2,330 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StockSystem - Propuesta STPPI Bahía Blanca</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SotckSystem - Modo Cadete Elegante</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --primary: #2563eb;
-            --dark: #1e293b;
-            --light: #f8fafc;
-            --accent: #38bdf8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --primary: #e11d48; /* Rojo elegante */
+            --success: #10b981; /* Verde */
+            --info: #2563eb;    /* Azul */
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
 
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--light);
-            color: var(--dark);
-            margin: 0;
-            padding: 20px;
+            margin: 0; padding: 0; font-family: 'Outfit', sans-serif;
+            background-color: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
 
-        .container {
-            max-width: 900px;
-            margin: auto;
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-
+        /* --- Header --- */
         header {
-            text-align: center;
-            border-bottom: 2px solid var(--primary);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            padding: 20px; background: white; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; z-index: 10;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
+        .user-info .role { font-size: 10px; color: var(--primary); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        .user-info .name { font-weight: 700; font-size: 18px; margin-top: 2px; }
 
-        h1 { color: var(--primary); margin: 0; }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+        .status-pill {
+            padding: 6px 14px; border-radius: 50px; font-size: 11px; font-weight: 800;
+            display: flex; align-items: center; gap: 6px; border: 1px solid transparent;
         }
+        .status-pill.available { background: #fef2f2; color: var(--primary); border-color: #fecaca; }
+        .status-pill.busy { background: #eff6ff; color: var(--info); border-color: #bfdbfe; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
+        /* --- Main Content --- */
+        main { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+
+        .section-title { font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; margin-top: 20px; }
+
+        /* --- Mission Card --- */
         .card {
-            background: #f1f5f9;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid var(--primary);
+            background: var(--card); border-radius: 20px; padding: 20px; margin-bottom: 16px;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
         }
 
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin-bottom: 30px;
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px dashed var(--border); }
+        .mission-badge { color: var(--text); font-weight: 800; font-size: 18px; }
+        .mission-info { text-align: right; }
+        .price { font-size: 18px; font-weight: 800; color: var(--success); display: block; }
+        .count { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+        /* --- Timeline Stops --- */
+        .stop { display: flex; gap: 16px; margin-bottom: 24px; position: relative; }
+        .stop.completed { opacity: 0.4; }
+        .stop-line { position: absolute; left: 15px; top: 32px; bottom: -20px; width: 1.5px; background: var(--border); }
+        .stop:last-child .stop-line { display: none; }
+
+        .stop-indicator {
+            width: 32px; height: 32px; border-radius: 10px; background: #f1f5f9; color: #94a3b8;
+            display: flex; align-items: center; justify-content: center; z-index: 1; flex-shrink: 0;
+        }
+        .stop.active .stop-indicator { background: var(--primary); color: white; box-shadow: 0 4px 10px rgba(225, 29, 72, 0.3); }
+        .stop.completed .stop-indicator { background: var(--success); color: white; }
+
+        .stop-content h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text); }
+        .stop-content p { margin: 2px 0 0; color: var(--text-muted); font-size: 13px; }
+
+        .nav-chip {
+            display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+            background: #eff6ff; border-radius: 10px; margin-top: 10px;
+            font-size: 12px; font-weight: 700; color: var(--info); border: 1px solid #dbeafe;
         }
 
-        .interactive-section {
-            background: var(--dark);
-            color: white;
-            padding: 25px;
-            border-radius: 10px;
-            margin-top: 20px;
+        /* --- Bottom Controls --- */
+        .btn-zone {
+            position: fixed; bottom: 0; left: 0; right: 0; padding: 20px;
+            background: linear-gradient(to top, white 80%, transparent); z-index: 20;
+        }
+        .btn {
+            width: 100%; padding: 18px; border-radius: 16px; border: none;
+            font-family: inherit; font-size: 16px; font-weight: 800; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: all 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-outline { background: white; color: var(--text); border: 2px solid var(--border); box-shadow: none; }
+
+        /* --- Notifications --- */
+        .toast {
+            position: fixed; top: 90px; left: 20px; right: 20px; background: white;
+            padding: 16px; border-radius: 16px; border-left: 4px solid var(--success);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transform: translateY(-30px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 50;
+            display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 14px;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        .gps-badge {
+            background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5;
+            padding: 10px; border-radius: 12px; margin-top: 12px; display: none;
+            font-size: 12px; font-weight: 700; align-items: center; gap: 8px;
         }
 
-        button {
-            background: var(--accent);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        button:hover { background: var(--primary); color: white; }
-
-        .stat-box {
-            text-align: center;
-            padding: 15px;
-            background: white;
-            color: var(--dark);
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-
-        .highlight { color: var(--accent); font-weight: bold; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-<div class="container">
     <header>
-        <h1>Propuesta Tecnológica STPPI</h1>
-        <p>Modernización y Eficiencia para el Transporte en Bahía Blanca</p>
+        <div class="user-info">
+            <div id="headerTitle" class="role">Bahía Blanca</div>
+            <div class="name">Juan Pérez <span style="font-weight: 400; color: var(--text-muted); font-size: 14px;">#04</span></div>
+        </div>
+        <div id="statusPill" class="status-pill available">
+            <span class="dot"></span>
+            <span id="statusText">SIN TURNO</span>
+        </div>
     </header>
 
-    <div class="grid">
-        <div class="card">
-            <h3>El Problema</h3>
-            <p>La nueva ordenanza exige seguros comerciales y revisiones que aumentan el costo operativo del chofer en un <strong>35%</strong> aprox.</p>
-        </div>
-        <div class="card">
-            <h3>Nuestra Solución</h3>
-            <p>Unificar la demanda para bajar costos de seguros y mantenimiento mediante el <strong>Hub Tecnológico StockSystem</strong>.</p>
-        </div>
+    <div id="toast" class="toast">
+        <i data-lucide="check-circle-2" style="color: var(--success)"></i>
+        <span id="toastMsg">Operación completada</span>
     </div>
 
-    <h3>Estadística Estimada: Parque Automotor Apps (Bahía Blanca)</h3>
-    <div class="chart-container">
-        <canvas id="antiguedadChart"></canvas>
-    </div>
-
-    <div class="interactive-section">
-        <h3>Simulador de Ahorro Colectivo</h3>
-        <p>Si logramos agrupar a los choferes, estos son los números:</p>
-        
-        <label>Cantidad de Choferes en la Red:</label>
-        <input type="range" id="driverRange" min="100" max="2000" value="500" style="width:100%">
-        
-        <div class="grid" style="margin-top: 20px;">
-            <div class="stat-box">
-                <small>Conductores</small>
-                <div id="countDisplay" class="highlight">500</div>
+    <main>
+        <!-- Idle -->
+        <div id="idleState" style="text-align: center; margin-top: 100px;">
+            <div style="background: white; width: 80px; height: 80px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; border: 1px solid var(--border);">
+                <i data-lucide="navigation" size="32" style="color: var(--text-muted)"></i>
             </div>
-            <div class="stat-box">
-                <small>Ahorro Mensual Estimado</small>
-                <div id="savingDisplay" class="highlight">$25.000.000</div>
+            <h2 style="font-weight: 800; font-size: 20px; margin-bottom: 8px;">Listo para repartir</h2>
+            <p style="color: var(--text-muted); font-size: 14px; max-width: 240px; margin: 0 auto;">Iniciá tu turno para aparecer en el mapa de despacho.</p>
+        </div>
+
+        <!-- Mission -->
+        <div id="missionState" class="hidden">
+            <div class="section-title">Logística en curso</div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="mission-badge">Misión #248</div>
+                    <div class="mission-info">
+                        <span class="price">$2.450,00</span>
+                        <span class="count">3 paradas totales</span>
+                    </div>
+                </div>
+
+                <div class="stop" id="stopStore">
+                    <div class="stop-line"></div>
+                    <div class="stop-indicator"><i data-lucide="store" size="16"></i></div>
+                    <div class="stop-content">
+                        <h3>El Pollo Comilón</h3>
+                        <p>San Martín 450, Bahía Blanca</p>
+                    </div>
+                </div>
+
+                <div class="stop" id="stop1">
+                    <div class="stop-line"></div>
+                    <div class="stop-indicator"><i data-lucide="map-pin" size="16"></i></div>
+                    <div class="stop-content">
+                        <h3>Entrega #192</h3>
+                        <p>Cramer 380, Bahía Blanca</p>
+                        <div class="gps-badge" id="gpsBadge">
+                            <i data-lucide="bell-ring" size="14"></i>
+                            <span>ESTÁS CERCA DEL DESTINO</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stop" id="stop2">
+                    <div class="stop-indicator"><i data-lucide="map-pin" size="16"></i></div>
+                    <div class="stop-content">
+                        <h3>Entrega #195</h3>
+                        <p>Avenida Alem 1200, Bahía Blanca</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                 <div style="display: inline-flex; align-items: center; gap: 6px; color: var(--success); font-weight: 700; font-size: 12px;">
+                    <i data-lucide="radio" size="14"></i> GPS ACTIVO
+                 </div>
             </div>
         </div>
-        <p><small>*Basado en un ahorro de $50.000 por mes entre seguro y service.</small></p>
+    </main>
+
+    <div class="btn-zone">
+        <button id="mainBtn" class="btn btn-primary">
+            <i data-lucide="power" size="20"></i>
+            <span>INICIAR TURNO</span>
+        </button>
     </div>
 
-    <footer style="margin-top: 40px; text-align: center; font-size: 0.8em; color: #64748b;">
-        Desarrollado por StockSystem | Enfoque en Soluciones Reales
-    </footer>
-</div>
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
 
-<script>
-    // Gráfico de Antigüedad
-    const ctx = document.getElementById('antiguedadChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['2011-2013', '2014-2017', '2018-2021', '2022-2025'],
-            datasets: [{
-                label: '% de Autos en Plataformas',
-                data: [15, 45, 30, 10], // Estimación real de mercado
-                backgroundColor: '#2563eb'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, max: 100 } }
+        const states = {
+            OFFLINE: 'OFFLINE',
+            IDLE: 'IDLE',
+            PICKUP: 'PICKUP',
+            DELIVERING: 'DELIVERING',
+            ARRIVED: 'ARRIVED',
+            COMPLETED: 'COMPLETED'
+        };
+
+        let currentState = states.OFFLINE;
+
+        const mainBtn = document.getElementById('mainBtn');
+        const idleState = document.getElementById('idleState');
+        const missionState = document.getElementById('missionState');
+        const statusPill = document.getElementById('statusPill');
+        const statusText = document.getElementById('statusText');
+        const toast = document.getElementById('toast');
+        const gpsBadge = document.getElementById('gpsBadge');
+        const headerTitle = document.getElementById('headerTitle');
+
+        function showToast(msg) {
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
         }
-    });
 
-    // Simulador Interactivo
-    const range = document.getElementById('driverRange');
-    const countDisp = document.getElementById('countDisplay');
-    const savingDisp = document.getElementById('savingDisplay');
+        function updateUI() {
+            // Update icons
+            lucide.createIcons();
 
-    range.addEventListener('input', (e) => {
-        const val = e.target.value;
-        countDisp.innerText = val;
-        const savings = val * 50000;
-        savingDisp.innerText = '$' + savings.toLocaleString('es-AR');
-    });
-</script>
+            switch(currentState) {
+                case states.OFFLINE:
+                    mainBtn.className = 'btn btn-primary';
+                    mainBtn.innerHTML = '<i data-lucide="power"></i><span>INICIAR TURNO</span>';
+                    statusPill.className = 'status-pill available';
+                    statusText.innerText = 'SIN TURNO';
+                    idleState.classList.remove('hidden');
+                    missionState.classList.add('hidden');
+                    headerTitle.innerText = 'BAHÍA BLANCA';
+                    headerTitle.style.color = '#64748b';
+                    break;
+                
+                case states.IDLE:
+                    mainBtn.className = 'btn btn-outline';
+                    mainBtn.innerHTML = '<i data-lucide="clock"></i><span>ESPERANDO PEDIDOS...</span>';
+                    statusText.innerText = 'EN LÍNEA';
+                    headerTitle.innerText = 'CONECTADO';
+                    headerTitle.style.color = 'var(--success)';
+                    // Auto-trigger mission for demo
+                    setTimeout(() => {
+                        currentState = states.PICKUP;
+                        showToast('Nueva misión asignada');
+                        updateUI();
+                    }, 2000);
+                    break;
 
+                case states.PICKUP:
+                    idleState.classList.add('hidden');
+                    missionState.classList.remove('hidden');
+                    statusPill.className = 'status-pill busy';
+                    statusText.innerText = 'EN MISIÓN';
+                    mainBtn.className = 'btn btn-primary';
+                    mainBtn.innerHTML = '<i data-lucide="package"></i><span>CONFIRMAR RETIRO</span>';
+                    document.getElementById('stopStore').classList.add('active');
+                    break;
+
+                case states.DELIVERING:
+                    document.getElementById('stopStore').classList.remove('active');
+                    document.getElementById('stopStore').classList.add('completed');
+                    document.getElementById('stop1').classList.add('active');
+                    mainBtn.className = 'btn btn-outline';
+                    mainBtn.innerHTML = '<i data-lucide="map"></i><span>NAVEGAR A DESTINO</span>';
+                    
+                    // Simulate Geoproximity
+                    setTimeout(() => {
+                        gpsBadge.style.display = 'flex';
+                        mainBtn.className = 'btn btn-success';
+                        mainBtn.innerHTML = '<i data-lucide="check-circle-2"></i><span>LLEGUÉ AL LUGAR</span>';
+                        currentState = states.ARRIVED;
+                        updateUI();
+                    }, 3000);
+                    break;
+
+                case states.ARRIVED:
+                    // Text already updated in timeout
+                    break;
+
+                case states.COMPLETED:
+                    document.getElementById('stop1').classList.remove('active');
+                    document.getElementById('stop1').classList.add('completed');
+                    gpsBadge.style.display = 'none';
+                    mainBtn.className = 'btn btn-success';
+                    mainBtn.innerHTML = '<i data-lucide="thumbs-up"></i><span>FINALIZAR ENTREGA</span>';
+                    break;
+            }
+            lucide.createIcons();
+        }
+
+        mainBtn.addEventListener('click', () => {
+            if (currentState === states.OFFLINE) {
+                currentState = states.IDLE;
+                showToast('Turno iniciado con éxito');
+            } else if (currentState === states.PICKUP) {
+                currentState = states.DELIVERING;
+            } else if (currentState === states.ARRIVED) {
+                currentState = states.COMPLETED;
+            } else if (currentState === states.COMPLETED) {
+                showToast('Misión completada. Volviendo al local.');
+                setTimeout(() => {
+                    currentState = states.IDLE;
+                    updateUI();
+                }, 1000);
+            }
+            updateUI();
+        });
+
+        updateUI();
+    </script>
 </body>
 </html>
+

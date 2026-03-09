@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { SoundProvider } from './context/SoundContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -24,40 +25,50 @@ import ClaimsPanel from './pages/ClaimsPanel';
 import Catalog from './pages/Catalog';
 import PricingPresentation from './pages/PricingPresentation';
 import StockReports from './pages/StockReports';
+import CatalogAdmin from './pages/CatalogAdmin';
+import Recipes from './pages/Recipes';
+import CadetePWA from './pages/CadetePWA';
+import Dispatcher from './pages/Dispatcher';
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/driver/:id" element={<DriverView />} />
-          <Route path="/catalog" element={<Catalog />} />
-          
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/clients" element={<Clients />} />
-              <Route path="/clients/:id" element={<ClientDetails />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/stock-reports" element={<StockReports />} />
-              <Route path="/orders" element={<Orders />} />
-              <Route path="/claims" element={<ClaimsPanel />} />
-              <Route path="/kitchen" element={<KitchenDashboard />} />
-              <Route path="/orders/new" element={<NewOrder />} />
-              <Route path="/orders/:id" element={<OrderDetails />} />
-              <Route path="/routes" element={<RoutesPage />} />
-              <Route path="/routes/:id/planner" element={<RoutePlanner />} />
-              <Route path="/routes/:id" element={<RouteDetails />} />
-              <Route path="/whatsapp" element={<WhatsAppInbox />} />
-              <Route path="/whatsapp/connect" element={<WhatsAppConnect />} />
-              <Route path="/whatsapp/groups" element={<WhatsAppGroups />} />
-              <Route path="/whatsapp/builder" element={<BotBuilder />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/admin/pricing-demo" element={<PricingPresentation />} />
+        <SoundProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/driver/:id" element={<DriverView />} />
+            <Route path="/cadete" element={<CadetePWA />} />
+            <Route path="/catalog" element={<Catalog />} />
+            
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/clients" element={<Clients />} />
+                <Route path="/clients/:id" element={<ClientDetails />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/stock-reports" element={<StockReports />} />
+                <Route path="/catalog-admin" element={<CatalogAdmin />} />
+                <Route path="/recipes" element={<Recipes />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/claims" element={<ClaimsPanel />} />
+                <Route path="/kitchen" element={<KitchenDashboard />} />
+                <Route path="/orders/new" element={<NewOrder />} />
+                <Route path="/orders/:id" element={<OrderDetails />} />
+                <Route path="/routes" element={<RoutesPage />} />
+                <Route path="/routes/:id/planner" element={<RoutePlanner />} />
+                <Route path="/routes/:id" element={<RouteDetails />} />
+                <Route path="/whatsapp" element={<WhatsAppInbox />} />
+                <Route path="/whatsapp/connect" element={<WhatsAppConnect />} />
+                <Route path="/whatsapp/groups" element={<WhatsAppGroups />} />
+                <Route path="/whatsapp/builder" element={<BotBuilder />} />
+                <Route path="/despacho" element={<Dispatcher />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/admin/pricing-demo" element={<PricingPresentation />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </SoundProvider>
       </AuthProvider>
     </BrowserRouter>
   );

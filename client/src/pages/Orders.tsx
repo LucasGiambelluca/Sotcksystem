@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOrders } from '../services/orderService';
 import type { OrderWithDetails, OrderStatus, OrderChannel } from '../types';
 import { Package, Phone, MessageCircle, Globe, Filter, Plus } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import Pagination from '../components/common/Pagination';
 
 export default function Orders() {
@@ -15,11 +16,61 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
+  // Sound refs & debounce
+  const lastSoundTime = useRef<number>(0);
+  const SOUND_COOLDOWN_MS = 10000;
+
+  const playSound = useCallback((type: 'newOrder' | 'cancel') => {
+    const now = Date.now();
+    if (now - lastSoundTime.current < SOUND_COOLDOWN_MS) return;
+    lastSoundTime.current = now;
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === 'newOrder') {
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.6);
+    } else {
+      osc.frequency.value = 220;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8);
+    }
+  }, []);
+
   useEffect(() => {
     loadOrders();
     // Reset page when filter changes
     setCurrentPage(1);
-  }, [statusFilter, channelFilter]);
+
+    const channel = supabase
+      .channel('orders-page-alerts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => {
+          playSound('newOrder');
+          loadOrders(); // Refresh table
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'status=eq.CANCELLED' },
+        () => {
+          playSound('cancel');
+          loadOrders();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [statusFilter, channelFilter, playSound]);
 
   async function loadOrders() {
     setLoading(true);

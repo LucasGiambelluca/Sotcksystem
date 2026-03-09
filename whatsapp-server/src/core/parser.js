@@ -61,8 +61,9 @@ class Parser {
         // Strip WhatsApp markdown: *bold*, _italic_, ~strikethrough~
         const cleanText = text.replace(/[*_~]/g, '');
 
-        // Detect lines with "Product xN" pattern (catalog format from WhatsApp catalog)
-        const catalogLineRegex = /^[\u2022\-*]?\s*(.+?)\s+[xX](\d+)/gm;
+        // Detect lines with "Product xN" pattern 
+        // Example: "• Product Name x2 — $500" or "- Product x 1"
+        const catalogLineRegex = /^[\u2022\-*]?\s*(.+?)\s+[xX]\s*(\d+)/gm;
         const items = [];
         let match;
 
@@ -72,9 +73,8 @@ class Parser {
 
             // Remove leading bullet/dash symbols
             productRaw = productRaw.replace(/^[\u2022\-*\s]+/, '').trim();
-            // Remove em dash and price: "\u2014 $20" or "- $20" at the end
-            productRaw = productRaw.replace(/[\u2014\u2013]\s*\$[\d.,]+.*$/, '').trim();
-            productRaw = productRaw.replace(/\s*-\s*\$[\d.,]+.*$/, '').trim();
+            // Remove the price tailing sequence: "— $500" or "- $500"
+            productRaw = productRaw.replace(/[\u2014\u2013\-]\s*\$?[\d.,]+.*$/, '').trim();
 
             // Skip noise lines
             if (!productRaw || productRaw.length < 2) continue;
@@ -86,6 +86,41 @@ class Parser {
         }
 
         return items.length > 0 ? items : null;
+    }
+
+    /**
+     * Parse new format from Catalog Web Checkout
+     * Format:
+     *   "Nombre: Lucas | Delivery: Envío | Pago: Efectivo\n🛒 *Hola! Quiero hacer el siguiente pedido:*\n- Hamburguesa x2..."
+     */
+    static parseCatalogCheckout(text) {
+        if (!text) return null;
+
+        const items = this.parseCatalogOrder(text);
+        if (!items) return null;
+
+        const metadata = {
+            pushName: null,
+            delivery_method: null,
+            payment_method: null
+        };
+
+        // Extraction more robust: search in the whole text (first part before items)
+        const nameMatch = text.match(/Nombre:\s*([^|*\n]+)/i);
+        if (nameMatch) metadata.pushName = nameMatch[1].trim();
+        
+        const deliveryMatch = text.match(/Delivery:\s*([^|*\n]+)/i);
+        if (deliveryMatch) metadata.delivery_method = deliveryMatch[1].trim();
+
+        const paymentMatch = text.match(/Pago:\s*([^|*\n]+)/i);
+        if (paymentMatch) metadata.payment_method = paymentMatch[1].trim();
+
+        // Return object with items and metadata if at least one metadata field was found
+        if (metadata.pushName || metadata.delivery_method || metadata.payment_method) {
+            return { items, metadata };
+        }
+        
+        return { items, metadata: null };
     }
 
 

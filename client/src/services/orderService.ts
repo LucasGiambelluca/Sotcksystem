@@ -63,8 +63,8 @@ export function mapOrder(raw: any): OrderWithDetails {
     ...rest,
     client: clients || null,
     items: (order_items || []).map((oi: any) => {
-      const { products, ...itemRest } = oi;
-      return { ...itemRest, product: products || null };
+      const { catalog_items, products, ...itemRest } = oi;
+      return { ...itemRest, product: catalog_items || products || null };
     }),
   };
 }
@@ -84,6 +84,7 @@ export async function getOrders(filters?: {
         clients (id, name, phone, address),
         order_items (
           *,
+          catalog_items (id, name, price),
           products (id, name, price)
         )
       `)
@@ -125,6 +126,7 @@ export async function getOrderById(orderId: string) {
         clients (id, name, phone, address),
         order_items (
           *,
+          catalog_items (id, name, price),
           products (id, name, price)
         )
       `)
@@ -151,14 +153,10 @@ export async function updateOrderStatus(orderId: string, status: Order['status']
 
     if (error) throw error;
 
-    // Send WhatsApp notification
-    try {
-      const { sendOrderStatusNotification } = await import('./orderNotificationService');
-      await sendOrderStatusNotification(orderId, status);
-    } catch (notifError) {
-      console.error('❌ Failed to send notification:', notifError);
-      // Don't fail the status update if notification fails
-    }
+    // Send WhatsApp notification (fire-and-forget, don't block UI)
+    import('./orderNotificationService')
+      .then(({ sendOrderStatusNotification }) => sendOrderStatusNotification(orderId, status))
+      .catch((notifError) => console.error('❌ Failed to send notification:', notifError));
 
     return { data, error: null };
   } catch (error) {
@@ -227,7 +225,8 @@ export async function updateClient(clientId: string, updates: {
 
 // WhatsApp Text Parser
 interface ParsedOrderItem {
-  product_id: string;
+  product_id?: string;
+  catalog_item_id?: string;
   product_name: string;
   quantity: number;
   unit_price: number;
@@ -283,13 +282,14 @@ export function parseOrderFromText(
           const matchedProduct = findBestProductMatch(productName, products);
           if (matchedProduct) {
             const existing = parsedItems.find(
-              (item) => item.product_id === matchedProduct.id
+              (item) => item.product_id === matchedProduct.id || item.catalog_item_id === matchedProduct.id
             );
             if (existing) {
               existing.quantity += quantity;
             } else {
               parsedItems.push({
-                product_id: matchedProduct.id,
+                catalog_item_id: matchedProduct.id,
+                product_id: null as any, // Legacy
                 product_name: matchedProduct.name,
                 quantity,
                 unit_price: matchedProduct.price,
@@ -324,13 +324,13 @@ export function parseOrderFromText(
 
       if (matchedProduct) {
         const existing = parsedItems.find(
-          (item) => item.product_id === matchedProduct.id
+          (item) => item.product_id === matchedProduct.id || item.catalog_item_id === matchedProduct.id
         );
         if (existing) {
           existing.quantity += quantity;
         } else {
           parsedItems.push({
-            product_id: matchedProduct.id,
+            catalog_item_id: matchedProduct.id,
             product_name: matchedProduct.name,
             quantity,
             unit_price: matchedProduct.price,

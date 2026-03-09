@@ -6,7 +6,7 @@ export const stockMovementService = {
    * Registers a stock movement and updates the corresponding product balances in a single transaction-like context.
    * Since we are directly calling Supabase from the client, we do the balance calculations in the UI and save them.
    */
-  async registerPurchase(productId: string, quantity: number, description: string, currentWarehouseStock: number) {
+  async registerPurchase(productId: string, quantity: number, description: string, currentWarehouseStock: number, shiftId?: string, employeeId?: string) {
     // 1. Update Product: increase warehouse stock
     const newStock = currentWarehouseStock + quantity;
     const { error: productError } = await supabase
@@ -21,11 +21,13 @@ export const stockMovementService = {
       product_id: productId,
       type: 'PURCHASE',
       quantity: quantity,
-      description: description
+      description: description,
+      shift_id: shiftId || null,
+      employee_id: employeeId || null,
     });
   },
 
-  async transferToProduction(productId: string, quantity: number, description: string, currentWarehouseStock: number, currentProductionStock: number) {
+  async transferToProduction(productId: string, quantity: number, description: string, currentWarehouseStock: number, currentProductionStock: number, shiftId?: string, employeeId?: string) {
     if (currentWarehouseStock < quantity) {
         throw new Error('Not enough stock in warehouse to transfer.');
     }
@@ -49,7 +51,9 @@ export const stockMovementService = {
       product_id: productId,
       type: 'TRANSFER',
       quantity: quantity,
-      description: description
+      description: description,
+      shift_id: shiftId || null,
+      employee_id: employeeId || null,
     });
   },
 
@@ -67,12 +71,15 @@ export const stockMovementService = {
   async getMovementsByProduct(productId: string) {
     const { data, error } = await supabase
       .from('stock_movements')
-      .select('*')
+      .select(`
+        *,
+        employee:employees(name)
+      `)
       .eq('product_id', productId)
       .order('created_at', { ascending: false });
       
     if (error) throw error;
-    return data as StockMovement[];
+    return data;
   },
 
   async getAllMovements(startDate?: string, endDate?: string) {
@@ -80,7 +87,8 @@ export const stockMovementService = {
       .from('stock_movements')
       .select(`
         *,
-        product:products(name, category)
+        product:products(name, category),
+        employee:employees(name)
       `)
       .order('created_at', { ascending: false });
 

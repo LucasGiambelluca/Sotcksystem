@@ -39,6 +39,7 @@ import HandoverNode from '../components/bot-builder/HandoverNode';
 import BusinessHoursNode from '../components/bot-builder/BusinessHoursNode';
 import SendCatalogNode from '../components/bot-builder/SendCatalogNode';
 import SendMediaNode from '../components/bot-builder/SendMediaNode';
+import OrderStatusNode from '../components/bot-builder/OrderStatusNode';
 
 // Register custom node types
 const nodeTypes = {
@@ -61,6 +62,7 @@ const nodeTypes = {
   businessHoursNode: BusinessHoursNode,
   sendCatalogNode: SendCatalogNode,
   sendMediaNode: SendMediaNode,
+  orderStatusNode: OrderStatusNode,
 };
 
 const initialNodes: Node[] = [
@@ -108,33 +110,40 @@ export default function BotBuilder() {
       
       // Restore nodes/edges
       // We need to re-attach callbacks to nodes because JSON doesn't store functions
-      const restoredNodes = (flow.nodes || []).map((n: Node) => ({
-          ...n,
-          data: {
-              ...n.data,
-              onChange: (text: string) => updateNodeData(n.id, { text }),
-              onChangeQuestion: (q: string) => updateNodeData(n.id, { question: q }),
-              onChangeVariable: (v: string) => updateNodeData(n.id, { variable: v }),
-              onChangeValue: (v: string) => updateNodeData(n.id, { expectedValue: v }),
-              onChangeOptions: (o: string[]) => updateNodeData(n.id, { options: o }),
-              onChangeSaveField: (f: string) => updateNodeData(n.id, { saveField: f }),
-              onChangeFlow: (f: string) => updateNodeData(n.id, { flowId: f }),
-              onChangeProductVar: (v: string) => updateNodeData(n.id, { productVariable: v }),
-              onChangeQtyVar: (v: string) => updateNodeData(n.id, { qtyVariable: v }),
-              onChangeDetailVar: (v: string) => updateNodeData(n.id, { detailVariable: v }),
-              onChangeDuration: (d: string) => updateNodeData(n.id, { duration: d }),
-              onChangeShowTyping: (t: boolean) => updateNodeData(n.id, { showTyping: t }),
-              onChangeReportType: (t: string) => updateNodeData(n.id, { reportType: t }),
-              onChangePriority: (p: string) => updateNodeData(n.id, { priority: p }),
-              onChangeMessage: (m: string) => updateNodeData(n.id, { message: m }),
-              onChangeMediaUrl: (u: string) => updateNodeData(n.id, { mediaUrl: u }),
-              onChangeCaption: (c: string) => updateNodeData(n.id, { caption: c }),
-              onChangeMediaType: (t: string) => updateNodeData(n.id, { mediaType: t }),
-              onChangeFileName: (n_name: string) => updateNodeData(n.id, { fileName: n_name }),
-              onChangeMimeType: (m: string) => updateNodeData(n.id, { mimetype: m }),
-              onDelete: () => deleteNode(n.id),
-          }
-      }));
+      const restoredNodes = (flow.nodes || []).map((n: any) => {
+          // Robust parsing in case data or position came as strings from DB
+          let nodeData = typeof n.data === 'string' ? JSON.parse(n.data) : (n.data || {});
+          let nodePos = typeof n.position === 'string' ? JSON.parse(n.position) : (n.position || { x: 0, y: 0 });
+
+          return {
+              ...n,
+              position: nodePos,
+              data: {
+                  ...nodeData,
+                  onChange: (text: string) => updateNodeData(n.id, { text }),
+                  onChangeQuestion: (q: string) => updateNodeData(n.id, { question: q }),
+                  onChangeVariable: (v: string) => updateNodeData(n.id, { variable: v }),
+                  onChangeValue: (v: string) => updateNodeData(n.id, { expectedValue: v }),
+                  onChangeOptions: (o: string[]) => updateNodeData(n.id, { options: o }),
+                  onChangeSaveField: (f: string) => updateNodeData(n.id, { saveField: f }),
+                  onChangeFlow: (f: string) => updateNodeData(n.id, { flowId: f }),
+                  onChangeProductVar: (v: string) => updateNodeData(n.id, { productVariable: v }),
+                  onChangeQtyVar: (v: string) => updateNodeData(n.id, { qtyVariable: v }),
+                  onChangeDetailVar: (v: string) => updateNodeData(n.id, { detailVariable: v }),
+                  onChangeDuration: (d: string) => updateNodeData(n.id, { duration: d }),
+                  onChangeShowTyping: (t: boolean) => updateNodeData(n.id, { showTyping: t }),
+                  onChangeReportType: (t: string) => updateNodeData(n.id, { reportType: t }),
+                  onChangePriority: (p: string) => updateNodeData(n.id, { priority: p }),
+                  onChangeMessage: (m: string) => updateNodeData(n.id, { message: m }),
+                  onChangeMediaUrl: (u: string) => updateNodeData(n.id, { mediaUrl: u }),
+                  onChangeCaption: (c: string) => updateNodeData(n.id, { caption: c }),
+                  onChangeMediaType: (t: string) => updateNodeData(n.id, { mediaType: t }),
+                  onChangeFileName: (n_name: string) => updateNodeData(n.id, { fileName: n_name }),
+                  onChangeMimeType: (m: string) => updateNodeData(n.id, { mimetype: m }),
+                  onDelete: () => deleteNode(n.id),
+              }
+          };
+      });
 
       console.log('🔄 Setting Nodes:', restoredNodes);
       setNodes(restoredNodes);

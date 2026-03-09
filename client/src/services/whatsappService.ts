@@ -452,21 +452,8 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
     result = { idMessage: json.key?.id || json.id };
   }
 
-  // Save Outbound
-  const conversation = await getOrCreateConversation(rawPhone);
-  if (conversation) {
-    await supabase.from('whatsapp_messages').insert({
-      conversation_id: conversation.id,
-      direction: 'OUTBOUND',
-      content: message,
-      message_type: 'text',
-      wa_message_id: result?.idMessage || null,
-    });
-    await supabase.from('whatsapp_conversations').update({
-      last_message: message,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).eq('id', conversation.id);
+  if (provider === 'DEMO') {
+      // Note: for real providers the backend or the webhook handles inserting outbound messages.
   }
 
   return result;

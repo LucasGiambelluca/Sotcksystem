@@ -71,6 +71,13 @@ export default function Catalog() {
   const [selectedProduct, setSelectedProduct] = useState<PublicCatalogItem | null>(null);
   const [productNotes, setProductNotes] = useState('');
   const [productQty, setProductQty] = useState(1);
+  
+  // Checkout Modal States
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState('Delivery');
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
+
   const categoryBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,7 +86,7 @@ export default function Catalog() {
 
   async function loadData() {
     const [{ data: prods }, { data: cfg }] = await Promise.all([
-      supabase.from('public_catalog').select('*').order('category').order('name'),
+      supabase.from('public_catalog').select('*').order('is_special', { ascending: false }).order('category').order('name'),
       supabase.from('public_branding').select('*').maybeSingle()
     ]);
     if (prods) setProducts(prods as PublicCatalogItem[]);
@@ -88,24 +95,34 @@ export default function Catalog() {
   }
 
   /* ─── Derived State ─────── */
-  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[];
-
   const filtered = products.filter(p => {
-    const matchCat = !activeCategory || p.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    return matchSearch;
   });
 
-  const grouped = categories.length > 0
-    ? (activeCategory ? [activeCategory] : categories).reduce((acc, cat) => {
-        const items = filtered.filter(p => p.category === cat);
-        if (items.length) acc[cat] = items;
-        return acc;
-      }, {} as Record<string, PublicCatalogItem[]>)
-    : { 'Productos': filtered };
+  const rawCategories = Array.from(new Set(filtered.map(p => p.category).filter(Boolean))) as string[];
+  const specials = filtered.filter(p => p.is_special);
+  const categories = specials.length > 0 ? ['⭐ Especiales', ...rawCategories] : rawCategories;
+
+  const grouped = categories.reduce((acc, cat) => {
+    const items = cat === '⭐ Especiales' 
+      ? specials 
+      : filtered.filter(p => p.category === cat);
+    
+    if (items.length) acc[cat] = items;
+    return acc;
+  }, {} as Record<string, PublicCatalogItem[]>);
+
+  // If there are no categories but there are products, group them under "Productos"
+  const finalGrouped = Object.keys(grouped).length > 0 
+    ? grouped 
+    : (filtered.length > 0 ? { 'Productos': filtered } : {});
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-  const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const cartTotal = cart.reduce((s, i) => {
+    const price = i.product.is_special && i.product.special_price ? i.product.special_price : i.product.price;
+    return s + price * i.quantity;
+  }, 0);
 
   /* ─── Cart Actions ─────── */
   function addToCart(product: PublicCatalogItem, qty: number, notes: string) {
@@ -136,16 +153,25 @@ export default function Catalog() {
   }
 
   /* ─── WhatsApp Order ─────── */
-  function sendWhatsApp() {
+  function handleCheckoutSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!customerName.trim()) return;
+
     const phone = config.whatsapp_phone || '';
-    const lines = ['🛒 *Hola! Quiero hacer el siguiente pedido:*', ''];
+    const lines = [
+      `Nombre: ${customerName.trim()} | Delivery: ${deliveryMethod} | Pago: ${paymentMethod}`,
+      '🛒 *Hola! Quiero hacer el siguiente pedido:*', 
+      ''
+    ];
     cart.forEach(item => {
-      lines.push(`• *${item.product.name}* x${item.quantity} — ${fmt(item.product.price * item.quantity)}`);
+      const price = item.product.is_special && item.product.special_price ? item.product.special_price : item.product.price;
+      lines.push(`• *${item.product.name}* x${item.quantity} — ${fmt(price * item.quantity)}`);
       if (item.notes) lines.push(`  _Aclaraciones: ${item.notes}_`);
     });
     lines.push('');
     lines.push(`*Total: ${fmt(cartTotal)}*`);
     const text = encodeURIComponent(lines.join('\n'));
+    setCheckoutOpen(false);
     window.open(phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`, '_blank');
   }
 
@@ -166,11 +192,12 @@ export default function Catalog() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── HEADER BANNER ── */}
-      <div className="relative w-full h-44 md:h-56 overflow-hidden" style={{ background: `linear-gradient(135deg, ${accent}dd, ${accent}88)` }}>
+      <div className="relative w-full h-56 md:h-64 overflow-hidden" style={{ backgroundColor: accent }}>
         {config.catalog_banner_url && (
-          <img src={config.catalog_banner_url} alt="banner" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+          <img src={config.catalog_banner_url} alt="banner" className="absolute inset-0 w-full h-full object-cover" />
         )}
-        <div className="relative z-10 h-full flex items-end px-4 pb-4 md:px-8">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+        <div className="relative z-10 h-full flex items-end px-4 pb-5 md:px-8">
           <div className="flex items-center gap-4">
             {config.catalog_logo_url ? (
               <img src={config.catalog_logo_url} alt="logo" className="w-20 h-20 rounded-full border-4 border-white shadow-lg object-cover" />
@@ -203,14 +230,22 @@ export default function Catalog() {
             />
           </div>
           <button
-            onClick={() => { setActiveCategory(''); setSearch(''); }}
+            onClick={() => { setActiveCategory(''); setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${!activeCategory && !search ? 'text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             style={!activeCategory && !search ? { backgroundColor: accent } : {}}
-          >Todos</button>
-          {categories.map(cat => (
+          >Inicio</button>
+          {Object.keys(finalGrouped).map(cat => (
             <button
               key={cat}
-              onClick={() => { setActiveCategory(cat); setSearch(''); }}
+              onClick={() => { 
+                setActiveCategory(cat); 
+                setSearch(''); 
+                const el = document.getElementById(`category-${cat.replace(/\s+/g, '-')}`);
+                if (el) {
+                  const y = el.getBoundingClientRect().top + window.scrollY - 80;
+                  window.scrollTo({ top: y, behavior: 'smooth' });
+                }
+              }}
               className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${activeCategory === cat ? 'text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               style={activeCategory === cat ? { backgroundColor: accent } : {}}
             >{cat}</button>
@@ -220,59 +255,86 @@ export default function Catalog() {
 
       {/* ── MAIN CONTENT ── */}
       <div className="max-w-5xl mx-auto px-4 py-6 pb-28 md:pb-8">
-        {Object.entries(grouped).map(([cat, items]) => (
-          <div key={cat} className="mb-10">
+        {Object.entries(finalGrouped).map(([cat, items]) => (
+          <div key={cat} id={`category-${cat.replace(/\s+/g, '-')}`} className="mb-10 scroll-mt-24">
             {/* Category header */}
-            {(categories.length > 1 || !activeCategory) && (
+            {Object.keys(finalGrouped).length > 1 && (
               <div className="flex items-center gap-3 mb-4">
                 <h2 className="text-xl font-bold text-gray-800">{cat}</h2>
                 <span className="text-sm text-gray-400">{items.length} producto{items.length !== 1 ? 's' : ''}</span>
               </div>
             )}
-            {/* Product grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+            {/* Product list — one per row */}
+            <div className="flex flex-col gap-3">
               {items.map(product => (
                 <div
                   key={product.id}
-                  onClick={() => { 
+                  onClick={() => {
                     if (!product.in_stock) return;
-                    setSelectedProduct(product); setProductQty(1); setProductNotes(''); 
+                    setSelectedProduct(product); setProductQty(1); setProductNotes('');
                   }}
-                  className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-200 group ${product.in_stock ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : 'opacity-60 grayscale-[0.5]'}`}
+                  className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex items-center gap-3 p-3 transition-all duration-200 ${product.in_stock ? 'cursor-pointer hover:shadow-md active:scale-[0.99]' : 'opacity-60'}`}
                 >
-                  <div className="relative">
-                    <ProductImage url1={product.image_url_1} url2={product.image_url_2} alt={product.name} className="w-full h-40 md:h-44" />
+                  {/* Thumbnail */}
+                  <div className="relative shrink-0">
+                    <ProductImage url1={product.image_url_1} url2={product.image_url_2} alt={product.name} className="w-20 h-20 rounded-xl" />
                     {!product.in_stock && (
-                      <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">Agotado</div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
+                        <span className="text-white text-[9px] font-bold uppercase tracking-wide">Agotado</span>
+                      </div>
                     )}
                   </div>
-                  <div className="p-3">
-                    <p className="font-semibold text-gray-900 text-sm leading-tight mb-1 line-clamp-2">{product.name}</p>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-semibold text-gray-900 text-sm leading-snug">{product.name}</p>
+                      {product.is_special && (
+                        <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight border border-amber-200">
+                          Especial
+                        </span>
+                      )}
+                    </div>
                     {product.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">{product.description}</p>
+                      <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{product.description}</p>
                     )}
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-gray-900">{fmt(product.price)}</span>
-                      {product.in_stock ? (
-                        <button
-                          onClick={e => { e.stopPropagation(); addToCart(product, 1, ''); }}
-                          className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
-                          style={{ backgroundColor: accent }}
-                        >
-                          <Plus size={16} />
-                        </button>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      {product.is_special && product.special_price ? (
+                        <>
+                          <p className="font-bold text-emerald-600 text-base">{fmt(product.special_price)}</p>
+                          <p className="text-xs text-gray-400 line-through">{fmt(product.price)}</p>
+                          {product.offer_label && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-extrabold shadow-sm animate-pulse border border-emerald-200">
+                              {product.offer_label}
+                            </span>
+                          )}
+                        </>
                       ) : (
-                        <span className="text-xs font-semibold text-red-500 uppercase">Sin Stock</span>
+                        <p className="font-bold text-gray-900 text-base">{fmt(product.price)}</p>
                       )}
                     </div>
                   </div>
+
+                  {/* Add button */}
+                  {product.in_stock ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); addToCart(product, 1, ''); }}
+                      className="shrink-0 w-10 h-10 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-transform"
+                      style={{ backgroundColor: accent }}
+                    >
+                      <Plus size={20} />
+                    </button>
+                  ) : (
+                    <span className="shrink-0 text-xs font-semibold text-red-400 uppercase pr-1">Sin stock</span>
+                  )}
                 </div>
               ))}
             </div>
+
           </div>
         ))}
 
-        {filtered.length === 0 && (
+        {Object.keys(finalGrouped).length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <Store size={48} className="mb-4 opacity-30" />
             <p className="text-lg font-medium">No se encontraron productos</p>
@@ -365,7 +427,9 @@ export default function Catalog() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Subtotal</p>
-                  <p className="text-lg font-bold text-gray-900">{fmt(selectedProduct.price * productQty)}</p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {fmt((selectedProduct.is_special && selectedProduct.special_price ? selectedProduct.special_price : selectedProduct.price) * productQty)}
+                  </p>
                 </div>
               </div>
 
@@ -424,7 +488,9 @@ export default function Catalog() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 truncate">{item.product.name}</p>
                     {item.notes && <p className="text-xs text-gray-400 truncate italic">{item.notes}</p>}
-                    <p className="text-sm font-bold mt-0.5" style={{ color: accent }}>{fmt(item.product.price * item.quantity)}</p>
+                    <p className="text-sm font-bold mt-0.5" style={{ color: accent }}>
+                      {fmt((item.product.is_special && item.product.special_price ? item.product.special_price : item.product.price) * item.quantity)}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-0.5">
@@ -452,16 +518,105 @@ export default function Catalog() {
                   <span className="text-2xl font-extrabold text-gray-900">{fmt(cartTotal)}</span>
                 </div>
                 <button
-                  onClick={sendWhatsApp}
+                  onClick={() => setCheckoutOpen(true)}
                   className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition"
                   style={{ backgroundColor: '#25D366' }}
                 >
                   <MessageCircle size={22} />
-                  Pedir por WhatsApp
+                  Continuar
                 </button>
               </div>
             )}
           </div>
+        </div>
+      )}
+      {/* ── CHECKOUT MODAL ── */}
+      {checkoutOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/50 p-0 md:p-4" onClick={() => setCheckoutOpen(false)}>
+          <form 
+            onSubmit={handleCheckoutSubmit}
+            className="bg-white w-full md:max-w-md md:rounded-2xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh' }}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Finalizar Pedido</h2>
+              <button type="button" onClick={() => setCheckoutOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-6">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tu Nombre o Alias</label>
+                <input 
+                  type="text" 
+                  required
+                  autoFocus
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Ej: Lucas"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+                  style={{ '--tw-ring-color': `${accent}66` } as any}
+                />
+              </div>
+
+              {/* Delivery Method */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">¿Cómo preferís recibirlo?</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setDeliveryMethod('Delivery')}
+                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${deliveryMethod === 'Delivery' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={deliveryMethod === 'Delivery' ? { backgroundColor: accent } : {}}
+                  >
+                    Delivery
+                  </button>
+                  <button type="button" onClick={() => setDeliveryMethod('Retiro en local')}
+                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${deliveryMethod === 'Retiro en local' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={deliveryMethod === 'Retiro en local' ? { backgroundColor: accent } : {}}
+                  >
+                    Retiro en Local
+                  </button>
+                </div>
+                {deliveryMethod === 'Delivery' && (
+                  <p className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                    💡 <span className="font-medium text-gray-700">El cadete te pedirá tu ubicación GPS de WhatsApp</span> por privado para cotizar el envío exacto a tu puerta.
+                  </p>
+                )}
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Método de Pago</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setPaymentMethod('Efectivo')}
+                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Efectivo' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={paymentMethod === 'Efectivo' ? { backgroundColor: accent } : {}}
+                  >
+                    Efectivo
+                  </button>
+                  <button type="button" onClick={() => setPaymentMethod('Transferencia / MP')}
+                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Transferencia / MP' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={paymentMethod === 'Transferencia / MP' ? { backgroundColor: accent } : {}}
+                  >
+                    Transf. / MP
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-gray-50 mt-auto">
+              <button
+                type="submit"
+                className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition"
+                style={{ backgroundColor: '#25D366' }}
+              >
+                <MessageCircle size={22} />
+                Enviar a WhatsApp
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

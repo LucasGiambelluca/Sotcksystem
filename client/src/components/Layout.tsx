@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, DollarSign, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, DollarSign, FileText, ChefHat, ShoppingBag, FlaskConical, Navigation } from 'lucide-react';
 import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
 import { supabase } from '../supabaseClient';
 import systemLogo from '../assets/systemlogo.png';
 import { getTotalUnreadCount } from '../services/whatsappService';
+import NewOrderAlertModal from './NewOrderAlertModal';
 
 export default function Layout() {
   const { signOut } = useAuth();
@@ -43,12 +44,19 @@ export default function Layout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Clientes', path: '/clients', icon: Users },
+    // --- GRUPO 1: Stock y Control de Mercadería ---
     { name: 'Inventario', path: '/products', icon: Package },
     { name: 'Reportes de Stock', path: '/stock-reports', icon: FileText },
+    // --- GRUPO 2: Catálogo e Inventario para Venta al Público ---
+    { name: 'Catálogo de Ventas', path: '/catalog-admin', icon: ShoppingBag },
+    { name: 'Recetas', path: '/recipes', icon: FlaskConical },
     { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
+    { name: 'Comandas', path: '/kitchen', icon: ChefHat },
+    // --- GRUPO 3: Atención y Logística ---
+    { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Reportes', path: '/claims', icon: MessageCircle },
     { name: 'Rutas', path: '/routes', icon: MapPin },
+    { name: 'Despacho', path: '/despacho', icon: Navigation },
     { name: 'Configuración', path: '/settings', icon: Settings },
     { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle, badge: waUnread },
     { name: 'Grupos', path: '/whatsapp/groups', icon: Users },
@@ -60,16 +68,16 @@ export default function Layout() {
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
+    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 overflow-hidden w-full relative">
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-dark-bg text-white p-4 flex justify-between items-center z-50 shadow-md">
+      <div className="xl:hidden fixed top-0 left-0 right-0 bg-dark-bg text-white p-4 flex justify-between items-center z-40 shadow-md">
         <div className="flex items-center space-x-2">
           <img src={systemLogo} alt="StockSystem Logo" className="h-8 w-auto" />
           <h1 className="text-xl font-bold tracking-tight">
             Stock<span className="text-primary-500">System</span>
           </h1>
         </div>
-        <button onClick={toggleMobileMenu} className="p-2 hover:bg-dark-surface rounded-lg transition-colors">
+        <button onClick={toggleMobileMenu} className="p-2 hover:bg-dark-surface rounded-lg transition-colors focus:outline-none">
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
@@ -77,17 +85,17 @@ export default function Layout() {
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 z-40 xl:hidden backdrop-blur-sm transition-opacity"
           onClick={closeMobileMenu}
         />
       )}
 
       {/* Sidebar */}
       <aside className={clsx(
-        "fixed inset-y-0 left-0 z-50 w-72 bg-dark-bg text-white flex flex-col shadow-xl transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen",
+        "fixed pl-4 inset-y-0 left-0 z-50 w-72 bg-dark-bg text-white flex flex-col shadow-xl transition-transform duration-300 ease-in-out xl:translate-x-0 xl:static xl:h-screen",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-8 hidden md:block">
+        <div className="p-8 hidden xl:block">
           <div className="flex items-center space-x-3 mb-2">
             <img src={systemLogo} alt="StockSystem Logo" className="h-10 w-auto" />
             <h1 className="text-2xl font-bold tracking-tight">
@@ -97,15 +105,15 @@ export default function Layout() {
           <p className="text-xs text-gray-400 uppercase tracking-wider pl-1">Panel de Control</p>
         </div>
 
-        <div className="p-6 md:hidden">
-          <div className="flex items-center space-x-3 mb-6">
+        <div className="p-6 xl:hidden mt-12 mb-4">
+          <div className="flex items-center space-x-3 mb-2">
             <img src={systemLogo} alt="StockSystem Logo" className="h-8 w-auto" />
-            <span className="text-xl font-bold">StockSystem</span>
+            <span className="text-xl font-bold text-white tracking-tight">Stock<span className="text-primary-500">System</span></span>
           </div>
-          <p className="text-xs text-gray-400 uppercase tracking-wider">Menú</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wider">Menú Principal</p>
         </div>
         
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-6">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -149,11 +157,12 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 h-screen overflow-y-auto pt-16 md:pt-0 bg-gray-50 flex flex-col">
+      <main className="flex-1 h-screen overflow-y-auto pt-16 xl:pt-0 bg-gray-50 flex flex-col w-full relative">
         <div className={location.pathname.startsWith('/whatsapp') ? 'flex-1 flex flex-col' : 'flex-1 max-w-7xl w-full mx-auto'}>
           <Outlet />
         </div>
       </main>
+      <NewOrderAlertModal />
       <Toaster position="top-right" richColors />
       <CommandPalette />
     </div>

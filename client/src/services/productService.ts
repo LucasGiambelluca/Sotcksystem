@@ -6,7 +6,7 @@ export const productService = {
     const { data, error } = await supabase
       .from('products')
       .select('*')
-      .eq('is_active', true) // Filter active only
+      .eq('is_active', true) // Filter out soft-deleted products
       .order('name');
     
     if (error) throw error;
@@ -37,7 +37,7 @@ export const productService = {
   },
 
   async delete(id: string) {
-    // Soft delete
+    // Soft delete to avoid breaking foreign keys (stock_movements, order_items)
     const { error } = await supabase
       .from('products')
       .update({ is_active: false })
@@ -59,5 +59,41 @@ export const productService = {
     // Actually, let's just expose the update method which takes the new values. 
     // The logic for calculating the new stock will be in the UI or a higher level function for now.
     return this.update(id, { stock: quantity });
+  }
+};
+
+// ─── Catalog Item Service ─────────────────────────────────────────────────────
+// Used by NewOrder and the order flow to get the finished/elaborated products available for sale.
+// This queries catalog_items, NOT products (raw material inventory).
+import type { CatalogItem } from '../types';
+
+export const catalogItemService = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('catalog_items')
+      .select('*')
+      .eq('is_active', true)
+      .order('category')
+      .order('name');
+    if (error) throw error;
+    return data as CatalogItem[];
+  },
+
+  async getById(id: string) {
+    const { data, error } = await supabase
+      .from('catalog_items')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data as CatalogItem;
+  },
+
+  async updateStock(id: string, newStock: number) {
+    const { error } = await supabase
+      .from('catalog_items')
+      .update({ stock: newStock, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
   }
 };

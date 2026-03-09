@@ -4,8 +4,22 @@ export class OrderSummaryExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
         console.log('[OrderSummary] Building summary...');
         
-        const rawItems = context.order_items;
-        const items = Array.isArray(rawItems) ? rawItems : [];
+        let items = Array.isArray(context.order_items) ? context.order_items : [];
+        
+        // V2: If we are in a catalog checkout flow, load items from draft_orders
+        if (context.draft_order_id) {
+            const { supabase } = require('../../config/database');
+            const { data: draftOrder } = await supabase
+                .from('draft_orders')
+                .select('items, total')
+                .eq('id', context.draft_order_id)
+                .single();
+            
+            if (draftOrder && draftOrder.items) {
+                items = draftOrder.items;
+                console.log(`[OrderSummary] Loaded ${items.length} items from draft_order ${context.draft_order_id}`);
+            }
+        }
         
         if (items.length === 0) {
             return {

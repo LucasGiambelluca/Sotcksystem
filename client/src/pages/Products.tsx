@@ -1,9 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown, Image, ExternalLink, ShoppingBag, ArrowRightLeft, ArrowDownToLine } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, Pencil, Trash2, Search, X, Package, Filter, ArrowUpDown, ExternalLink, ShoppingBag, ArrowRightLeft, ArrowDownToLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '../services/productService';
 import { stockMovementService } from '../services/stockMovementService';
-import { supabase } from '../supabaseClient';
 import type { Product } from '../types';
 import ExportButtons from '../components/ExportButtons';
 import Pagination from '../components/common/Pagination';
@@ -28,18 +27,16 @@ export default function Products() {
     name: '',
     description: '',
     price: 0,
+    cost: 0,
+    provider: '',
+    last_restock_date: '',
     stock: 0,
     production_stock: 0,
     min_stock: 0,
     category: '',
-    image_url_1: '' as string | null,
-    image_url_2: '' as string | null,
     auto_refill: false,
     auto_refill_qty: 0,
   });
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const img1Ref = useRef<HTMLInputElement>(null);
-  const img2Ref = useRef<HTMLInputElement>(null);
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
@@ -65,13 +62,14 @@ export default function Products() {
       const productData = {
         name: formData.name,
         description: formData.description,
-        price: Number(formData.price),
+        price: Number(formData.price), // We keep price to avoid DB errors conceptually, though cost is more relevant
+        cost: Number(formData.cost) || 0,
+        provider: formData.provider || null,
+        last_restock_date: formData.last_restock_date || null,
         stock: Number(formData.stock),
         production_stock: Number(formData.production_stock),
         min_stock: Number(formData.min_stock),
         category: formData.category,
-        image_url_1: formData.image_url_1 || null,
-        image_url_2: formData.image_url_2 || null,
         auto_refill: formData.auto_refill,
         auto_refill_qty: formData.auto_refill ? Number(formData.auto_refill_qty) : 0,
       };
@@ -128,18 +126,19 @@ export default function Products() {
         name: product.name,
         description: product.description || '',
         price: product.price,
+        cost: product.cost || 0,
+        provider: product.provider || '',
+        last_restock_date: product.last_restock_date || '',
         stock: product.stock,
         production_stock: product.production_stock || 0,
         min_stock: product.min_stock || 0,
         category: product.category || '',
-        image_url_1: product.image_url_1 || '',
-        image_url_2: product.image_url_2 || '',
         auto_refill: (product as any).auto_refill || false,
         auto_refill_qty: (product as any).auto_refill_qty || 0,
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', description: '', price: 0, stock: 0, production_stock: 0, min_stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
+      setFormData({ name: '', description: '', price: 0, cost: 0, provider: '', last_restock_date: '', stock: 0, production_stock: 0, min_stock: 0, category: '', auto_refill: false, auto_refill_qty: 0 });
     }
     setIsModalOpen(true);
   };
@@ -147,7 +146,7 @@ export default function Products() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
-    setFormData({ name: '', description: '', price: 0, stock: 0, production_stock: 0, min_stock: 0, category: '', image_url_1: '', image_url_2: '', auto_refill: false, auto_refill_qty: 0 });
+    setFormData({ name: '', description: '', price: 0, cost: 0, provider: '', last_restock_date: '', stock: 0, production_stock: 0, min_stock: 0, category: '', auto_refill: false, auto_refill_qty: 0 });
   };
 
   // --- ACTIONS MODALS ---
@@ -187,23 +186,6 @@ export default function Products() {
     setActionDescription('');
   };
 
-  async function uploadImage(file: File, slot: 1 | 2, tempId: string) {
-    setUploadingImg(true);
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `${tempId}_${slot}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('product-images').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data } = supabase.storage.from('product-images').getPublicUrl(path);
-      setFormData(prev => ({ ...prev, [`image_url_${slot}`]: data.publicUrl }));
-      toast.success(`Imagen ${slot} subida correctamente`);
-    } catch (err) {
-      console.error(err);
-      toast.error('Error al subir la imagen. ¿Existe el bucket product-images en Supabase Storage?');
-    } finally {
-      setUploadingImg(false);
-    }
-  }
 
   const filteredProducts = products.filter(product => 
     (categoryFilter === '' || product.category === categoryFilter)
@@ -259,7 +241,8 @@ export default function Products() {
             columns={[
               { header: 'Nombre', key: 'name' },
               { header: 'Categoría', key: 'category' },
-              { header: 'Precio', key: 'price' },
+              { header: 'Costo', key: 'cost' },
+              { header: 'Proveedor', key: 'provider' },
               { header: 'Stock', key: 'stock' },
               { header: 'Descripción', key: 'description' }
             ]}
@@ -326,9 +309,10 @@ export default function Products() {
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4"
                   />
                 </th>
-                <th className="px-6 py-4">Producto</th>
+                <th className="px-6 py-4">Insumo</th>
                 <th className="px-6 py-4">Categoría</th>
-                <th className="px-6 py-4">Precio</th>
+                <th className="px-6 py-4">Costo Ref.</th>
+                <th className="px-6 py-4">Proveedor</th>
                 <th className="px-6 py-4">Depósito</th>
                 <th className="px-6 py-4">Producción</th>
                 <th className="px-6 py-4 text-right">Acciones</th>
@@ -347,15 +331,12 @@ export default function Products() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-                        {product.image_url_1
-                          ? <img src={product.image_url_1} alt={product.name} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center"><Package size={20} className="text-gray-400" /></div>
-                        }
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-primary-50 flex items-center justify-center shrink-0 border border-primary-100">
+                        <Package size={20} className="text-primary-600" />
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500 max-w-xs truncate">{product.description || '-'}</div>
+                        <div className="text-xs text-gray-500 max-w-xs truncate">{product.description || '-'}</div>
                       </div>
                     </div>
                   </td>
@@ -364,7 +345,14 @@ export default function Products() {
                       {product.category || 'Sin categoría'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-bold text-gray-900">${product.price.toFixed(2)}</td>
+                  <td className="px-6 py-4 font-bold text-gray-900">${(product.cost || product.price || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {product.provider ? (
+                      <span className="truncate max-w-[120px] block" title={product.provider}>{product.provider}</span>
+                    ) : (
+                      <span className="text-gray-400 italic">No asignado</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col space-y-2 max-w-[120px]">
                       <div className="flex justify-between items-center">
@@ -455,132 +443,107 @@ export default function Products() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-dark-bg/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
+        <div className="fixed inset-0 bg-dark-bg/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] transform transition-all relative">
+            <div className="flex justify-between items-center p-4 md:p-6 border-b border-gray-100 bg-gray-50 flex-shrink-0 rounded-t-2xl">
               <h2 className="text-xl font-bold text-gray-900">
-                {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+                {editingProduct ? 'Editar Insumo' : 'Nuevo Insumo'}
               </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button type="button" onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
                 <X size={24} />
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre *</label>
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 md:p-6 space-y-4 overflow-y-auto">
+                <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Nombre *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Categoría</label>
                 <input
                   type="text"
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                   placeholder="Ej: Sillas, Mesas, etc."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Descripción</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none"
+                  className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none"
                   rows={2}
                 />
               </div>
 
-              {/* Image Upload: 2 slots */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                  <Image size={14} /> Fotos del producto (máx. 2)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {([1, 2] as const).map(slot => {
-                    const urlKey = `image_url_${slot}` as 'image_url_1' | 'image_url_2';
-                    const currentUrl = formData[urlKey];
-                    return (
-                      <div key={slot} className="relative">
-                        <div
-                          className="w-full h-28 rounded-xl border-2 border-dashed border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors"
-                          onClick={() => (slot === 1 ? img1Ref : img2Ref).current?.click()}
-                        >
-                          {currentUrl ? (
-                            <img src={currentUrl} alt={`Foto ${slot}`} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="flex flex-col items-center text-gray-400 gap-1">
-                              <Image size={22} />
-                              <span className="text-xs">Foto {slot}</span>
-                            </div>
-                          )}
-                        </div>
-                        {currentUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, [urlKey]: '' }))}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                          >
-                            <X size={10} />
-                          </button>
-                        )}
-                        <input
-                          ref={slot === 1 ? img1Ref : img2Ref}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => {
-                            const f = e.target.files?.[0];
-                            if (f) uploadImage(f, slot, editingProduct?.id || `new_${Date.now()}`);
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                {uploadingImg && <p className="text-xs text-primary-600 mt-1 animate-pulse">Subiendo imagen...</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Precio *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Costo Promedio (Compra)</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">$</span>
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                      required
+                      value={formData.cost}
+                      onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full pl-8 pr-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-base"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock Minimo (Alarma) *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Proveedor</label>
+                  <input
+                    type="text"
+                    value={formData.provider}
+                    onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                    className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    placeholder="Ej: Maxiconsumo, Granja X"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Fecha Último Ingreso</label>
+                  <input
+                    type="date"
+                    value={formData.last_restock_date}
+                    onChange={(e) => setFormData({ ...formData, last_restock_date: e.target.value })}
+                    className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-base min-h-[44px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Stock / Alarma Min. *</label>
                   <input
                     type="number"
                     value={formData.min_stock}
                     onChange={(e) => setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                    placeholder="Mostrar alerta si es menor que..."
+                    className="w-full px-4 py-2.5 md:py-3 border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-amber-50/30 transition-all text-base"
+                    placeholder="Alarma stock"
                     required
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 bg-gray-100 px-2 py-1 rounded w-max text-xs">Stock Depósito</label>
+
                   <input
                     type="number"
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 md:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-base"
                     required
                   />
                 </div>
@@ -590,7 +553,7 @@ export default function Products() {
                     type="number"
                     value={formData.production_stock}
                     onChange={(e) => setFormData({ ...formData, production_stock: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50/30 transition-all"
+                    className="w-full px-4 py-2.5 md:py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-blue-50/30 transition-all text-base"
                     required
                   />
                 </div>
@@ -622,20 +585,21 @@ export default function Products() {
                   </div>
                 )}
               </div>
+            </div>
               
-              <div className="flex justify-end space-x-3 pt-4">
+            <div className="p-4 md:p-6 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 rounded-b-2xl flex-shrink-0">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors"
+                  className="flex-1 md:flex-none px-5 py-3 md:py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 md:bg-transparent md:hover:bg-gray-100 rounded-xl font-medium transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 shadow-lg shadow-primary-900/20 transition-all"
+                  className="flex-1 md:flex-none px-5 py-3 md:py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 shadow-lg shadow-primary-900/20 transition-all"
                 >
-                  Guardar Producto
+                  Guardar
                 </button>
               </div>
             </form>

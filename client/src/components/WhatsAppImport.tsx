@@ -4,7 +4,8 @@ import { parseOrderFromText } from '../services/orderService';
 import type { Product } from '../types';
 
 interface ParsedItem {
-  product_id: string;
+  product_id?: string;
+  catalog_item_id?: string;
   product_name: string;
   quantity: number;
   unit_price: number;

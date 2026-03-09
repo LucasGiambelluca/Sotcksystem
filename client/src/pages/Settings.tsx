@@ -19,6 +19,9 @@ interface ShippingZone {
   name: string;
   cost: number;
   is_active: boolean;
+  zone_type?: 'radius' | 'text_match';
+  max_radius_km?: number;
+  match_keywords?: string[];
 }
 
 export default function Settings() {
@@ -129,7 +132,7 @@ export default function Settings() {
 
   // --- Logic for Zones ---
   const addZone = async () => {
-    const { data, error } = await supabase.from('shipping_zones').insert({ name: 'Nueva Zona', cost: 0 }).select().single();
+    const { data, error } = await supabase.from('shipping_zones').insert({ name: 'Nueva Zona', cost: 0, zone_type: 'radius', max_radius_km: 1 }).select().single();
     if (error) return toast.error('Error al crear zona');
     setZones([...zones, data]);
   };
@@ -168,7 +171,10 @@ export default function Settings() {
           catalog_accent_color: waConfig.catalog_accent_color,
           catalog_logo_url: waConfig.catalog_logo_url,
           catalog_banner_url: waConfig.catalog_banner_url,
-          whatsapp_phone: waConfig.whatsapp_phone
+          whatsapp_phone: waConfig.whatsapp_phone,
+          shipping_policy: waConfig.shipping_policy,
+          store_lat: waConfig.store_lat,
+          store_lng: waConfig.store_lng
         })
         .eq('id', waConfig.id);
 
@@ -302,6 +308,55 @@ export default function Settings() {
                         Guardar
                     </button>
                 </div>
+
+                {/* --- LIV Configuration --- */}
+                <div className="pt-6 mt-6 border-t border-gray-100 flex items-end gap-4">
+                    <div className="flex-1 space-y-4">
+                        <h3 className="font-semibold text-gray-800">Estrategia Logística (LIV)</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Política de Shipping</label>
+                                <select 
+                                    value={waConfig?.shipping_policy || 'flex'}
+                                    onChange={(e) => waConfig && setWaConfig({...waConfig, shipping_policy: e.target.value as any})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                                >
+                                    <option value="flex">Flex (Libre albedrío)</option>
+                                    <option value="smart">Smart (Hibrido GPS + Validación)</option>
+                                    <option value="secure">Secure (Solo GPS)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Latitud (Local)</label>
+                                <input 
+                                    type="number" step="0.000001"
+                                    value={waConfig?.store_lat || ''}
+                                    onChange={(e) => waConfig && setWaConfig({...waConfig, store_lat: parseFloat(e.target.value)})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                                    placeholder="-38.7183"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Longitud</label>
+                                <input 
+                                    type="number" step="0.000001"
+                                    value={waConfig?.store_lng || ''}
+                                    onChange={(e) => waConfig && setWaConfig({...waConfig, store_lng: parseFloat(e.target.value)})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                                    placeholder="-62.2663"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={saveWaConfig}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 h-[42px]"
+                        title="Guarda la configuración LIV principal"
+                    >
+                        <Save size={18} />
+                        Guardar LIV
+                    </button>
+                </div>
             </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -379,35 +434,77 @@ export default function Settings() {
                 </div>
                 <div className="space-y-3">
                     {zones.map(zone => (
-                        <div key={zone.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded border">
-                            <div className="flex-1 space-y-1">
-                                <input 
-                                    type="text" 
-                                    value={zone.name} 
-                                    onChange={(e) => updateZone(zone.id, { name: e.target.value })}
-                                    className="w-full px-2 py-1 bg-white border rounded text-sm"
-                                    placeholder="Nombre zona"
-                                />
+                        <div key={zone.id} className="flex flex-col gap-3 p-3 bg-gray-50 rounded border">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1 space-y-1">
+                                    <input 
+                                        type="text" 
+                                        value={zone.name} 
+                                        onChange={(e) => updateZone(zone.id, { name: e.target.value })}
+                                        className="w-full px-2 py-1 bg-white border rounded font-medium text-sm"
+                                        placeholder="Nombre zona"
+                                    />
+                                </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500">$</span>
+                                    <span className="text-gray-500 font-medium text-sm">$</span>
                                     <input 
                                         type="number" 
                                         value={zone.cost} 
                                         onChange={(e) => updateZone(zone.id, { cost: Number(e.target.value) })}
-                                        className="w-24 px-2 py-1 bg-white border rounded text-sm"
+                                        className="w-24 px-2 py-1 bg-white border rounded font-bold text-sm"
+                                        placeholder="Costo"
                                     />
                                 </div>
+                                <button 
+                                    onClick={() => updateZone(zone.id, { is_active: !zone.is_active })}
+                                    className={`p-1.5 rounded transition ${zone.is_active ? 'text-green-600 bg-green-50' : 'text-gray-400 bg-gray-100'}`}
+                                    title={zone.is_active ? "Activa" : "Inactiva"}
+                                >
+                                    <Power size={18} />
+                                </button>
+                                <button onClick={() => deleteZone(zone.id)} className="text-red-500 p-1.5 hover:bg-red-50 rounded transition">
+                                    <Trash2 size={18} />
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => updateZone(zone.id, { is_active: !zone.is_active })}
-                                className={`p-1.5 rounded ${zone.is_active ? 'text-green-600' : 'text-gray-400'}`}
-                                title={zone.is_active ? "Activo" : "Inactivo"}
-                            >
-                                <Power size={18} />
-                            </button>
-                            <button onClick={() => deleteZone(zone.id)} className="text-red-500 p-1.5 hover:bg-red-50 rounded">
-                                <Trash2 size={18} />
-                            </button>
+                            
+                            <div className="grid grid-cols-2 gap-3 pl-1">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Cálculo de Distancia</label>
+                                    <select 
+                                        value={zone.zone_type || 'radius'}
+                                        onChange={(e) => updateZone(zone.id, { zone_type: e.target.value as any })}
+                                        className="w-full px-2 py-1 bg-white border rounded text-xs text-gray-700 font-medium"
+                                    >
+                                        <option value="radius">Radio KM (GPS)</option>
+                                        <option value="text_match">Texto (Manual)</option>
+                                    </select>
+                                </div>
+                                {(!zone.zone_type || zone.zone_type === 'radius') ? (
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Radio Máximo (KM)</label>
+                                        <input 
+                                            type="number" step="0.1"
+                                            value={zone.max_radius_km || 0}
+                                            onChange={(e) => updateZone(zone.id, { max_radius_km: parseFloat(e.target.value) })}
+                                            className="w-full px-2 py-1 bg-white border rounded text-xs"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Palabras Clave (Comas)</label>
+                                        <input 
+                                            type="text"
+                                            value={zone.match_keywords ? zone.match_keywords.join(', ') : ''}
+                                            onChange={(e) => {
+                                                const kws = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                updateZone(zone.id, { match_keywords: kws });
+                                            }}
+                                            className="w-full px-2 py-1 bg-white border rounded text-xs"
+                                            placeholder="Ej: macrocentro, centro"
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                     {zones.length === 0 && <p className="text-sm text-gray-500 text-center">No hay zonas configuradas.</p>}

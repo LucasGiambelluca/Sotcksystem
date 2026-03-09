@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+// import rateLimit from 'express-rate-limit'; // Disabled temporarily due to Windows npm EPERM bug
 import { requireAuth } from '../middleware/auth';
 import flowRoutes from './routes/flows.routes';
 import logisticsRoutes from './routes/logistics.routes';
@@ -11,6 +12,27 @@ import systemRoutes from './routes/system.routes';
 import { whatsappClient } from '../infrastructure/whatsapp/WhatsAppClient';
 
 const app = express();
+
+// --- Rate Limiting: Protección contra DDoS y abuso de API ---
+/*
+const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,   // 1 minute window
+    max: 100,              // Max 100 requests per IP per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes. Intenta de nuevo en 1 minuto.' }
+});
+
+const whatsappApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,               // Stricter limit for WhatsApp webhook routes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Rate limit alcanzado en la API de WhatsApp.' }
+});
+
+app.use(globalLimiter);
+*/
 
 // --- CORS: soporta múltiples orígenes separados por coma en CORS_ORIGIN ---
 // Ejemplo: CORS_ORIGIN=https://panel.midominio.com,https://midominio.com
@@ -71,7 +93,7 @@ app.use('/api/driver', driverRoutes); // Public endpoint for drivers
 
 // --- External Services & WhatsApp specific routes ---
 app.use('/api/groups', groupsRoutes);
-app.use('/api', whatsappRoutes);
+app.use('/api', whatsappRoutes);  // Limiter disabled temporarily
 app.use('/api', systemRoutes);
 
 export default app;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image } from 'lucide-react';
+import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search } from 'lucide-react';
 
 const nodeItems = [
   { type: 'messageNode', icon: MessageSquare, label: 'Mensaje', desc: 'Envía un texto simple.', bg: 'bg-blue-100', text: 'text-blue-600' },
@@ -11,6 +11,7 @@ const nodeItems = [
   { type: 'addToCartNode', icon: ShoppingBag, label: 'Agregar Carrito', desc: 'Agrega producto al carrito.', bg: 'bg-cyan-100', text: 'text-cyan-600' },
   { type: 'orderSummaryNode', icon: ShoppingCart, label: 'Resumen', desc: 'Muestra el carrito.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
   { type: 'createOrderNode', icon: CheckCircle, label: 'Crear Pedido', desc: 'Guarda en DB.', bg: 'bg-teal-100', text: 'text-teal-600' },
+  { type: 'orderStatusNode', icon: Search, label: 'Consulta de Pedido', desc: 'Busca el estado de un pedido.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
   { type: 'flowLinkNode', icon: ArrowRightCircle, label: 'Ir a Flujo', desc: 'Salta a otro flujo.', bg: 'bg-gray-100', text: 'text-gray-600' },
   { type: 'mediaUploadNode', icon: UploadCloud, label: 'Recibir Archivo', desc: 'Pide un archivo.', bg: 'bg-pink-100', text: 'text-pink-600' },
   { type: 'documentNode', icon: FileText, label: 'Enviar PDF', desc: 'Genera comprobante.', bg: 'bg-red-100', text: 'text-red-600' },
