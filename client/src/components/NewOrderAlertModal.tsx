@@ -4,6 +4,11 @@ import { updateOrderStatus } from '../services/orderService';
 import { toast } from 'sonner';
 import { Check, X, ShoppingBag, MapPin, Package, DollarSign } from 'lucide-react';
 
+interface IncomingOrderItem {
+  name: string;
+  quantity: number;
+}
+
 interface IncomingOrder {
   id: string;
   order_number: number;
@@ -15,6 +20,7 @@ interface IncomingOrder {
   chat_context: any;
   client_name: string | null;
   items_summary: string | null;
+  items: IncomingOrderItem[];
 }
 
 // Notification sound using simple oscillator (works after ANY user interaction on page)
@@ -54,7 +60,11 @@ export default function NewOrderAlertModal() {
     try {
       let query = supabase
         .from('orders')
-        .select('id, order_number, total_amount, delivery_address, delivery_type, phone, channel, chat_context, client:clients(name)')
+        .select(`
+          id, order_number, total_amount, delivery_address, delivery_type, phone, channel, chat_context, 
+          client:clients(name),
+          order_items(quantity, catalog_item:catalog_items(name))
+        `)
         .eq('status', 'PENDING');
 
       if (orderId) {
@@ -84,6 +94,11 @@ export default function NewOrderAlertModal() {
           || raw.chat_context?.delivery_method 
           || null;
 
+        const items: IncomingOrderItem[] = (raw as any).order_items?.map((oi: any) => ({
+          name: oi.catalog_item?.name || 'Desconocido',
+          quantity: oi.quantity
+        })) || [];
+
         const order: IncomingOrder = {
           id: raw.id,
           order_number: raw.order_number,
@@ -95,6 +110,7 @@ export default function NewOrderAlertModal() {
           chat_context: raw.chat_context,
           client_name: clientName,
           items_summary: null,
+          items,
         };
 
         setQueue((prev) => {
@@ -210,6 +226,27 @@ export default function NewOrderAlertModal() {
                <div>
                   <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Total</p>
                   <p className="font-bold text-green-600 text-xl">${Number(currentAlert.total_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+               </div>
+             </div>
+
+             {/* Order Items List */}
+             <div className="flex items-start gap-3 border-t border-gray-100 pt-3 mt-3">
+               <div className="bg-purple-100 p-2 rounded-lg text-purple-600 mt-1">
+                 <ShoppingBag className="w-5 h-5" />
+               </div>
+               <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Detalle del Pedido</p>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {currentAlert.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm transition-all hover:border-purple-200">
+                        <span className="font-bold text-gray-800 text-sm leading-tight">{item.name}</span>
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-2">x{item.quantity}</span>
+                      </div>
+                    ))}
+                    {currentAlert.items.length === 0 && (
+                      <p className="text-xs text-gray-400 italic py-1">Sin detalles disponibles</p>
+                    )}
+                  </div>
                </div>
              </div>
           </div>
