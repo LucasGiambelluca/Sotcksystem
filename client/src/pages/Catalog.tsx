@@ -76,6 +76,7 @@ export default function Catalog() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('Delivery');
+  const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
   const categoryBarRef = useRef<HTMLDivElement>(null);
@@ -98,9 +99,11 @@ export default function Catalog() {
   const filtered = products.filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     return matchSearch;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const rawCategories = Array.from(new Set(filtered.map(p => p.category).filter(Boolean))) as string[];
+  rawCategories.sort((a, b) => a.localeCompare(b));
+  
   const specials = filtered.filter(p => p.is_special);
   const categories = specials.length > 0 ? ['⭐ Especiales', ...rawCategories] : rawCategories;
 
@@ -159,7 +162,7 @@ export default function Catalog() {
 
     const phone = config.whatsapp_phone || '';
     const lines = [
-      `Nombre: ${customerName.trim()} | Delivery: ${deliveryMethod} | Pago: ${paymentMethod}`,
+      `Nombre: ${customerName.trim()} | Delivery: ${deliveryMethod}${deliveryMethod === 'Delivery' ? ` | Dirección: ${address.trim()}` : ''} | Pago: ${paymentMethod}`,
       '🛒 *Hola! Quiero hacer el siguiente pedido:*', 
       ''
     ];
@@ -580,9 +583,21 @@ export default function Catalog() {
                   </button>
                 </div>
                 {deliveryMethod === 'Delivery' && (
-                  <p className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                    💡 <span className="font-medium text-gray-700">El cadete te pedirá tu ubicación GPS de WhatsApp</span> por privado para cotizar el envío exacto a tu puerta.
-                  </p>
+                  <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Dirección de Entrega</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                      placeholder="Calle, número y localidad"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+                      style={{ '--tw-ring-color': `${accent}66` } as any}
+                    />
+                    <p className="mt-2 text-[10px] text-gray-500 bg-blue-50 p-2 rounded-lg border border-blue-100 leading-tight">
+                      ℹ️ <span className="font-medium text-gray-700">Opcional:</span> El cadete también podría pedirte tu ubicación GPS de WhatsApp para mayor precisión.
+                    </p>
+                  </div>
                 )}
               </div>
 

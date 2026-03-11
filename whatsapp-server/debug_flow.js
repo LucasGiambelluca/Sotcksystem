@@ -1,16 +1,25 @@
-require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
 
-async function run() {
+async function debugFlow() {
+    const flowId = '2b636d4d-cade-4bb8-be25-419f54e2b41d';
     const { data, error } = await supabase
         .from('flows')
-        .select('*')
-        .eq('id', 'a0fcadd4-11c1-45e7-b239-b2384b897aea');
+        .select('nodes')
+        .eq('id', flowId)
+        .single();
     
-    if (error) console.error(error);
-    else console.log(JSON.stringify(data, null, 2));
+    if (error) {
+        console.error(error);
+    } else {
+        console.log('Nodes for Bienvenida flow:');
+        data.nodes.forEach(node => {
+            console.log(`- ID: ${node.id}, Type: ${node.type}`);
+            console.log('  Data:', JSON.stringify(node.data, null, 2));
+        });
+    }
 }
 
-run();
+debugFlow();

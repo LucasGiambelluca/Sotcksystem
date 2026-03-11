@@ -239,27 +239,7 @@ export default function CadetePWA() {
                       <p className="text-xs font-bold text-gray-400 uppercase text-center mb-2">Seleccioná tu nombre</p>
                       {cadetesDisponibles.length === 0 ? (
                           <div className="bg-white border-2 border-dashed border-gray-100 rounded-3xl p-6 text-center">
-                              <p className="text-sm text-gray-400 mb-4">No hay cadetes registrados en el sistema.</p>
-                              <button
-                                onClick={async () => {
-                                    setLoading(true);
-                                    try {
-                                        const { data, error } = await supabase.from('employees').insert({
-                                            name: 'Cadete de Prueba',
-                                            role: 'cadete',
-                                            is_active: true
-                                        }).select().single();
-                                        if (error) throw error;
-                                        handleStartShift(data.id);
-                                    } catch (err) {
-                                        toast.error('Error al crear cadete de prueba');
-                                        setLoading(false);
-                                    }
-                                }}
-                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-md"
-                              >
-                                CREAR CADETE DE PRUEBA
-                              </button>
+                              <p className="text-sm text-gray-400">No hay cadetes registrados en el sistema.</p>
                           </div>
                       ) : (
                           cadetesDisponibles.map(c => (

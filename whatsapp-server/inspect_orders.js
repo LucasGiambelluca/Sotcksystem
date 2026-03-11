@@ -1,23 +1,20 @@
-require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
 
-async function main() {
-  try {
-    const { data: orders, error } = await supabase.from('orders').select().limit(1);
+async function inspectOrders() {
+    const { data: latestOrder, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+    
     if (error) {
-        console.error('Error:', error);
-    } else if (orders && orders.length > 0) {
-        console.table(Object.keys(orders[0]).map(k => ({ column: k })));
+        console.error('Error querying orders:', error);
     } else {
-        console.log('No hay pedidos para inspeccionar columnas.');
+        console.log('Latest order sample:', latestOrder && latestOrder[0]);
     }
-  } catch (err) {
-    console.error('Error inesperado:', err);
-  }
 }
 
-main();
+inspectOrders();

@@ -63,7 +63,8 @@ class Parser {
 
         // Detect lines with "Product xN" pattern 
         // Example: "• Product Name x2 — $500" or "- Product x 1"
-        const catalogLineRegex = /^[\u2022\-*]?\s*(.+?)\s+[xX]\s*(\d+)/gm;
+        // Robustness: Allow leading spaces, multiple bullet types (diamond, circle, etc)
+        const catalogLineRegex = /^\s*[\u2022\u2666\-*]?\s*(.+?)\s+[xXx]\s*(\d+)/gm;
         const items = [];
         let match;
 
@@ -111,6 +112,9 @@ class Parser {
         
         const deliveryMatch = text.match(/Delivery:\s*([^|*\n]+)/i);
         if (deliveryMatch) metadata.delivery_method = deliveryMatch[1].trim();
+
+        const addressMatch = text.match(/Dirección:\s*([^|*\n]+)/i);
+        if (addressMatch) metadata.delivery_address = addressMatch[1].trim();
 
         const paymentMatch = text.match(/Pago:\s*([^|*\n]+)/i);
         if (paymentMatch) metadata.payment_method = paymentMatch[1].trim();

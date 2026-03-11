@@ -535,35 +535,26 @@ class WhatsAppClient {
             console.error('Failed to save inbound message to DB:', e);
         }
     }
-    private clearSession() {
-        console.log(`🗑️ Clearing corrupt or logged-out session at ${AUTH_DIR}`);
+    private async clearSession() {
+        console.log(`🗑️ Clearing session at ${AUTH_DIR}`);
         
-        const MAX_CLEAR_RETRIES = 5;
-        let cleared = false;
-
-        for (let attempt = 1; attempt <= MAX_CLEAR_RETRIES; attempt++) {
-            try {
-                if (fs.existsSync(AUTH_DIR)) {
-                    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                }
-                cleared = true;
-                console.log(`✅ Session directory cleared successfully (attempt ${attempt}).`);
-                break;
-            } catch (err: any) {
-                console.error(`❌ Attempt ${attempt}/${MAX_CLEAR_RETRIES} to clear session failed: ${err.message}`);
-                if (attempt < MAX_CLEAR_RETRIES) {
-                    // Synchronous sleep (acceptable here since this is a recovery path, not main loop)
-                    const sleepMs = attempt * 1000; // 1s, 2s, 3s, 4s
-                    console.log(`⏳ Waiting ${sleepMs}ms before retry...`);
-                    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, sleepMs);
-                }
+        try {
+            if (fs.existsSync(AUTH_DIR)) {
+                // Delete using async promises instead of sync, which prevents event loop blocking
+                await fs.promises.rm(AUTH_DIR, { recursive: true, force: true });
+                console.log('✅ Session directory cleared successfully.');
             }
-        }
-
-        if (!cleared) {
-            console.error('🚨 [CRITICAL] Could not clear session directory after all retries.');
-            console.error(`🚨 Please manually delete: ${AUTH_DIR}`);
-            this.sessionClearFailed = true; // Prevents infinite restart loop
+        } catch (err: any) {
+            console.error(`❌ Failed to clear session: ${err.message}`);
+            // If it fails (usually due to Windows file locks or similar), we rename it instead
+            try {
+               const backupDir = `${AUTH_DIR}_backup_${Date.now()}`;
+               await fs.promises.rename(AUTH_DIR, backupDir);
+               console.log(`✅ Session directory renamed to bypass lock: ${backupDir}`);
+            } catch (renameErr: any) {
+               console.error(`🚨 [CRITICAL] Could not clear or rename session directory. Manual intervention may be needed: ${renameErr.message}`);
+               this.sessionClearFailed = true;
+            }
         }
 
         this.status = 'STOPPED';
@@ -573,14 +564,25 @@ class WhatsAppClient {
 
     public async logout() {
         console.log('🚪 Manual logout triggered. Closing connection and clearing session.');
-        this.status = 'STOPPED';
-        if (this.sock) {
-            this.sock.ev.removeAllListeners();
-            this.sock.end(undefined);
-            this.sock = null;
+        try {
+            this.status = 'STOPPED';
+            if (this.sock) {
+                // Remove listeners to prevent reconnection loops during logout
+                this.sock.ev.removeAllListeners('connection.update');
+                this.sock.ws?.close();
+                this.sock.end(undefined);
+                this.sock = null;
+            }
+            
+            // Wait slightly to ensure socket releases file locks
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.clearSession();
+            
+            return { success: true, message: 'Bot logged out successfully' };
+        } catch (error: any) {
+            console.error('Error during logout:', error);
+            return { success: false, message: error.message };
         }
-        this.clearSession();
-        return { success: true, message: 'Bot logged out successfully' };
     }
 }
 

@@ -3,6 +3,13 @@ const { productService } = require('../../services/ProductService');
 
 export class CatalogExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
+        // If items are already in context (e.g. from a catalog checkout), skip sending the menu
+        const items = context.order_items || [];
+        if (Array.isArray(items) && items.length > 0) {
+            console.log(`[CatalogExecutor] Skipping menu because ${items.length} items are already in context.`);
+            return { messages: [], wait_for_input: false };
+        }
+
         const products = await productService.getProducts();
         
         if (!products || products.length === 0) {

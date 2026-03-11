@@ -63,6 +63,13 @@ class ProductService {
         return maxScore > 0.4 ? bestMatch : null;
     }
 
+    getEffectivePrice(product: Product): number {
+        if (product.is_special && typeof product.special_price === 'number') {
+            return product.special_price;
+        }
+        return product.price;
+    }
+
     async massPriceUpdate(percentage: number): Promise<void> {
         const { supabase } = require('../config/database');
         const { error } = await supabase.rpc('update_all_catalog_prices', { p_percentage: percentage });

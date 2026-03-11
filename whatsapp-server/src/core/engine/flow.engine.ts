@@ -1,8 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { supabase } from '../../config/database'; // Adjust path as needed
+import { supabase } from '../../config/database'; 
 import { FlowDefinition, FlowNode, FlowEdge, FlowExecution, ExecutionResult } from '../../flows/types/flow.types';
+import { logger } from '../../utils/logger';
+import { validateNode } from './node.validator';
 
 // Executors
 import { NodeExecutor } from '../../core/executors/types';
@@ -76,7 +78,7 @@ export class FlowEngine {
 
     async processMessage(phone: string, messageText: string, context: any = {}): Promise<any> {
         const startTime = Date.now();
-        console.log(`[FlowEngine] 📩 New message from ${phone}: "${messageText}"`);
+        logger.info(`Processing message`, { phone, text: messageText.substring(0, 50) });
 
         // 0. GLOBAL INTERRUPTS (Reset logic)
         // If the user says "hola", "menu", "cancelar", "inicio", we should probably restart.
@@ -86,7 +88,7 @@ export class FlowEngine {
         let execution = null;
 
         if (isGlobalTrigger) {
-            console.log(`[FlowEngine] 🛑 Global trigger detected: "${messageText}". Cancelling active flows.`);
+            logger.info(`Global trigger detected`, { phone, trigger: messageText });
             // Cancel any active execution for this user
             await this.db.from('flow_executions')
                 .update({ status: 'cancelled', completed_at: new Date() })
@@ -108,7 +110,7 @@ export class FlowEngine {
             console.log(`[FlowEngine] 🔍 Found flow:`, flow ? flow.id : 'NULL');
 
             if (!flow) {
-                console.error(`[FlowEngine] ❌ No flow found for trigger: "${messageText}"`);
+                logger.error(`No flow found for trigger`, { trigger: messageText, phone });
                 const fallbackMessage = '❌ No entendí. Escribe "hola" o "menú" para ver las opciones.';
                 
                 console.log(`
@@ -128,7 +130,7 @@ export class FlowEngine {
             }
             
             flowId = flow.id;
-            console.log(`[FlowEngine] Starting flow "${flow.name}" (${flow.id})`);
+            logger.info(`Starting flow`, { flowName: flow.name, flowId, phone });
             execution = await this.startExecution(flow, phone, context);
             
             // Execute the FIRST node immediately
@@ -204,18 +206,16 @@ export class FlowEngine {
             .from('flows')
             .select('*')
             .eq('is_active', true)
-            // .ilike('trigger_word', text.trim()) // Using simple ilike might need exact match or %
-             .or(`trigger_word.ilike.${cleanText},trigger_word.ilike.%${cleanText}%`)
-            .limit(1); // take the first match
-
-        console.log(`[FlowEngine] 📊 Supabase result:`, {
-            found: data?.length || 0,
-            firstId: data?.[0]?.id,
-            error: error
-        });
+            .or(`trigger_word.ilike.${cleanText},trigger_word.ilike.%${cleanText}%`);
 
         if (error || !data || data.length === 0) return null;
-        return data[0] as FlowDefinition; 
+
+        // Prioritize exact match
+        const exactMatch = data.find((f: any) => 
+            f.trigger_word?.toLowerCase().split(',').map((t: string) => t.trim()).includes(cleanText)
+        );
+
+        return exactMatch || data[0]; 
     }
 
     private async startExecution(flow: FlowDefinition, phone: string, context: any = {}): Promise<FlowExecution> {
@@ -262,7 +262,7 @@ export class FlowEngine {
             .single();
 
         if (!flow) {
-            console.error(`[FlowEngine] Flow ${execution.flow_id} not found for execution ${execution.id}`);
+            logger.error(`Flow not found for execution`, { flowId: execution.flow_id, executionId: execution.id });
             await this.db.from('flow_executions').update({ status: 'error', completed_at: new Date() }).eq('id', execution.id);
             return ["⚠️ Error: La definición del flujo ha cambiado o no se encuentra disponible."];
         }
@@ -270,7 +270,18 @@ export class FlowEngine {
         const currentNode = (flow.nodes || []).find((n: any) => n.id === execution.current_node_id);
         if (!currentNode) return ["Error: Node not found"];
 
-        console.log(`[FlowEngine] Executing Node: ${currentNode.type} (${currentNode.id})`);
+        // 1. Validate Node Data
+        const validation = validateNode(currentNode.type, currentNode.data);
+        if (!validation.success) {
+            logger.error(`Node validation failed`, { 
+                type: currentNode.type, 
+                nodeId: currentNode.id, 
+                errors: (validation as any).error.errors 
+            });
+            return [`⚠️ Error interno: Configuración de nodo "${currentNode.type}" inválida.`];
+        }
+
+        logger.debug(`Executing Node`, { type: currentNode.type, nodeId: currentNode.id });
 
         // Special Case: Flow Link Node
         if (currentNode.type === 'flowLinkNode') {
@@ -361,10 +372,11 @@ export class FlowEngine {
                      for (const item of catalogItems) {
                          const product = await productService.findProduct(item.product);
                          if (product) {
+                             const price = productService.getEffectivePrice(product);
                              verifiedItems.push({
                                  catalog_item_id: product.id,
                                  qty: item.qty,
-                                 price: product.price,
+                                 price: price,
                                  name: product.name
                              });
                          }
@@ -458,13 +470,13 @@ export class FlowEngine {
 
         if (!outgoingEdge) {
             // End of Flow
-            console.log("[FlowEngine] End of flow reached.");
+            logger.info(`End of flow reached`, { phone: execution.phone, flowId: execution.flow_id });
             await this.db.from('flow_executions').update({ status: 'completed', completed_at: new Date() }).eq('id', execution.id);
             return accumulatedMessages;
         }
 
         const nextNodeId = outgoingEdge.target;
-        console.log(`[FlowEngine] Advancing from ${execution.current_node_id} to ${nextNodeId}`);
+        logger.info(`[FlowEngine] Advancing from ${execution.current_node_id} to ${nextNodeId}`, { phone: execution.phone });
 
         // Update Execution State
         await this.db.from('flow_executions')

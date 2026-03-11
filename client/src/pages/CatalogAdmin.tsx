@@ -23,7 +23,9 @@ export default function CatalogAdmin() {
   const [newCompName, setNewCompName] = useState('');
   const [newCompStationId, setNewCompStationId] = useState('');
   const [isMassUpdateModalOpen, setIsMassUpdateModalOpen] = useState(false);
-  const [massPercentage, setMassPercentage] = useState<number>(0);
+  const [massAmount, setMassAmount] = useState<number>(0);
+  const [massType, setMassType] = useState<'percentage' | 'fixed'>('percentage');
+  const [massCategory, setMassCategory] = useState<string>('');
   const [massLoading, setMassLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -48,6 +50,10 @@ export default function CatalogAdmin() {
   const itemsPerPage = 15;
 
   useEffect(() => { loadItems(); loadStations(); }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter]);
 
   const loadItems = async () => {
     setLoading(true);
@@ -180,13 +186,28 @@ export default function CatalogAdmin() {
   };
 
   const handleMassiveUpdate = async () => {
-    if (massPercentage === 0) { toast.error('Ingresá un porcentaje distinto de cero'); return; }
+    if (massAmount === 0) { toast.error('Ingresá un valor distinto de cero'); return; }
     setMassLoading(true);
     try {
-      const { error } = await supabase.rpc('update_all_catalog_prices', { p_percentage: massPercentage });
+      const { error } = await supabase.rpc('update_catalog_prices_v2', { 
+        p_percentage: massType === 'percentage' ? massAmount : 0,
+        p_fixed_amount: massType === 'fixed' ? massAmount : 0,
+        p_category: massCategory || null
+      });
       if (error) throw error;
-      toast.success(`Precios actualizados en un ${massPercentage}%`);
+      
+      const isIncrease = massAmount > 0;
+      const label = massType === 'percentage' 
+        ? (isIncrease ? `+${massAmount}%` : `${massAmount}%`)
+        : (isIncrease ? `+$${massAmount.toLocaleString()}` : `-$${Math.abs(massAmount).toLocaleString()}`);
+      
+      const actionLabel = isIncrease ? 'Aumentados' : 'Rebajados';
+      const catLabel = massCategory ? ` en ${massCategory}` : ' en todo el catálogo';
+      toast.success(`${actionLabel} con éxito (${label})${catLabel}`);
+      
       setIsMassUpdateModalOpen(false);
+      setMassAmount(0);
+      setMassCategory('');
       loadItems();
     } catch (err: any) {
       console.error(err);
@@ -337,7 +358,58 @@ export default function CatalogAdmin() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile View: Cards */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {paginated.map((item) => (
+            <div key={item.id} className="p-4 flex items-start space-x-4">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                {item.image_url_1
+                  ? <img src={item.image_url_1} alt={item.name} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={24} className="text-gray-400" /></div>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-gray-900 truncate pr-2">{item.name}</h3>
+                    <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-bold border border-emerald-100 uppercase mb-1">
+                      {item.category || 'General'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => openModal(item)} className="p-2 bg-gray-50 text-gray-600 rounded-lg border border-gray-100">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-red-50 text-red-600 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="font-bold text-gray-900">
+                    ${(item.is_special && item.special_price ? item.special_price : item.price).toLocaleString('es-AR')}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${item.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      Stock: {item.stock}
+                    </span>
+                    <button onClick={() => toggleActive(item)} className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase border ${item.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+                      {item.is_active ? 'Activo' : 'Inactivo'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="p-12 text-center text-gray-400">
+              <p>No se encontraron resultados.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left min-w-[700px]">
             <thead className="bg-gray-50 text-gray-500 font-medium text-sm uppercase tracking-wider">
               <tr>
@@ -421,7 +493,7 @@ export default function CatalogAdmin() {
                     </button>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end space-x-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => openModal(item)}
                         className="bg-gray-50 text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
@@ -749,56 +821,101 @@ export default function CatalogAdmin() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
             <div className="p-6 border-b border-gray-100 bg-amber-50 text-amber-900 font-bold flex justify-between items-center">
               <span className="flex items-center gap-2">
-                <ArrowUpDown size={18} /> Actualización Masiva (%)
+                <ArrowUpDown size={18} /> Actualización Masiva de Precios
               </span>
               <button onClick={() => setIsMassUpdateModalOpen(false)}><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               <p className="text-sm text-gray-600">
-                Ingresá un porcentaje para actualizar **todos** los precios de venta del catálogo comercial.
+                Aumentá o disminuí los precios por porcentaje o monto fijo.
               </p>
+
+              {/* Type Selection */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMassType('percentage')}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${massType === 'percentage' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                >
+                  Porcentaje (%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMassType('fixed')}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${massType === 'fixed' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                >
+                  Monto Fijo ($)
+                </button>
+              </div>
+
+              {/* Value Input */}
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
                   <input
-                    type="number"
-                    value={massPercentage}
-                    onChange={(e) => setMassPercentage(parseFloat(e.target.value) || 0)}
+                    type="text"
+                    inputMode="decimal"
+                    value={massAmount === 0 ? '' : massAmount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || val === '-') {
+                        // Allow typing the minus sign or clearing
+                        setMassAmount(val as any);
+                      } else {
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) setMassAmount(num);
+                      }
+                    }}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-lg font-bold text-center"
                     placeholder="0"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                    {massType === 'percentage' ? '%' : '$'}
+                  </span>
                 </div>
               </div>
-              <div className="flex gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setMassPercentage(-30)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-600"
+
+              {/* Quick buttons */}
+              {massType === 'percentage' ? (
+                <div className="flex gap-2 text-xs flex-wrap">
+                  {[-30, -10, 10, 25, 50].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setMassAmount(v)}
+                      className={`px-2.5 py-1.5 rounded border font-medium ${v < 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                    >
+                      {v > 0 ? `+${v}%` : `${v}%`}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex gap-2 text-xs flex-wrap">
+                  {[-1000, -500, 500, 1000, 2000].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setMassAmount(v)}
+                      className={`px-2.5 py-1.5 rounded border font-medium ${v < 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                    >
+                      {v > 0 ? `+$${v.toLocaleString()}` : `-$${Math.abs(v).toLocaleString()}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Category selector */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Filtrar por Categoría</label>
+                <select
+                  value={massCategory}
+                  onChange={(e) => setMassCategory(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                 >
-                  -30%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMassPercentage(-10)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-600"
-                >
-                  -10%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMassPercentage(10)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-600"
-                >
-                  +10%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMassPercentage(25)}
-                  className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-600"
-                >
-                  +25%
-                </button>
+                  <option value="">Todo el Catálogo</option>
+                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
               </div>
+
               <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800 italic">
                 💡 Un valor negativo rebajará los precios, uno positivo los aumentará.
               </div>
@@ -807,17 +924,17 @@ export default function CatalogAdmin() {
                 <button
                   type="button"
                   onClick={() => setIsMassUpdateModalOpen(false)}
-                  className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleMassiveUpdate}
-                  disabled={massPercentage === 0 || massLoading}
-                  className="px-5 py-2 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 disabled:bg-gray-300 shadow-lg shadow-amber-900/20 transition-all flex items-center gap-2"
+                  disabled={massAmount === 0 || massLoading}
+                  className="px-6 py-2.5 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 disabled:bg-gray-300 shadow-lg shadow-amber-900/20 transition-all flex items-center gap-2 min-w-[140px] justify-center"
                 >
-                  {massLoading ? 'Actualizando...' : 'Confirmar Cambios'}
+                  {massLoading ? 'Actualizando...' : 'Actualizar'}
                 </button>
               </div>
             </div>

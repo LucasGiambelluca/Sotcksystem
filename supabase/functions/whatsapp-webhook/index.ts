@@ -1,9 +1,9 @@
-
+// @ts-nocheck
 // Supabase Edge Function: whatsapp-webhook
 // Receives incoming messages from Green-API AND Evolution API
 // Deploy: supabase functions deploy whatsapp-webhook --no-verify-jwt
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

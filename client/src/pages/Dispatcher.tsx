@@ -77,35 +77,54 @@ const Dispatcher: React.FC = () => {
         setActiveMission(data);
     };
 
+    const [realtimeStatus, setRealtimeStatus] = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR'>('CONNECTING');
+
     useEffect(() => {
-        fetchData();
+        let locationChannel: any, orderChannel: any, shiftChannel: any;
 
-        // Real-time subscriptions
-        const locationChannel = supabase
-            .channel('cadete-locations-despacho')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cadete_locations' }, () => {
-                fetchCadetes();
-            })
-            .subscribe();
+        const setupSubscriptions = async () => {
+            try {
+                setRealtimeStatus('CONNECTING');
+                await fetchData();
 
-        const orderChannel = supabase
-            .channel('orders-despacho')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                fetchOrders();
-            })
-            .subscribe();
+                // 1. Location Channel
+                locationChannel = supabase.channel('cadete-locations-despacho')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cadete_locations' }, () => {
+                        fetchCadetes();
+                    })
+                    .subscribe((status) => {
+                        if (status === 'SUBSCRIBED') setRealtimeStatus('CONNECTED');
+                        if (status === 'CHANNEL_ERROR') setRealtimeStatus('ERROR');
+                    });
 
-        const shiftChannel = supabase
-            .channel('shifts-despacho')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, () => {
-                fetchCadetes();
-            })
-            .subscribe();
+                // 2. Orders Channel
+                orderChannel = supabase.channel('orders-despacho')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+                        console.debug('Realtime order change', payload);
+                        fetchOrders();
+                    })
+                    .subscribe();
+
+                // 3. Shifts Channel
+                shiftChannel = supabase.channel('shifts-despacho')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, () => {
+                        fetchCadetes();
+                    })
+                    .subscribe();
+
+            } catch (err) {
+                console.error('Subscription setup failed:', err);
+                setRealtimeStatus('ERROR');
+                toast.error('Error de conexión en tiempo real');
+            }
+        };
+
+        setupSubscriptions();
 
         return () => {
-            supabase.removeChannel(locationChannel);
-            supabase.removeChannel(orderChannel);
-            supabase.removeChannel(shiftChannel);
+            if (locationChannel) supabase.removeChannel(locationChannel);
+            if (orderChannel) supabase.removeChannel(orderChannel);
+            if (shiftChannel) supabase.removeChannel(shiftChannel);
         };
     }, []);
 
@@ -206,7 +225,19 @@ const Dispatcher: React.FC = () => {
                             {pendingOrders.length}
                         </span>
                     </div>
-                    <p className="text-xs text-gray-400">Pedidos listos para asignar</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                            realtimeStatus === 'CONNECTED' ? 'bg-green-500' : 
+                            realtimeStatus === 'CONNECTING' ? 'bg-yellow-500 animate-pulse' : 
+                            'bg-red-500'
+                        }`}></div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                            {realtimeStatus === 'CONNECTED' ? 'En Tiempo Real' : 
+                             realtimeStatus === 'CONNECTING' ? 'Conectando...' : 
+                             'Error de Red'}
+                        </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">Pedidos listos para asignar</p>
                     {selectedOrderIds.length > 0 && (
                         <button 
                             onClick={handleBulkAssign}

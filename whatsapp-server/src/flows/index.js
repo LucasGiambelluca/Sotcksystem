@@ -17,6 +17,6 @@ module.exports = {
     payment: paymentFlow,
     final_confirm: finalConfirmFlow,
     close: closeFlow,
-    stock: stockFlow
+    // stock: stockFlow // MIGRATED TO DB 2026-03-10
 };
 

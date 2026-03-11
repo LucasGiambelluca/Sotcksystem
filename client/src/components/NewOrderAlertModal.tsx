@@ -133,8 +133,8 @@ export default function NewOrderAlertModal() {
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
           const newId = (payload.new as any)?.id;
-          // Small delay to ensure DB transaction committed
-          setTimeout(() => fetchAndEnqueue(newId), 500);
+          // Minimal delay to ensure DB transaction committed (Supabase Realtime can sometimes be very fast)
+          setTimeout(() => fetchAndEnqueue(newId), 100);
         }
       )
       .subscribe((status) => {
@@ -197,56 +197,70 @@ export default function NewOrderAlertModal() {
         </div>
         
         {/* Body */}
-        <div className="p-6 bg-gray-50">
-          <div className="space-y-4 mb-6">
-             <div className="flex items-start gap-3">
-               <div className="bg-blue-100 p-2 rounded-lg text-blue-600 mt-1">
-                 <Package className="w-5 h-5" />
+        <div className="p-5 bg-gray-100">
+          <div className="space-y-3 mb-5">
+             {/* Client and Delivery Info Grid */}
+             <div className="grid grid-cols-2 gap-3">
+               <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-1 flex items-center gap-1">
+                    <Package className="w-3 h-3" /> Cliente
+                  </p>
+                  <p className="font-bold text-gray-800 text-sm truncate">
+                    {currentAlert.client_name || currentAlert.phone || 'Desconocido'}
+                  </p>
                </div>
-               <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Cliente</p>
-                  <p className="font-bold text-gray-900 text-lg">{currentAlert.client_name || currentAlert.phone || 'Desconocido'}</p>
-               </div>
-             </div>
-
-             <div className="flex items-start gap-3">
-               <div className="bg-orange-100 p-2 rounded-lg text-orange-600 mt-1">
-                 <MapPin className="w-5 h-5" />
-               </div>
-               <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Entrega</p>
-                  <p className="font-bold text-gray-900 text-lg">{displayAddress}</p>
-               </div>
-             </div>
-
-             <div className="flex items-center gap-3">
-               <div className="bg-green-100 p-2 rounded-lg text-green-600">
-                 <DollarSign className="w-5 h-5" />
-               </div>
-               <div>
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Total</p>
-                  <p className="font-bold text-green-600 text-xl">${Number(currentAlert.total_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+               <div className={`p-3 rounded-xl border shadow-sm ${currentAlert.delivery_type?.toLowerCase().includes('env') ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-tighter mb-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" /> Entrega
+                  </p>
+                  <p className={`font-bold text-sm truncate ${currentAlert.delivery_type?.toLowerCase().includes('env') ? 'text-orange-700' : 'text-green-700'}`}>
+                    {displayAddress}
+                  </p>
                </div>
              </div>
 
-             {/* Order Items List */}
-             <div className="flex items-start gap-3 border-t border-gray-100 pt-3 mt-3">
-               <div className="bg-purple-100 p-2 rounded-lg text-purple-600 mt-1">
-                 <ShoppingBag className="w-5 h-5" />
+             {/* THE "COMANDA" TICKET */}
+             <div className="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-dashed border-gray-300 relative">
+               <div className="bg-gray-50 border-b border-gray-200 py-2 px-4 flex justify-between items-center">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detalle de Comanda</span>
+                  <ShoppingBag className="w-3 h-3 text-gray-300" />
                </div>
-               <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Detalle del Pedido</p>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                    {currentAlert.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm transition-all hover:border-purple-200">
-                        <span className="font-bold text-gray-800 text-sm leading-tight">{item.name}</span>
-                        <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-2">x{item.quantity}</span>
+               
+               <div className="p-4 max-h-[40vh] overflow-y-auto">
+                 {currentAlert.items.map((item, idx) => (
+                   <div key={idx} className="flex items-start justify-between py-2 border-b border-gray-100 last:border-0">
+                      <div className="flex-1 pr-4">
+                        <p className="font-black text-gray-900 text-base leading-tight uppercase">
+                          {item.name}
+                        </p>
                       </div>
-                    ))}
-                    {currentAlert.items.length === 0 && (
-                      <p className="text-xs text-gray-400 italic py-1">Sin detalles disponibles</p>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono font-black text-blue-600 text-xl bg-blue-50 px-2 rounded">
+                          x{item.quantity}
+                        </span>
+                      </div>
+                   </div>
+                 ))}
+                 
+                 {currentAlert.items.length === 0 && (
+                   <p className="text-center text-gray-400 italic py-4">Sin productos detectados</p>
+                 )}
+               </div>
+
+               {/* Serrated edge effect simulation at the bottom */}
+               <div className="h-2 bg-[radial-gradient(circle,transparent_0,transparent_4px,#f3f4f6_4px,#f3f4f6_10px)] bg-[length:20px_20px]"></div>
+             </div>
+
+             {/* Total Area */}
+             <div className="flex justify-between items-center bg-gray-900 text-white p-4 rounded-xl shadow-xl">
+               <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total a Cobrar</p>
+                  <p className="text-2xl font-black text-green-400">
+                    ${Number(currentAlert.total_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </p>
+               </div>
+               <div className="bg-white/10 p-3 rounded-full">
+                  <DollarSign className="w-6 h-6 text-green-400" />
                </div>
              </div>
           </div>
@@ -254,25 +268,28 @@ export default function NewOrderAlertModal() {
           <div className="grid grid-cols-2 gap-3">
             <button 
               onClick={() => handleDismiss(currentAlert.id)}
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+              className="group flex flex-col items-center justify-center gap-1 py-3 px-4 bg-white border-2 border-gray-200 text-gray-500 font-bold rounded-2xl hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95"
             >
-              <X className="w-5 h-5" />
-              Ver después
+              <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] uppercase">Ver después</span>
             </button>
             <button 
               onClick={() => handleConfirm(currentAlert.id)}
               disabled={confirming === currentAlert.id}
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors shadow-lg shadow-green-500/30 disabled:opacity-50"
+              className="group flex flex-col items-center justify-center gap-1 py-3 px-4 bg-green-500 text-white font-black rounded-2xl hover:bg-green-600 transition-all active:scale-95 shadow-lg shadow-green-500/40 disabled:opacity-50"
             >
-              <Check className="w-5 h-5" />
-              {confirming === currentAlert.id ? 'Confirmando...' : 'Aceptar Pedido'}
+              <Check className="w-6 h-6 group-hover:scale-125 transition-transform" />
+              <span className="text-[10px] uppercase">{confirming === currentAlert.id ? 'Procesando...' : 'ACEPTAR Y PREPARAR'}</span>
             </button>
           </div>
           
           {queue.length > 1 && (
-            <p className="text-center text-xs text-gray-400 mt-4 font-medium">
-              +{queue.length - 1} pedidos más esperando en cola...
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-ping"></span>
+              <p className="text-center text-[10px] text-gray-500 font-black uppercase tracking-tighter">
+                Hay {queue.length - 1} pedidos más esperando en cola
+              </p>
+            </div>
           )}
         </div>
       </div>

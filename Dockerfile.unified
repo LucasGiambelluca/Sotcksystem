@@ -1,0 +1,53 @@
+# Etapa 1: Build del Frontend (Vite)
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/client
+# Habilitar corepack para usar pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY client/package.json client/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY client/ ./
+# Definir variables build-time requeridas (se sobreescriben en runtime pero Vite las chequea)
+ARG VITE_API_URL=/api
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+RUN pnpm build
+
+# Etapa 2: Build del Server (Express)
+FROM node:20-alpine AS backend-build
+# Instalar utilidades requeridas por node-gyp y otros binarios nativos
+RUN apk add --no-cache python3 make g++ vips-dev
+WORKDIR /app/whatsapp-server
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY whatsapp-server/package.json whatsapp-server/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY whatsapp-server/ ./
+RUN pnpm build
+
+# Etapa 3: Imagen de Producción (Único contenedor)
+FROM node:20-alpine AS production
+RUN apk add --no-cache tzdata
+ENV TZ=America/Argentina/Buenos_Aires
+WORKDIR /app/whatsapp-server
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copiar archivos compilados y dependencias de producción del backend
+COPY --from=backend-build /app/whatsapp-server/package.json /app/whatsapp-server/pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+# Copiar el código transpilado del backend
+COPY --from=backend-build /app/whatsapp-server/dist ./dist
+
+# Crear y copiar estructura del frontend esperado por app.ts (va en /app/client/dist relativo a /app/whatsapp-server/dist)
+# Recordamos de app.ts: path.join(__dirname, '../../../client/dist') 
+# Si el código se corre desde /app/whatsapp-server/dist/api/app.js
+#   __dirname es /app/whatsapp-server/dist/api
+#   ../../.. llega a /app
+#   Luego concatena client/dist = /app/client/dist
+RUN mkdir -p /app/client/dist
+COPY --from=frontend-build /app/client/dist /app/client/dist
+
+# Preparar carpetas necesarias (logs, sesiones, subidas)
+RUN mkdir -p /app/sessions /app/logs /app/uploads
+
+EXPOSE 3001
+CMD ["node", "dist/index.js"]

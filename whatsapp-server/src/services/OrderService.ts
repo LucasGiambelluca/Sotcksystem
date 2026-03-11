@@ -121,30 +121,26 @@ export class OrderService {
             console.error('[OrderService] Error guardando items:', itemsError);
         }
 
-        // 5. Descontar Stock de catalog_items (Atómico simplificado)
+        // 5. Descontar Stock de catalog_items (Atómico y Transaccional)
         // NOTE: We decrement stock from catalog_items (finished products), NOT from products (raw materials)
-        for (const item of items) {
-            const catalogId = item.catalog_item_id || item.product_id; // Prefer catalog_item_id
-            if (!catalogId) continue; // Skip if neither ID is available
+        const stockItemsPayload = items
+            .map(item => ({ id: item.catalog_item_id || item.product_id, qty: item.qty }))
+            .filter(item => item.id != null);
 
-            const { error: stockError } = await this.db.rpc('decrement_catalog_item_stock', {
-                p_id: catalogId,
-                p_qty: item.qty
+        if (stockItemsPayload.length > 0) {
+            const { error: stockError } = await this.db.rpc('decrement_multiple_stocks', {
+                items: stockItemsPayload
             });
-            
+
             if (stockError) {
-                // Fallback manual: update stock directly on catalog_items
-                const { data: catItem } = await this.db
-                    .from('catalog_items')
-                    .select('id, stock')
-                    .eq('id', catalogId)
-                    .single();
-                if (catItem) {
-                    await this.db.from('catalog_items').update({
-                        stock: Math.max(0, catItem.stock - item.qty),
-                        updated_at: new Date().toISOString()
-                    }).eq('id', catalogId);
-                }
+                console.error('[OrderService] Error de stock o concurrencia:', stockError.message || stockError);
+                // 6. ROLLBACK: Delete the created order (cascade takes care of order_items)
+                await this.db.from('orders').delete().eq('id', order.id);
+                // Release slot if reserved
+                if (deliverySlotId) await this.slotService.releaseSlot(deliverySlotId);
+                
+                // Throw user-friendly error
+                throw new Error('Lo sentimos, uno o más productos de tu pedido se acaban de quedar sin stock. El pedido ha sido cancelado.');
             }
         }
 

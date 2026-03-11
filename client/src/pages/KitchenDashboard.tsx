@@ -17,6 +17,7 @@ interface OrderItem {
     name: string;
     catalog_item_id?: string;
     product_id?: string;
+    station_id?: string | null;
 }
 
 interface Order {
@@ -228,15 +229,31 @@ export default function KitchenDashboard() {
         stationService.getAll().then(sts => setStations(sts));
         
         const channel = supabase
-            .channel('public:orders:kitchen')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-                console.log('New Order received!', payload);
-                playNotification();
-                setTimeout(fetchOrders, 500);
+            .channel('public:orders:kitchen_live') // Use a unique channel name
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+                console.log('[KitchenDashboard] Realtime change detected:', payload.eventType, (payload.new as any)?.id);
+                
+                // If it's a new order or a status update we care about
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    if (payload.eventType === 'INSERT') playNotification();
+                    // Delay slightly to ensure items are committed
+                    setTimeout(fetchOrders, 1000);
+                }
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log('[KitchenDashboard] Realtime subscription:', status);
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    // toast.error('Error de conexión en tiempo real. Reintentando...');
+                }
+            });
 
-        return () => { supabase.removeChannel(channel); };
+        // Fallback polling (every 20s) in case realtime fails
+        const interval = setInterval(fetchOrders, 20000);
+
+        return () => { 
+            supabase.removeChannel(channel); 
+            clearInterval(interval);
+        };
     }, [playNotification]);
 
     const mapDBToLocalStatus = (dbStatus: string | undefined | null) => {
@@ -269,7 +286,7 @@ export default function KitchenDashboard() {
                 client:clients(name),
                 order_items(
                     id, quantity, unit_price, catalog_item_id, product_id,
-                    catalog_item:catalog_items(name)
+                    catalog_item:catalog_items(name, station_id)
                 )
             `)
             .not('status', 'in', '("DELIVERED","CANCELLED")') // Use only core statuses that definitely exist
@@ -293,6 +310,7 @@ export default function KitchenDashboard() {
                         name: oi.catalog_item?.name || oi.name || 'Producto',
                         catalog_item_id: oi.catalog_item_id,
                         product_id: oi.product_id,
+                        station_id: oi.catalog_item?.station_id || null,
                     }));
 
                     // If no order_items rows, try to extract from chat_context
@@ -573,15 +591,30 @@ export default function KitchenDashboard() {
                                 {/* Items */}
                                 {order.items && order.items.length > 0 ? (
                                     <div className="space-y-1.5 mb-4">
-                                        {order.items.map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
-                                                <span className="text-blue-600 font-black text-xl w-8 text-center shrink-0">
-                                                    {item.quantity}×
-                                                </span>
-                                                <span className="text-[#1e293b] font-bold text-base flex-1 leading-tight tracking-tight">{item.name}</span>
-                                                <span className="text-gray-400 text-[10px] font-mono shrink-0">{fmtCurrency(item.unit_price)}</span>
-                                            </div>
-                                        ))}
+                                        {order.items
+                                            .filter(item => activeViewStationId === 'ALL' || item.station_id === activeViewStationId || !item.station_id)
+                                            .map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100 relative overflow-hidden">
+                                                    {item.station_id && stations.find(s => s.id === item.station_id) && (
+                                                        <div 
+                                                            className="absolute left-0 top-0 bottom-0 w-1" 
+                                                            style={{ backgroundColor: stations.find(s => s.id === item.station_id)?.color }}
+                                                        />
+                                                    )}
+                                                    <span className="text-blue-600 font-black text-xl w-8 text-center shrink-0">
+                                                        {item.quantity}×
+                                                    </span>
+                                                    <div className="flex-1 flex flex-col">
+                                                        <span className="text-[#1e293b] font-bold text-base leading-tight tracking-tight">{item.name}</span>
+                                                        {item.station_id && (
+                                                            <span className="text-[10px] uppercase font-bold text-gray-400">
+                                                                {stations.find(s => s.id === item.station_id)?.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-gray-400 text-[10px] font-mono shrink-0">{fmtCurrency(item.unit_price)}</span>
+                                                </div>
+                                            ))}
                                     </div>
                                 ) : (
                                     <div className="mb-4 bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-3 text-yellow-400 text-sm">

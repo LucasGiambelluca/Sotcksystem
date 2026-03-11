@@ -91,9 +91,21 @@ app.use('/api/logistics', requireAuth, logisticsRoutes);
 app.use('/api/claims', requireAuth, claimsRoutes);
 app.use('/api/driver', driverRoutes); // Public endpoint for drivers
 
+import path from 'path';
+
 // --- External Services & WhatsApp specific routes ---
 app.use('/api/groups', groupsRoutes);
 app.use('/api', whatsappRoutes);  // Limiter disabled temporarily
 app.use('/api', systemRoutes);
+
+// --- STATIC FRONTEND SERVING (Unified Container) ---
+// Serve static client files under /elpollocomilon
+const clientBuildPath = path.join(__dirname, '../../../client/dist');
+app.use('/elpollocomilon', express.static(clientBuildPath));
+
+// Catch-all route to serve index.html for React Router handling
+app.get('/elpollocomilon/*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+});
 
 export default app;

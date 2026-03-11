@@ -1,17 +1,10 @@
-# Reemplazá TUDOMINIO.COM con tu dominio real
-# Si no tenés dominio, usá la IP directamente (ver comentario más abajo)
+# ============================================================
+# CADDYFILE - Configuración Unificada
+# ============================================================
 
-# --- Panel de administración (Frontend) ---
-panel.TUDOMINIO.COM {
-    reverse_proxy frontend:80
-}
-
-# --- API Backend ---
-api.TUDOMINIO.COM {
-    reverse_proxy backend:3001
-
-    # Timeout largo para operaciones de Baileys
-    reverse_proxy backend:3001 {
+# --- Aplicación Principal (Frontend + API) ---
+TUDOMINIO.COM {
+    reverse_proxy app:3001 {
         transport http {
             dial_timeout 10s
             response_header_timeout 60s

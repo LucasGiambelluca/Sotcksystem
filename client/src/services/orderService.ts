@@ -152,12 +152,9 @@ export async function updateOrderStatus(orderId: string, status: Order['status']
       .single();
 
     if (error) throw error;
-
-    // Send WhatsApp notification (fire-and-forget, don't block UI)
-    import('./orderNotificationService')
-      .then(({ sendOrderStatusNotification }) => sendOrderStatusNotification(orderId, status))
-      .catch((notifError) => console.error('❌ Failed to send notification:', notifError));
-
+    
+    // Notifications are now handled by the backend OrderNotificationListener
+    
     return { data, error: null };
   } catch (error) {
     console.error('Error updating order status:', error);

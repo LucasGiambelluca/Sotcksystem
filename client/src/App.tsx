@@ -32,7 +32,7 @@ import Dispatcher from './pages/Dispatcher';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/elpollocomilon">
       <AuthProvider>
         <SoundProvider>
           <Routes>

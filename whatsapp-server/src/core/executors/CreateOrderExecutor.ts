@@ -150,11 +150,13 @@ export class CreateOrderExecutor implements NodeExecutor {
             const checkoutMessage = config?.checkout_message?.trim() || 'El pedido ya fue enviado a cocina.';
 
 
+            const isDelivery = deliveryType?.toLowerCase().includes('delivery') || deliveryType?.toLowerCase().includes('env');
+            
             const replyMessages: any[] = [
                 { text: `✅ *¡Pedido confirmado!*` },
                 { text: `Orden: #${order.order_number}` },
                 { text: `Total: *$${total}* ${shippingCost > 0 ? `(Incluye $${shippingCost} de envío)` : ''}` },
-                { text: `Destino: ${finalAddressString || 'Retiro en local'}` }
+                { text: `Destino: ${finalAddressString || (isDelivery ? 'Envío a domicilio' : 'Retiro en local')}` }
             ];
 
             if (checkoutMessage) {
