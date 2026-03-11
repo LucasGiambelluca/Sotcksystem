@@ -16,8 +16,7 @@ services:
       - stock-network
     restart: unless-stopped
     depends_on:
-      - frontend
-      - backend
+      - app
 
   # ==========================================
   # APP - Node.js + Express (sirve React y API)
