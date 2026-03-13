@@ -3,7 +3,7 @@ import { NodeExecutor, ExecutionContext, NodeExecutionResult } from './types';
 export class SendCatalogExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
         const baseUrl = process.env.FRONTEND_URL || 'https://stock-system-catalog.app';
-        const catalogUrl = `${baseUrl}/catalog`;
+        const catalogUrl = `${baseUrl}/elpollocomilon/catalog`;
 
         const message = data.customMessage
             ? `${data.customMessage}\n\n👉 ${catalogUrl}`

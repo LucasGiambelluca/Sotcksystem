@@ -47,6 +47,12 @@ async function migrate() {
   if (itemError) throw itemError;
   console.log(`✅ ${items.length} productos encontrados.`);
 
+  // 3b. Fetch Bot Flows (flows)
+  console.log('🤖 Extrayendo flujos del bot...');
+  const { data: flows, error: flowError } = await sourceClient.from('flows').select('*');
+  if (flowError) throw flowError;
+  console.log(`✅ ${flows.length} flujos encontrados.`);
+
   // 4. Download Images from Source Bucket
   console.log('🖼️  Descargando imágenes originales...');
   const { data: files, error: fileError } = await sourceClient.storage.from('products').list();

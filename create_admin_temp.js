@@ -13,8 +13,8 @@ async function run() {
     
     console.log('Attempting to create admin user...');
     const { data, error } = await supabase.auth.admin.createUser({
-        email: 'admin@admin.com',
-        password: 'admin',
+        email: 'elpollocomilon@admin.com',
+        password: 'elpollocomilon2026',
         email_confirm: true,
         user_metadata: { role: 'admin' }
     });
@@ -23,8 +23,8 @@ async function run() {
         console.error('Error creating user:', error.message);
     } else {
         console.log('SUCCESS: User created/verified.');
-        console.log('Email: admin@admin.com');
-        console.log('Password: admin');
+        console.log('Email: elpollocomilon@admin.com');
+        console.log('Password: elpollocomilon2026');
     }
 }
 
