@@ -151,8 +151,8 @@ export class CreateOrderExecutor implements NodeExecutor {
                 await supabase.from('orders').update({ delivery_address: finalAddressString }).eq('id', order.id);
             }
 
-            // Auto-asignación
-            await engine.orderService.autoAssignOrder(order.id);
+            // Auto-asignación desactivada para permitir confirmación manual vía Modal de Alerta
+            // await engine.orderService.autoAssignOrder(order.id);
 
             // Fetch custom checkout message from config
             

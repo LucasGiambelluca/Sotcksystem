@@ -137,19 +137,19 @@ export async function getInstanceStatus(instanceName: string, apiKey: string) {
   } else if (provider === 'WAHA') {
     // WAHA: GET /api/sessions
     try {
-      const res = await fetch(`${apiUrl}/api/sessions?all=true`, {
+      // Use our actual QR endpoint to check status
+      const res = await fetch(`${apiUrl}/api/default/auth/qr`, {
         method: 'GET',
         headers: { 'X-Api-Key': apiKey },
       });
       const json = await res.json();
-      // Find session 'default'
-      const session = Array.isArray(json) ? json.find((s: any) => s.name === instanceName) : null;
-      if (session && session.status === 'WORKING') {
+      
+      if (json.status === 'WORKING') {
           return { instance: { state: 'open' } };
       }
       return { instance: { state: 'close' } };
     } catch (e) {
-      console.error('WAHA Status Error:', e);
+      console.error('WhatsApp Server Status Error:', e);
       return { instance: { state: 'close' } };
     }
   } else {
