@@ -157,9 +157,18 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 h-screen overflow-y-auto pt-16 xl:pt-0 bg-gray-50 flex flex-col w-full relative">
-        <div className={location.pathname.startsWith('/whatsapp') ? 'flex-1 flex flex-col' : 'flex-1 max-w-7xl w-full mx-auto'}>
-          <Outlet />
+      <main className="flex-1 h-screen bg-gray-50 flex flex-col w-full relative overflow-hidden">
+        <div className={clsx(
+          "flex-1 flex flex-col w-full overflow-hidden",
+          location.pathname.startsWith('/whatsapp') || location.pathname.startsWith('/kitchen') 
+            ? "pt-16 xl:pt-0" 
+            : "overflow-y-auto pt-16 xl:pt-0"
+        )}>
+          <div className={location.pathname.startsWith('/whatsapp') || location.pathname.startsWith('/kitchen') 
+            ? 'flex-1 flex flex-col overflow-hidden' 
+            : 'flex-1 max-w-7xl w-full mx-auto p-4 md:p-6'}>
+            <Outlet />
+          </div>
         </div>
       </main>
       <NewOrderAlertModal />

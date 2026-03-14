@@ -2,150 +2,29 @@
 
 [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mC:/Users/Lucas/Desktop/Sotcksystem/whatsapp-server[39m
 
-[90mstdout[2m | src/__tests__/unit/OrderService.test.ts
-[22m[39m[dotenv@17.3.1] injecting env (2) from .env -- tip: ÔÜÖ´©Å  override existing env vars with { override: true }
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts
+[22m[39m[dotenv@17.3.1] injecting env (9) from .env -- tip: ÔÜÖ´©Å  load multiple .env files with { path: ['.env.local', '.env'] }
+Ô£à Supabase initialized with ANON (Public) key.
 
-[90mstdout[2m | src/__tests__/unit/OrderService.test.ts
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts
 [22m[39mÔ£à Redis Connected
 
-stderr | src/__tests__/unit/OrderService.test.ts
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts[2m > [22m[2mNLU Engine - Order Interpretation[2m > [22m[2mshould extract product and quantity from "quiero 2 pollos"
+[22m[39m2026-03-13 12:17:33 [[32minfo[39m] : [NLU] Catalog loaded: 9 terms indexed. 
 
-stderr | src/__tests__/unit/OrderService.test.ts
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts[2m > [22m[2mNLU Engine - Order Interpretation[2m > [22m[2mshould handle fuzzy matching for "amburguesa"
+[22m[39m2026-03-13 12:17:33 [[32minfo[39m] : [NLU] Catalog loaded: 9 terms indexed. 
 
-stderr | src/__tests__/unit/OrderService.test.ts
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts[2m > [22m[2mNLU Engine - Order Interpretation[2m > [22m[2mshould identify a product inquiry
+[22m[39m2026-03-13 12:17:33 [[32minfo[39m] : [NLU] Catalog loaded: 9 terms indexed. 
 
-stderr | src/__tests__/unit/OrderService.test.ts
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+[90mstdout[2m | src/core/nlu/__tests__/NluEngine.test.ts[2m > [22m[2mNLU Engine - Order Interpretation[2m > [22m[2mshould identify a greeting
+[22m[39m2026-03-13 12:17:33 [[32minfo[39m] : [NLU] Catalog loaded: 9 terms indexed. 
 
-stderr | src/__tests__/unit/OrderService.test.ts
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
+ [32mÔ£ô[39m src/core/nlu/__tests__/NluEngine.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
 
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe fallar si el slot no tiene disponibilidad
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[ioredis] Unhandled error event: Error: connect ECONNREFUSED ::1:6379
-    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1615:16)
-
-stderr | src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-[OrderService] Error en auto-asignaci├│n: {
-  code: 'PGRST204',
-  details: null,
-  hint: null,
-  message: "Could not find the 'assigned_at' column of 'orders' in the schema cache"
-}
-
- [31mÔØ»[39m src/__tests__/unit/OrderService.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 11427[2mms[22m[39m
-[31m     [31m├ù[31m debe crear un pedido y sus items correctamente[39m[33m 4098[2mms[22m[39m
-     [33m[2mÔ£ô[22m[39m debe fallar si el slot no tiene disponibilidad [33m 2761[2mms[22m[39m
-[31m     [31m├ù[31m debe asignar autom├íticamente a un preparador si hay uno disponible[39m[33m 4564[2mms[22m[39m
-
-ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Tests 2 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
-
- FAIL  src/__tests__/unit/OrderService.test.ts > OrderService > debe crear un pedido y sus items correctamente
-Error: Error creando orden: invalid input syntax for type bigint: "00000000-0000-0000-0000-000000000002"
- ÔØ» OrderService.createOrder src/services/OrderService.ts:81:19
-     79|             // Rollback del slot si falla la orden
-     80|             if (deliverySlotId) await this.slotService.releaseSlot(delÔÇª
-     81|             throw new Error(`Error creando orden: ${orderError.messageÔÇª
-       |                   ^
-     82|         }
-     83| 
- ÔØ» src/__tests__/unit/OrderService.test.ts:53:23
-
-ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»
-
- FAIL  src/__tests__/unit/OrderService.test.ts > OrderService > debe asignar autom├íticamente a un preparador si hay uno disponible
-AssertionError: expected null to be '9ec59cfa-7aad-43a9-ae41-c0bda844b8af' // Object.is equality
-
-- Expected: 
-"9ec59cfa-7aad-43a9-ae41-c0bda844b8af"
-
-+ Received: 
-null
-
- ÔØ» src/__tests__/unit/OrderService.test.ts:103:36
-    101| 
-    102|         const assignedPreparerId = await orderService.autoAssignOrder(ÔÇª
-    103|         expect(assignedPreparerId).toBe(preparer.id);
-       |                                    ^
-    104| 
-    105|         const { data: updatedOrder } = await testSupabase
-
-ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»
-
-
-[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
-[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (3)[39m
-[2m   Start at [22m 12:24:11
-[2m   Duration [22m 13.63s[2m (transform 121ms, setup 342ms, import 1.48s, tests 11.43s, environment 0ms)[22m
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 12:17:32
+[2m   Duration [22m 1.02s[2m (transform 148ms, setup 396ms, import 283ms, tests 17ms, environment 0ms)[22m
 

@@ -31,7 +31,7 @@ export default function WhatsAppInbox() {
   } = useWhatsAppInbox();
 
   return (
-    <div className="flex h-full md:h-screen bg-gray-100">
+    <div className="flex h-full bg-gray-100 overflow-hidden">
       {/* Sidebar */}
       <div
         className={`w-full md:w-96 bg-white border-r flex flex-col ${

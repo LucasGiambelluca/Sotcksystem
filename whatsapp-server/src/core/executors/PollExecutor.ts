@@ -15,7 +15,10 @@ export class PollExecutor implements NodeExecutor {
         const options = data.options || ['Sí', 'No'];
 
         // Build a text-based numbered menu (much more reliable than native WhatsApp polls)
-        const optionLines = options.map((opt: string, i: number) => `*${i + 1}.* ${opt}`).join('\n');
+        const optionLines = options.map((opt: string, i: number) => {
+            const cleanOpt = opt.replace(/^\d+[\s.)-]*\s*/, '');
+            return `*${i + 1}.* ${cleanOpt}`;
+        }).join('\n');
         const menuText = `${question}\n\n${optionLines}\n\n_Respondé con el número de tu elección._`;
 
         return {

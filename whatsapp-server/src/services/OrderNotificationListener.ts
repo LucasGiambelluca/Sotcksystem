@@ -55,7 +55,16 @@ Hola {clientName}, lamentamos informarte que tu pedido ha sido cancelado.
 
 📦 Pedido: #{orderId}
 
-Si tenés alguna consulta, no dudes en contactarnos.`
+Si tenés alguna consulta, no dudes en contactarnos.`,
+
+  READY_FOR_PICKUP: `🍕 *¡Pedido Listo!*
+
+¡Hola {clientName}! Tu pedido ya está listo para ser retirado.
+
+📦 Pedido: #{orderId}
+🏬 Podés venir a buscarlo al local ahora mismo.
+
+¡Te esperamos! 🍗`
 };
 
 function formatMessage(template: string, data: OrderNotificationData): string {
@@ -157,6 +166,10 @@ export class OrderNotificationListener {
           break;
         case 'CANCELLED':
           template = waConfig?.template_cancelled || DEFAULT_TEMPLATES.CANCELLED;
+          break;
+        case 'READY_FOR_PICKUP':
+        case 'READY': // Handle both possible names from UI
+          template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           break;
       }
 

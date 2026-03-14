@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { whatsappClient } from '../../infrastructure/whatsapp/WhatsAppClient';
 import { formatArgentinaPhone } from '../../utils/phoneFormatter';
+import { supabase } from '../../config/database';
 
 const router = Router();
 
@@ -45,7 +46,20 @@ router.post('/send-message', async (req, res) => {
         
         console.log(`📤 Enqueueing message to ${jid} via WhatsAppClient`);
         await whatsappClient.sendMessage(jid, { text: message });
-        res.json({ success: true, message: 'Message queued' });
+
+        // Set conversation to HANDOVER mode so bot stops responding
+        await supabase.from('whatsapp_conversations')
+            .update({ status: 'HANDOVER', updated_at: new Date().toISOString() })
+            .eq('phone', sanitizedPhone);
+        // We'll proceed as if no session exists below
+        
+        // Also archive any active bot session
+        await supabase.from('flow_executions')
+            .update({ status: 'archived', archived_reason: 'manual_intervention' })
+            .eq('phone', sanitizedPhone)
+            .in('status', ['active', 'waiting_input']);
+
+        res.json({ success: true, message: 'Message sent and handover activated' });
     } catch (error) {
         console.error('Error queueing message:', error);
         res.status(500).json({ error: 'Failed to queue message' });

@@ -8,12 +8,13 @@ import path from 'path';
 import ConversationRouter from '../../core/engine/conversation.router';
 import { default as storageService } from '../../services/storageService';
 import { Mutex } from 'async-mutex';
+import { sessionAuditor } from '../../core/engine/session.auditor';
 
 // Anti-ban configuration
-const MIN_TYPING_DELAY = 1000;
-const MAX_TYPING_DELAY = 3000;
-const MIN_SEND_DELAY = 2000;
-const MAX_SEND_DELAY = 5000;
+const MIN_TYPING_DELAY = 300;
+const MAX_TYPING_DELAY = 1000;
+const MIN_SEND_DELAY = 500;
+const MAX_SEND_DELAY = 1500;
 const BOT_LOOP_THRESHOLD = 5;
 const BOT_LOOP_WINDOW_MS = 10000;
 
@@ -245,6 +246,7 @@ class WhatsAppClient {
         this.sock.ev.on('messages.upsert', async ({ messages, type }: any) => {
             if (type !== 'notify') return;
 
+            const PID = process.pid;
             for (const msg of messages) {
                 if (!msg.message) continue;
                 if (msg.key.fromMe) continue;
@@ -253,9 +255,23 @@ class WhatsAppClient {
                 const remoteJid = msg.key.remoteJid || '';
                 let phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
                 const pushName = msg.pushName || 'Usuario';
+                const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${remoteJid}`;
                 
                 let text = '';
                 let fileContext = null;
+
+                // Log entry point (Phase 0)
+                sessionAuditor.log({
+                    session_id: sessionId,
+                    user_phone: phone,
+                    event_type: 'message_received',
+                    message_id: msg.key.id,
+                    details: {
+                        pushName,
+                        type: msg.message.imageMessage ? 'image' : (msg.message.locationMessage ? 'location' : 'text'),
+                        timestamp: msg.messageTimestamp
+                    }
+                });
                 
                 if (msg.message.conversation) text = msg.message.conversation;
                 else if (msg.message.extendedTextMessage) text = msg.message.extendedTextMessage.text;
@@ -295,12 +311,15 @@ class WhatsAppClient {
                     // Save inbound message
                     await this.saveInboundMessageDB(phone, pushName, text, fileContext ? 'image' : 'text', msg.key?.id);
 
+                    console.log(`[PID:${PID}] Routing message from ${phone}...`);
                     const responses = await ConversationRouter.processMessage(phone, text, pushName, fileContext || {});
+                    console.log(`[PID:${PID}] Got ${responses.length} responses for ${phone}`);
+                    
                     for (const response of responses) {
                         await this.sendFormattedMessage(remoteJid, response);
                     }
                 } catch (err) {
-                    console.error('Processing Error:', err);
+                    console.error(`[PID:${PID}] Processing Error:`, err);
                 }
             }
         });

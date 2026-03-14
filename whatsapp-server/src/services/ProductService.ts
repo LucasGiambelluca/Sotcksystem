@@ -3,6 +3,9 @@ import { productRepository } from '../infrastructure/database/repositories';
 
 class ProductService {
     private repository: IProductRepository;
+    private productsCache: Product[] | null = null;
+    private cacheTimestamp: number = 0;
+    private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
     constructor(repository: IProductRepository) {
         this.repository = repository;
@@ -21,7 +24,13 @@ class ProductService {
     }
 
     async findProduct(searchTerm: string): Promise<Product | null> {
-        const products = await this.repository.getAll();
+        const now = Date.now();
+        if (!this.productsCache || (now - this.cacheTimestamp > this.CACHE_TTL)) {
+            this.productsCache = await this.repository.getAll();
+            this.cacheTimestamp = now;
+        }
+        
+        const products = this.productsCache;
         
         console.log(`[ProductService] findProduct: Term="${searchTerm}". Total loaded products: ${products.length}`);
         

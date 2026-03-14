@@ -1,4 +1,21 @@
+import { vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+
+// Mock Redis globally for tests
+vi.mock('ioredis', () => {
+  class MockRedis {
+    on = vi.fn();
+    quit = vi.fn().mockResolvedValue('OK');
+    get = vi.fn();
+    set = vi.fn();
+    del = vi.fn();
+  }
+  return {
+    default: MockRedis,
+    Redis: MockRedis,
+  };
+});
+
 import Redis from 'ioredis';
 import { supabase as defaultSupabase } from '../config/database';
 

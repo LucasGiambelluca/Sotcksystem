@@ -436,7 +436,7 @@ export default function KitchenDashboard() {
     } as const;
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans select-none">
+        <div className="h-full bg-[#f8fafc] flex flex-col font-sans select-none overflow-hidden">
 
             {/* ── TOP HEADER ── */}
             <header className="bg-white px-4 py-3 flex justify-between items-center shrink-0 border-b border-gray-200 shadow-sm z-10">

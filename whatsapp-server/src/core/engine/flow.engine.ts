@@ -1,506 +1,377 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as fs from 'fs';
-import * as path from 'path';
 import { supabase } from '../../config/database'; 
-import { FlowDefinition, FlowNode, FlowEdge, FlowExecution, ExecutionResult } from '../../flows/types/flow.types';
+import { FlowDefinition, FlowExecution } from '../../flows/types/flow.types';
 import { logger } from '../../utils/logger';
 import { validateNode } from './node.validator';
-
-// Executors
-import { NodeExecutor } from '../../core/executors/types';
-import { MessageExecutor } from '../../core/executors/MessageExecutor';
-import { QuestionExecutor } from '../../core/executors/QuestionExecutor';
-import { PollExecutor } from '../../core/executors/PollExecutor';
-import { CatalogExecutor } from '../../core/executors/CatalogExecutor';
-import { SlotExecutor } from '../../core/executors/SlotExecutor';
-import { CreateOrderExecutor } from '../../core/executors/CreateOrderExecutor';
-import { ConditionExecutor } from '../../core/executors/ConditionExecutor';
-import { FlowLinkExecutor } from '../../core/executors/FlowLinkExecutor';
-import { MediaUploadExecutor } from '../../core/executors/MediaUploadExecutor';
-import { DocumentExecutor } from '../../core/executors/DocumentExecutor';
-import { ThreadManagerExecutor } from '../../core/executors/ThreadManagerExecutor';
-import { OrderSummaryExecutor } from '../../core/executors/OrderSummaryExecutor';
-import { TimerExecutor } from '../../core/executors/TimerExecutor';
-import { StartNodeExecutor } from '../../core/executors/StartNodeExecutor';
-import { ReportExecutor } from '../../core/executors/ReportExecutor';
-import { StockCheckExecutor } from '../../core/executors/StockCheckExecutor';
-import { AddToCartExecutor } from '../../core/executors/AddToCartExecutor';
-import { OrderStatusExecutor } from '../../core/executors/OrderStatusExecutor';
-
-import { HandoverExecutor } from '../../core/executors/HandoverExecutor';
-import { BusinessHoursExecutor } from '../../core/executors/BusinessHoursExecutor';
-import { SendCatalogExecutor } from '../../core/executors/SendCatalogExecutor';
-import { SendMediaExecutor } from '../../core/executors/SendMediaExecutor';
-
-// Registry
-const nodeExecutors: Record<string, NodeExecutor> = {
-    'messageNode': new MessageExecutor(),
-    'questionNode': new QuestionExecutor(),
-    'pollNode': new PollExecutor(),
-    'catalogNode': new CatalogExecutor(),
-    'slotNode': new SlotExecutor(),
-    'createOrderNode': new CreateOrderExecutor(),
-    'orderSummaryNode': new OrderSummaryExecutor(),
-    'conditionNode': new ConditionExecutor(),
-    'flowLinkNode': new FlowLinkExecutor(),
-    'mediaUploadNode': new MediaUploadExecutor(),
-    'documentNode': new DocumentExecutor(),
-    'threadNode': new ThreadManagerExecutor(),
-    'timerNode': new TimerExecutor(),
-    'reportNode': new ReportExecutor(),
-    'stockCheckNode': new StockCheckExecutor(),
-    'addToCartNode': new AddToCartExecutor(),
-    'handoverNode': new HandoverExecutor(),
-    'businessHoursNode': new BusinessHoursExecutor(),
-    'sendCatalogNode': new SendCatalogExecutor(),
-    'sendMediaNode': new SendMediaExecutor(),
-    'orderStatusNode': new OrderStatusExecutor(),
-    
-    // Start / Input nodes
-    'input': new StartNodeExecutor(),
-    'start': new StartNodeExecutor(),
-    
-    // Legacy support
-    'send_message': new MessageExecutor(),
-    'wait_input': new QuestionExecutor() 
-};
+import { sessionAuditor } from './session.auditor';
+import { SessionQueue } from './session.queue';
+import { SessionRepository } from '../../infrastructure/repositories/SessionRepository';
+import { nodeExecutorFactory } from '../executors/NodeExecutorFactory';
+import { Session } from '../domain/Session';
 
 export class FlowEngine {
     private db: any;
-    private orderService: any;
-    private slotService: any;
+    private sessionQueues = new Map<string, SessionQueue>();
+    private sessionRepository: SessionRepository;
+    public orderService: any;
+    public slotService: any;
 
     constructor(dbClient?: any, orderServiceInstance?: any, slotServiceInstance?: any) {
         this.db = dbClient || supabase;
         this.orderService = orderServiceInstance;
         this.slotService = slotServiceInstance;
+        this.sessionRepository = new SessionRepository();
     }
 
+    /**
+     * Entry point for messages. Routes to the appropriate session queue.
+     */
     async processMessage(phone: string, messageText: string, context: any = {}): Promise<any> {
+        const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${phone}@s.whatsapp.net`);
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
+        
+        let queue = this.sessionQueues.get(sessionId);
+        if (!queue) {
+            queue = new SessionQueue(sessionId, (msg) => this.executeMessage(phone, msg.text, msg.context));
+            this.sessionQueues.set(sessionId, queue);
+        }
+
+        return queue.enqueue({ phone, text: messageText, context });
+    }
+
+    /**
+     * Internal execution logic, called sequentially by the queue.
+     */
+    private async executeMessage(phone: string, messageText: string, context: any = {}): Promise<any> {
         const startTime = Date.now();
-        logger.info(`Processing message`, { phone, text: messageText.substring(0, 50) });
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const remoteJid = context.remoteJid || (cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`);
+        const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
+
+        logger.info(`[FlowEngine] Processing message in queue`, { sessionId, text: messageText.substring(0, 50) });
 
         // 0. GLOBAL INTERRUPTS (Reset logic)
-        // If the user says "hola", "menu", "cancelar", "inicio", we should probably restart.
         const globalTriggers = ['hola', 'menu', 'menú', 'cancelar', 'inicio', 'salir'];
         const isGlobalTrigger = globalTriggers.includes(messageText.trim().toLowerCase());
 
-        let execution = null;
-
         if (isGlobalTrigger) {
-            logger.info(`Global trigger detected`, { phone, trigger: messageText });
-            // Cancel any active execution for this user
-            await this.db.from('flow_executions')
-                .update({ status: 'cancelled', completed_at: new Date() })
-                .eq('phone', phone)
-                .eq('status', 'active');
+            logger.info(`[FlowEngine] Global trigger detected`, { phone, trigger: messageText });
+            await this.sessionRepository.forceReset(cleanPhone);
             
-            // Execution remains null, so we will search for a new flow below.
-        } else {
-            // 1. Get Active Execution
-            execution = await this.getExecution(phone);
+            // Clear handover status if present to resume bot control
+            await this.db.from('whatsapp_conversations')
+                .update({ status: 'active', updated_at: new Date().toISOString() })
+                .eq('phone', cleanPhone)
+                .eq('status', 'HANDOVER');
         }
 
-        let resultMessages: string[] = [];
-        let flowId = 'NONE';
+        // 0.5. CHECK HANDOVER STATUS
+        const { data: conversation } = await this.db.from('whatsapp_conversations').select('status').eq('phone', cleanPhone).maybeSingle();
+        if (conversation?.status === 'HANDOVER' && !isGlobalTrigger) {
+            logger.info(`[FlowEngine] Session in HANDOVER Mode for ${phone}. Skipping bot processing.`);
+            return null;
+        }
 
-        // 2. If no execution, check triggers
-        if (!execution) {
-            const flow = await this.findFlowByTrigger(messageText);
-            console.log(`[FlowEngine] 🔍 Found flow:`, flow ? flow.id : 'NULL');
-
-            if (!flow) {
-                logger.error(`No flow found for trigger`, { trigger: messageText, phone });
-                const fallbackMessage = '❌ No entendí. Escribe "hola" o "menú" para ver las opciones.';
+        // 1. Get/Create Session
+        let session: Session | null = null;
+        if (!isGlobalTrigger) {
+            try {
+                // Find active session
+                const query = this.db
+                    .from('flow_executions')
+                    .select('*')
+                    .eq('session_id', sessionId)
+                    .in('status', ['active', 'waiting_input'])
+                    // If expires_at exists, we ignore sessions that are already expired
+                    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+                    // Prioritize 'waiting_input' since it's the most likely intentional state
+                    .order('status', { ascending: false }) 
+                    .order('updated_at', { ascending: false })
+                    .limit(1);
                 
-                console.log(`
-┌─────────────────────────────────────┐
-│  MESSAGE PROCESSED (NO FLOW)        │
-│  Phone: ${phone}                    │
-│  Input: "${messageText.substring(0,30)}"│
-│  Flow: NONE                         │
-│  Time: ${Date.now() - startTime}ms  │
-└─────────────────────────────────────┘
-`);
-                return {
-                    currentStateDefinition: {
-                        message_template: fallbackMessage
-                    }
-                };
+                const { data: existingArray, error } = await query;
+                const existing = existingArray && existingArray.length > 0 ? existingArray[0] : null;
+
+                if (error) {
+                    logger.error(`[FlowEngine] Query error for ${sessionId}`, { error: error.message, code: error.code });
+                }
+
+                if (existing) {
+                    session = Session.fromJSON(existing);
+                    logger.info(`[FlowEngine] Session found: ${session.id} | Node: ${session.currentNodeId} | Status: ${session.status}`);
+                } else {
+                    logger.info(`[FlowEngine] No active session found for JID: ${sessionId}`);
+                    // Debug: Are there ANY sessions for this phone?
+                    const { data: allPhoneSessions } = await this.db.from('flow_executions').select('session_id, status').eq('phone', cleanPhone);
+                    logger.info(`[FlowEngine] DEBUG: All sessions for phone ${cleanPhone}`, { count: allPhoneSessions?.length, sessions: allPhoneSessions });
+                }
+            } catch (err: any) {
+                logger.error(`[FlowEngine] Error matching session`, { error: err.message, sessionId });
             }
-            
-            flowId = flow.id;
-            logger.info(`Starting flow`, { flowName: flow.name, flowId, phone });
-            execution = await this.startExecution(flow, phone, context);
-            
-            // Execute the FIRST node immediately
-            resultMessages = await this.executeStep(execution, null);
-        } else {
-            // 3. If we have an execution, we are processing an INPUT for the current waiting node
-            flowId = execution.flow_id;
-            resultMessages = await this.handleInputAndNext(execution, messageText);
         }
 
-        console.log(`
-┌─────────────────────────────────────┐
-│  MESSAGE PROCESSED                  │
-│  Phone: ${phone}                    │
-│  Input: "${messageText.substring(0,30)}"│
-│  Flow: ${flowId}                    │
-│  Responses: ${resultMessages.length}     │
-│  Time: ${Date.now() - startTime}ms  │
-└─────────────────────────────────────┘
-`);
+        try {
+            const cleanMessage = messageText.trim().toLowerCase();
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            const sessionId = `1to1:${cleanPhone}`;
+            const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
 
-        return {
-            currentStateDefinition: {
-                // Return the raw array so the router/sender can handle objects (Polls)
-                message_template: resultMessages 
+            if (!session) {
+                // ... (no change in this block logic except the move)
+                const flow = await this.findFlowByTrigger(messageText);
+                if (!flow) {
+                    logger.info(`[FlowEngine] No flow trigger matched for: "${messageText}"`);
+                    const fallbackMessage = '❌ No entendí. Escribe "hola" o "menú" para ver las opciones.';
+                    return { currentStateDefinition: { message_template: fallbackMessage } };
+                }
+                
+                logger.info(`[FlowEngine] Matched flow "${flow.name}" for trigger. Forcing session reset.`);
+                await this.sessionRepository.forceReset(cleanPhone);
+
+                session = await this.sessionRepository.getOrCreate(sessionId, phone, flow.id, {
+                    variables: { 
+                        global: { 
+                            ...context, // Merge ALL external context
+                            pushName: context.pushName || 'Cliente',
+                            phoneNumber: phone,
+                            chatJid: remoteJid,
+                            phone: phone, // redundante pero seguro
+                            startedAt: new Date().toISOString()
+                        } 
+                    },
+                    metadata: { flowId: flow.id, flowVersion: 1, entryPoint: 'trigger' }
+                });
+                
+                const TTL_HOURS = 2;
+                const expirationDate = new Date();
+                expirationDate.setHours(expirationDate.getHours() + TTL_HOURS);
+                session.getContext().metadata.expiresAt = expirationDate;
+                
+                await this.handleInput(session, this.normalizeInput(messageText));
+            } else {
+                // EXISTING SESSION: Always handle input if it was waiting
+                if (session.status === 'waiting_input') {
+                    await this.handleInput(session, this.normalizeInput(messageText));
+                }
             }
-        };
+
+            // 2. Execute Node Chain
+            const resultMessages = await this.executeNodeChain(session);
+
+            // 3. Save Session
+            await this.sessionRepository.update(session);
+
+            return {
+                currentStateDefinition: {
+                    message_template: resultMessages 
+                }
+            };
+
+        } catch (err: any) {
+            logger.error(`[FlowEngine] Critical error during execution`, { error: err.message, sessionId });
+            sessionAuditor.log({
+                session_id: sessionId,
+                user_phone: phone,
+                event_type: 'node_execution',
+                details: { status: 'error', error: err.message, stack: err.stack }
+            });
+            return { currentStateDefinition: { message_template: '⚠️ Ocurrió un error. Escribí "hola" para reiniciar.' } };
+        }
     }
 
-    // Adapter for ConversationRouter
-    async startFlow(flowTrigger: string, context: any) {
-        // Map trigger/intent back to a flow trigger word if possible, or just search
-        // For now, let's assume flowTrigger IS the trigger word (e.g. 'order', 'support')
-        // Or we might need a mapping if 'ORDER_FLOW' -> 'pedir'
-        let actualTrigger = flowTrigger;
-        if (flowTrigger === 'order') actualTrigger = 'pedir'; 
-        if (flowTrigger === 'support') actualTrigger = 'ayuda'; 
-        if (flowTrigger === 'main_menu') actualTrigger = 'hola';
+    private async handleInput(session: Session, input: string): Promise<void> {
+        session.status = 'active'; // Mark as active now that we got input
+        const flowId = session.getContext().metadata.flowId;
+        const { data: flow } = await this.db.from('flows').select('nodes, edges').eq('id', flowId).single();
+        if (!flow) return;
 
-        const phone = context.userId || context.phone;
-        return this.processMessage(phone, actualTrigger, context);
+        const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
+        if (!currentNode) return;
+
+        let processedInput = input;
+        const varName = (currentNode.data?.variable || 'user_choice').trim();
+
+        // Poll handling: resolve numeric input to option text
+        if (currentNode.type === 'pollNode') {
+            const options = currentNode.data?.options || ['Sí', 'No'];
+            const numericMatch = input.replace(/[\*_]/g, '').match(/\d+/);
+            const index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
+            
+            if (index >= 0 && index < options.length) {
+                processedInput = options[index];
+                logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}"`);
+            }
+        }
+
+        // 1. Store the value for the nodal variable
+        session.setVariable(varName, processedInput);
+        session.logInteraction(session.currentNodeId, input);
+
+        // 2. Advance to next node (Universal advancement for nodes that wait for input)
+        const nextNodeId = this.findNextNodeId(flow, currentNode.id);
+        if (nextNodeId) {
+            session.currentNodeId = nextNodeId;
+            logger.info(`[FlowEngine] [INPUT] Advancing session from ${currentNode.id} to ${nextNodeId} (Type: ${currentNode.type})`);
+        }
     }
 
-    // Adapter for ConversationRouter
-    async continueFlow(flowId: string, message: any, context: any) {
-        const phone = context.userId || context.phone;
-        const text = message.message?.conversation || message.message?.extendedTextMessage?.text || '';
-        return this.processMessage(phone, text, context);
+    private async executeNodeChain(session: Session): Promise<string[]> {
+        let accumulatedMessages: string[] = [];
+        let iterations = 0;
+        const MAX_ITERATIONS = 50;
+
+        let flow: any = null;
+        
+        while (iterations < MAX_ITERATIONS) {
+            iterations++;
+            
+            const flowId = session.getContext().metadata.flowId;
+            
+            // Optimization: Only fetch flow once per execution chain if same flowId
+            if (!flow || flow.id !== flowId) {
+                const { data: fetchedFlow } = await this.db.from('flows').select('*').eq('id', flowId).single();
+                if (!fetchedFlow) {
+                    logger.error(`[FlowEngine] Flow not found: ${flowId}`);
+                    break;
+                }
+                flow = fetchedFlow;
+            }
+
+            const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
+            if (!currentNode) {
+                logger.warn(`[FlowEngine] [END] Node not found: ${session.currentNodeId}`);
+                break;
+            }
+
+            logger.info(`[FlowEngine] [TRAVERSE] Node: ${currentNode.id} (${currentNode.type})`);
+
+            // Audit Start
+            logger.debug(`[FlowEngine] Executing node ${currentNode.id} (${currentNode.type})`);
+            sessionAuditor.log({
+                session_id: session.id,
+                user_phone: session.userPhone,
+                event_type: 'node_execution',
+                details: { status: 'started', node_id: currentNode.id, node_type: currentNode.type }
+            });
+
+            // 2.3. Execute
+            const executor = nodeExecutorFactory.getExecutor(currentNode.type);
+            const context = { ...session.getAllVariablesForCurrentFlow(), phone: session.userPhone };
+            
+            const stepStartTime = Date.now();
+            const result = await executor.execute(currentNode.data, context as any, this);
+            const stepDuration = Date.now() - stepStartTime;
+
+            // 2.4. Visual Debug Path (Phase 4)
+            const debugEmoji = iterations === 1 ? '🚀' : '➡️';
+            console.log(`\x1b[36m[DEBUG-PATH] ${debugEmoji} Node: ${currentNode.id} (${currentNode.type})${result.conditionResult !== undefined ? ` | Condition: ${result.conditionResult}` : ''}\x1b[0m`);
+
+            // SPECIAL CASE: Flow Link (Switching flows)
+            if (currentNode.type === 'flowLinkNode' && currentNode.data?.flowId) {
+                const targetFlowId = currentNode.data.flowId;
+                logger.info(`[FlowEngine] Switching flow for session ${session.id} -> ${targetFlowId}`);
+                
+                // Switch context/flow in session
+                session.getContext().metadata.flowId = targetFlowId;
+                session.currentNodeId = 'start'; // Jump to start of new flow
+                
+                // We continue the loop with the new flow
+                continue;
+            }
+            const messages = result.messages || [];
+            if (messages.length > 0) {
+                logger.info(`[FlowEngine] [OUTPUT] Node ${currentNode.id} generated ${messages.length} messages`);
+            }
+            accumulatedMessages.push(...messages);
+
+            // Audit Step to DB (Phase 4) - Non-blocking to prevent timeouts
+            this.logStepToDB(session, currentNode, result, stepDuration);
+
+            // Audit End (Legacy)
+            sessionAuditor.log({
+                session_id: session.id,
+                user_phone: session.userPhone,
+                event_type: 'node_execution',
+                details: { status: 'completed', node_id: currentNode.id, messages: messages.length }
+            });
+
+            if (result.wait_for_input) {
+                console.log(`\x1b[33m[DEBUG-PATH] ⏸️ Waiting for input at ${currentNode.id}\x1b[0m`);
+                session.status = 'waiting_input';
+                break;
+            }
+
+            // Advance
+            const handle = result.conditionResult !== undefined ? String(result.conditionResult) : undefined;
+            const nextNodeId = this.findNextNodeId(flow, session.currentNodeId, handle);
+            
+            if (!nextNodeId) {
+                console.log(`\x1b[32m[DEBUG-PATH] ✅ Flow Finished at ${currentNode.id}\x1b[0m`);
+                session.status = 'completed';
+                await this.sessionRepository.archive(session.id, 'flow_completed');
+                break;
+            }
+
+            session.currentNodeId = nextNodeId;
+        }
+
+        return accumulatedMessages;
     }
 
-    private async getExecution(phone: string): Promise<FlowExecution | null> {
-        const { data, error } = await this.db
-            .from('flow_executions')
-            .select('*')
-            .eq('phone', phone)
-            .eq('status', 'active')
-            .single();
-
-        if (error || !data) return null;
-        return data as FlowExecution;
+    private findNextNodeId(flow: FlowDefinition, currentNodeId: string, handle?: string): string | null {
+        const edges = flow.edges || [];
+        const normalizedHandle = handle ? handle.toLowerCase() : undefined;
+        
+        const edge = normalizedHandle 
+            ? edges.find((e: any) => e.source === currentNodeId && String(e.sourceHandle || '').toLowerCase() === normalizedHandle)
+            : edges.find((e: any) => e.source === currentNodeId);
+            
+        return edge ? edge.target : null;
     }
 
     private async findFlowByTrigger(text: string): Promise<FlowDefinition | null> {
-        // Safe check for DB
-        if (!this.db) return null;
-        
-        console.log(`[FlowEngine] 🔍 Searching flow for: "${text}"`);
-
-        // Basic normalization
         const cleanText = text.trim().toLowerCase();
-
         const { data, error } = await this.db
             .from('flows')
-            .select('*')
+            .select('id, name, trigger_word, is_active')
             .eq('is_active', true)
             .or(`trigger_word.ilike.${cleanText},trigger_word.ilike.%${cleanText}%`);
 
         if (error || !data || data.length === 0) return null;
-
-        // Prioritize exact match
-        const exactMatch = data.find((f: any) => 
+        
+        // 1. Try to find an exact trigger match
+        const exactMatches = data.filter((f: any) => 
             f.trigger_word?.toLowerCase().split(',').map((t: string) => t.trim()).includes(cleanText)
         );
 
-        return exactMatch || data[0]; 
-    }
-
-    private async startExecution(flow: FlowDefinition, phone: string, context: any = {}): Promise<FlowExecution> {
-        // Find start node (Node with no incoming edges or just the first one)
-        // For React Flow, usually we look for type 'input' or 'start'
-        // But the user's screenshot shows "Inicio" is a standard node.
-        // Let's rely on finding a node that is NOT a target of any edge, OR specifically type 'input'
-        
-        const targetIds = new Set((flow.edges || []).map((e: any) => e.target));
-        const startNode = (flow.nodes || []).find((n: any) => n.type === 'input') || 
-                          (flow.nodes || []).find((n: any) => !targetIds.has(n.id)) || 
-                          flow.nodes[0];
-
-        if (!startNode) throw new Error("Flow has no nodes");
-
-        const executionData = {
-            flow_id: flow.id,
-            phone,
-            current_node_id: startNode.id,
-            status: 'active',
-            context: context,
-            started_at: new Date().toISOString()
-        };
-
-        const { data, error } = await this.db
-            .from('flow_executions')
-            .insert(executionData)
-            .select()
-            .single();
-
-        if (error) {
-            console.error("Error starting execution:", error);
-            throw error;
-        }
-        return data as FlowExecution;
-    }
-
-    private async executeStep(execution: FlowExecution, input: string | null): Promise<string[]> {
-        // Fetch Flow to get nodes
-        const { data: flow, error } = await this.db
-            .from('flows')
-            .select('*')
-            .eq('id', execution.flow_id)
-            .single();
-
-        if (!flow) {
-            logger.error(`Flow not found for execution`, { flowId: execution.flow_id, executionId: execution.id });
-            await this.db.from('flow_executions').update({ status: 'error', completed_at: new Date() }).eq('id', execution.id);
-            return ["⚠️ Error: La definición del flujo ha cambiado o no se encuentra disponible."];
+        if (exactMatches.length > 0) {
+            // Priority for common triggers (hola, menu): prefer flows with "bienv" or "welcome" in the name
+            if (['hola', 'menu', 'menú', 'inicio'].includes(cleanText)) {
+                const prioritized = exactMatches.find((f: any) => 
+                    f.name.toLowerCase().includes('bienv') || 
+                    f.name.toLowerCase().includes('welcome')
+                );
+                if (prioritized) return prioritized;
+            }
+            return exactMatches[0];
         }
 
-        const currentNode = (flow.nodes || []).find((n: any) => n.id === execution.current_node_id);
-        if (!currentNode) return ["Error: Node not found"];
-
-        // 1. Validate Node Data
-        const validation = validateNode(currentNode.type, currentNode.data);
-        if (!validation.success) {
-            logger.error(`Node validation failed`, { 
-                type: currentNode.type, 
-                nodeId: currentNode.id, 
-                errors: (validation as any).error.errors 
-            });
-            return [`⚠️ Error interno: Configuración de nodo "${currentNode.type}" inválida.`];
-        }
-
-        logger.debug(`Executing Node`, { type: currentNode.type, nodeId: currentNode.id });
-
-        // Special Case: Flow Link Node
-        if (currentNode.type === 'flowLinkNode') {
-             const targetFlowId = currentNode.data.flowId;
-             console.log(`[FlowEngine] Switching to Flow ID: ${targetFlowId}`);
-             
-             // 1. Mark current as completed (optional, or just switch)
-             await this.db.from('flow_executions').update({ status: 'completed', completed_at: new Date() }).eq('id', execution.id);
-
-             // 2. Start new execution
-             const { data: newFlow } = await this.db.from('flows').select('*').eq('id', targetFlowId).single();
-             if (newFlow) {
-                  const newExec = await this.startExecution(newFlow, execution.phone, execution.context);
-                 return this.executeStep(newExec, null);
-             } else {
-                 return ["⚠️ Error: Flujo destino no encontrado."];
-             }
-        }
-        
-        // Execute Action
-        const executor = nodeExecutors[currentNode.type];
-        if (!executor) {
-            console.error(`[FlowEngine] No executor found for type: ${currentNode.type}`);
-            return ["⚠️ Error: Tipo de nodo no soportado."];
-        }
-
-        console.log(`[FlowEngine] Delegating to Executor: ${currentNode.type}`);
-        
-        // Execute logic on the specific class
-        const execContext = { ...execution.context, phone: execution.phone };
-        const result = await executor.execute(currentNode.data, execContext, this);
-        const outputMessages = result.messages || [];
-
-        // Si el handler devolvió info temporal (como slots), la guardamos en el contexto
-        if (result.updatedContext) {
-            execution.context = { ...execution.context, ...result.updatedContext };
-            await this.db.from('flow_executions').update({ context: execution.context }).eq('id', execution.id);
-        }
-
-        // If it's a condition result, we don't send messages, we just move based on the result
-        if (result.hasOwnProperty('conditionResult')) {
-             return this.advanceToNextNode(execution, flow, outputMessages, String(result.conditionResult));
-        }
-
-        // If the node waits for input, STOP here and update generic state if needed
-        if (result.wait_for_input) {
-            console.log(`[FlowEngine] Node ${currentNode.id} waiting for input.`);
-            return outputMessages; 
-        }
-
-        // If NOT waiting for input, move to NEXT node immediately (auto-advance)
-        // e.g. "MessageNode" just sends and moves on.
-        return this.advanceToNextNode(execution, flow, outputMessages);
-    }
-
-    private async handleInputAndNext(execution: FlowExecution, input: string): Promise<string[]> {
-         // Fetch Flow
-         const { data: flow } = await this.db
-            .from('flows')
-            .select('*')
-            .eq('id', execution.flow_id)
-            .single();
-        
-        if (!flow) {
-            console.error(`[FlowEngine] Flow ${execution.flow_id} not found during input handling.`);
-            await this.db.from('flow_executions').update({ status: 'error', completed_at: new Date() }).eq('id', execution.id);
-            return ["⚠️ Tu sesión ha expirado o el flujo ya no existe. Por favor, escribe 'hola' para empezar de nuevo."];
-        }
-
-        const currentNode = (flow.nodes || []).find((n: any) => n.id === execution.current_node_id);
-
-        if (currentNode) {
-             // 1. Lógica Especial por Tipo de Nodo
-             if (currentNode.type === 'catalogNode') {
-                 console.log(`[FlowEngine] Parsing order items for: ${input}`);
-                 const items = await this.orderService.parseOrderText(input);
-                 execution.context = { ...execution.context, order_items: items };
-             } else if (currentNode.type === 'sendCatalogNode') {
-                 // User responded to the catalog link with their WhatsApp catalog message
-                 // e.g. "Hola! Quiero hacer el siguiente pedido:\n- Hamburguesa x2 — $40\nTotal: $20"
-                 console.log(`[FlowEngine] Parsing catalog reply for sendCatalogNode: ${input}`);
-                 const Parser = require('../../core/parser');
-                 const catalogItems = Parser.parseCatalogOrder(input);
-                 if (catalogItems && catalogItems.length > 0) {
-                     // Use ProductService to verify each item and get price from DB
-                     const { productService } = require('../../services/ProductService');
-                     const verifiedItems = [];
-                     for (const item of catalogItems) {
-                         const product = await productService.findProduct(item.product);
-                         if (product) {
-                             const price = productService.getEffectivePrice(product);
-                             verifiedItems.push({
-                                 catalog_item_id: product.id,
-                                 qty: item.qty,
-                                 price: price,
-                                 name: product.name
-                             });
-                         }
-                     }
-                     execution.context = { ...execution.context, order_items: verifiedItems };
-                     console.log(`[FlowEngine] ✅ sendCatalogNode parsed ${verifiedItems.length} items`);
-                 } else {
-                     // Fallback: try parseOrderText for free-text format
-                     const items = await this.orderService.parseOrderText(input);
-                     execution.context = { ...execution.context, order_items: items };
-                     console.log(`[FlowEngine] sendCatalogNode used fallback parser: ${items.length} items`);
-                 }
-
-             } else if (currentNode.type === 'pollNode') {
-                 // Resolve numbered input to option text (e.g. "1" → "Envío")
-                 const options = currentNode.data.options || ['Sí', 'No'];
-                 const num = parseInt(input.trim());
-                 let resolved = input; // fallback to raw text
-                 if (!isNaN(num) && num >= 1 && num <= options.length) {
-                     resolved = options[num - 1];
-                 } else {
-                     // Try to match by text (case-insensitive)
-                     const match = options.find((o: string) => o.toLowerCase() === input.trim().toLowerCase());
-                     if (match) resolved = match;
-                 }
-                 console.log(`[FlowEngine] Poll resolved: "${input}" → "${resolved}"`);
-                 const varName = currentNode.data.variable || currentNode.data.contextKey || 'poll_response';
-                 execution.context = { ...execution.context, [varName]: resolved };
-             } else if (currentNode.type === 'slotNode') {
-                 const selection = parseInt(input.trim());
-                 const tempSlots = execution.context._temp_slots || [];
-                 if (!isNaN(selection) && selection > 0 && selection <= tempSlots.length) {
-                     execution.context = { 
-                         ...execution.context, 
-                         selected_slot_id: tempSlots[selection - 1].id,
-                         selected_slot_text: `${tempSlots[selection-1].time_start} - ${tempSlots[selection-1].time_end}`
-                     };
-                 }
-             }
-
-             // 2. Guardado genérico del input (skip for nodes that handle their own context)
-             if (currentNode.type !== 'catalogNode' && currentNode.type !== 'sendCatalogNode' && currentNode.type !== 'slotNode' && currentNode.type !== 'pollNode' && currentNode.type !== 'stockCheckNode') {
-                 const varName = (currentNode.data.variable || 'temp_input').trim();
-                 
-                 if (input === '_LOCATION_RECEIVED_' && execution.context._location) {
-                     console.log(`[FlowEngine] Saving GPS Pin to variable "${varName}"`);
-                     execution.context[`${varName}_lat`] = execution.context._location.lat;
-                     execution.context[`${varName}_lng`] = execution.context._location.lng;
-                     // Guardamos un string legible en la variable original por si se usa en un resumen
-                     execution.context[varName] = `📍 Ubicación GPS (${execution.context._location.lat.toFixed(5)}, ${execution.context._location.lng.toFixed(5)})`;
-                 } else {
-                     console.log(`[FlowEngine] Saving input "${input}" to variable "${varName}"`);
-                     execution.context[varName] = input;
-                 }
-             }
-
-             // Special: Stock Check Node — process input and save structured result
-             if (currentNode.type === 'stockCheckNode') {
-                 const stockResult = await StockCheckExecutor.processInput(input, currentNode.data, execution.context as any);
-                 if (stockResult.updatedContext) {
-                     execution.context = { ...execution.context, ...stockResult.updatedContext };
-                 }
-                 // Save context and advance, returning the stock response messages
-                 await this.db.from('flow_executions')
-                    .update({ context: execution.context })
-                    .eq('id', execution.id);
-                 return this.advanceToNextNode(execution, flow, stockResult.messages || []);
-             }
-             
-             // Actualizar contexto en DB
-             await this.db.from('flow_executions')
-                .update({ context: execution.context })
-                .eq('id', execution.id);
-        }
-
-        // 3. Mover al siguiente nodo
-        return this.advanceToNextNode(execution, flow, []);
-    }
-
-    private async advanceToNextNode(execution: FlowExecution, flow: FlowDefinition, accumulatedMessages: string[], sourceHandle?: string): Promise<string[]> {
-        // Find edges from current node
-        const edges = flow.edges || [];
-        
-        // If we have a sourceHandle (e.g. from conditionNode), find specific edge
-        let outgoingEdge;
-        if (sourceHandle) {
-             outgoingEdge = edges.find((e: any) => e.source === execution.current_node_id && e.sourceHandle === sourceHandle);
-        } else {
-             outgoingEdge = edges.find((e: any) => e.source === execution.current_node_id);
-        }
-
-        if (!outgoingEdge) {
-            // End of Flow
-            logger.info(`End of flow reached`, { phone: execution.phone, flowId: execution.flow_id });
-            await this.db.from('flow_executions').update({ status: 'completed', completed_at: new Date() }).eq('id', execution.id);
-            return accumulatedMessages;
-        }
-
-        const nextNodeId = outgoingEdge.target;
-        logger.info(`[FlowEngine] Advancing from ${execution.current_node_id} to ${nextNodeId}`, { phone: execution.phone });
-
-        // Update Execution State
-        await this.db.from('flow_executions')
-            .update({ current_node_id: nextNodeId, last_activity: new Date() })
-            .eq('id', execution.id);
-        
-        // Recursively execute the next node
-        // Update local execution object for recursion
-        execution.current_node_id = nextNodeId;
-        
-        const nextMessages = await this.executeStep(execution, null);
-        return [...accumulatedMessages, ...nextMessages];
+        return data[0]; // Fallback to partial match
     }
 
     /**
      * Resuelve el voto de una encuesta comparando el hash recibido con las opciones del nodo actual.
      */
     async resolvePollVote(phone: string, voteHashStr: string): Promise<string | null> {
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const sessionId = `1to1:${cleanPhone}`;
+        
         // 1. Get execution
         const { data: execution } = await this.db
             .from('flow_executions')
             .select('*')
-            .eq('phone', phone)
-            .eq('status', 'WAITING_INPUT')
+            .eq('session_id', sessionId)
+            .in('status', ['active', 'waiting_input'])
             .maybeSingle();
 
         if (!execution || !execution.flow_id) return null;
@@ -521,23 +392,78 @@ export class FlowEngine {
         const options = currentNode.data.options || ['Si', 'No'];
 
         // 4. Calculate Hashes and Match
-        // Baileys uses SHA-256 for poll options.
         const crypto = require('crypto');
+        const incoming = voteHashStr.toUpperCase();
         
-        for (const opt of options) {
+        // Clean input: remove common WhatsApp markdown (*, _) and trim
+        const val1 = incoming.replace(/[\*_]/g, '').trim().toLowerCase();
+        
+        // Extract numeric part (e.g. from "1." or "*1.*" or "opción 1")
+        const numericMatch = val1.match(/\d+/);
+        const extractedNum = numericMatch ? numericMatch[0] : null;
+        const optionIndex = extractedNum ? parseInt(extractedNum) - 1 : -1;
+
+        for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
             const shasum = crypto.createHash('sha256');
             shasum.update(opt);
             const hash = shasum.digest('hex').toUpperCase();
-            
-            // Normalize generic incoming hash
-            const incoming = voteHashStr.toUpperCase();
 
-            // Check if matches (Baileys might rotate or salt, but standard is simple sha256)
-            if (hash === incoming || incoming.includes(hash)) {
+            if (hash === incoming || incoming.includes(hash) || i === optionIndex) {
                 return opt;
             }
         }
         
         return null; // No match found
+    }
+
+    private async logStepToDB(session: Session, node: any, result: any, duration: number): Promise<void> {
+        try {
+            await this.db.from('flow_logs').insert({
+                session_id: session.id,
+                phone: session.userPhone,
+                flow_id: session.getContext().metadata.flowId,
+                node_id: node.id,
+                node_type: node.type,
+                input_text: session.getContext().interactionLog[session.getContext().interactionLog.length - 1]?.input,
+                output_messages: result.messages || [],
+                execution_time_ms: duration,
+                metadata: {
+                    condition_result: result.conditionResult,
+                    wait_for_input: result.wait_for_input,
+                    vars: session.getAllVariablesForCurrentFlow()
+                }
+            });
+        } catch (err: any) {
+            logger.error(`[FlowEngine] Error logging step to DB`, { error: err.message });
+        }
+    }
+
+    private normalizeInput(text: string): string {
+        if (!text) return '';
+        // 1. Remove invisible characters and trim
+        // 2. Remove common extra symbols but keep numbers and letters
+        // 3. Lowercase everything
+        return text.trim()
+            .replace(/[\u200B-\u200D\uFEFF]/g, '') // Invisible chars
+            .replace(/[^\w\sáéíóúüñ]/gi, '') // Keep letters/numbers/spaces
+            .toLowerCase();
+    }
+
+    async resumeSession(phone: string, context: any = {}): Promise<any> {
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
+        const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
+        
+        const { data: existing } = await this.db.from('flow_executions')
+            .select('*').eq('session_id', sessionId).in('status', ['active', 'waiting_input']).limit(1).maybeSingle();
+        
+        if (!existing) return null;
+        
+        const session = Session.fromJSON(existing);
+        const resultMessages = await this.executeNodeChain(session);
+        await this.sessionRepository.update(session);
+
+        return { currentStateDefinition: { message_template: resultMessages } };
     }
 }

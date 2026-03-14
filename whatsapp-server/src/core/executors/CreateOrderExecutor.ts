@@ -106,6 +106,14 @@ export class CreateOrderExecutor implements NodeExecutor {
         // --------------------------------------------------------
 
         try {
+            console.log('[CreateOrderExecutor] DEBUG: engine exists?', !!engine);
+            console.log('[CreateOrderExecutor] DEBUG: engine.orderService exists?', !!engine?.orderService);
+            
+            if (!engine?.orderService) {
+                console.error('[CreateOrderExecutor] CRITICAL: orderService is missing from engine!');
+                throw new Error("Internal Service Error: OrderService not initialized in Engine.");
+            }
+
             const order = await engine.orderService.createOrder({
                 phone: context.phone,
                 items: items,
@@ -114,6 +122,8 @@ export class CreateOrderExecutor implements NodeExecutor {
                 address: address,
                 deliveryDate: deliveryDate,
                 paymentMethod: context.metodo_pago || context.payment_method,
+                deliveryType: (deliveryType?.toLowerCase().includes('retiro') || deliveryType?.toLowerCase().includes('local')) ? 'PICKUP' : (deliveryType || 'DELIVERY'),
+                status: 'IN_PREPARATION',
                 pushName: pushName,
                 chatContext: { 
                     ...context, 
