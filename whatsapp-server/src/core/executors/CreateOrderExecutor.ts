@@ -123,7 +123,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                 deliveryDate: deliveryDate,
                 paymentMethod: context.metodo_pago || context.payment_method,
                 deliveryType: (deliveryType?.toLowerCase().includes('retiro') || deliveryType?.toLowerCase().includes('local')) ? 'PICKUP' : (deliveryType || 'DELIVERY'),
-                status: 'IN_PREPARATION',
+                status: 'PENDING',
                 pushName: pushName,
                 chatContext: { 
                     ...context, 

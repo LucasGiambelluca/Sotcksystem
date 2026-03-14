@@ -161,7 +161,7 @@ export default function NewOrderAlertModal() {
     setQueue((prev) => prev.filter((o) => o.id !== orderId));
     
     try {
-      await updateOrderStatus(orderId, 'CONFIRMED');
+      await updateOrderStatus(orderId, 'IN_PREPARATION');
       toast.success(`Pedido #${queue.find(o => o.id === orderId)?.order_number || ''} confirmado ✅`);
     } catch (err) {
       toast.error('Error al confirmar pedido');
