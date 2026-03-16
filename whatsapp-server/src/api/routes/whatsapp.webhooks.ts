@@ -86,8 +86,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
                 }
             }
             res.sendStatus(200);
-        } catch (err) {
-            logger.error('[Webhook] Error processing message:', err);
+        } catch (err: any) {
+            logger.error('[Webhook] Error processing message:', { 
+                message: err.message, 
+                stack: err.stack,
+                data: err.response?.data 
+            });
             res.sendStatus(500);
         }
     } else {
