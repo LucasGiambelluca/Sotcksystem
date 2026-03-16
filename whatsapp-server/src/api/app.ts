@@ -93,9 +93,12 @@ app.use('/api/driver', driverRoutes); // Public endpoint for drivers
 
 import path from 'path';
 
+import whatsappWebhooks from './routes/whatsapp.webhooks';
+
 // --- External Services & WhatsApp specific routes ---
 app.use('/api/groups', groupsRoutes);
 app.use('/api', whatsappRoutes);  // Limiter disabled temporarily
+app.use('/api/official', whatsappWebhooks); // Official Webhook endpoint
 app.use('/api', systemRoutes);
 
 // --- STATIC FRONTEND SERVING (Unified Container) ---

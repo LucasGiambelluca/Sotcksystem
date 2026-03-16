@@ -14,10 +14,19 @@ async function bootstrap() {
 
     // 2. Start Services (WhatsApp)
     try {
-        await whatsappClient.start();
-        console.log(`🤖 WhatsApp Client initialized successfully.`);
+        const isOfficial = !!(process.env.WHATSAPP_CLOUD_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+
+        if (isOfficial) {
+            console.log(`🚀 [WhatsApp] Using Official Cloud API (No QR needed).`);
+            // The official client doesn't need a .start() loop like Baileys
+            // It works via outgoing HTTP and incoming Webhooks
+        } else {
+            console.log(`🤖 [WhatsApp] Using Baileys (Legacy QR-code system).`);
+            await whatsappClient.start();
+            console.log(`🤖 WhatsApp Client initialized successfully.`);
+        }
         
-        // Start Order Notification Listener after WA is ready
+        // Start Order Notification Listener
         orderNotificationListener.start();
         console.log(`🔔 Order Notification Listener started.`);
     } catch (error) {

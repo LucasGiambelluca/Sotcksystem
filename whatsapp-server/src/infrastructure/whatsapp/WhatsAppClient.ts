@@ -9,6 +9,7 @@ import ConversationRouter from '../../core/engine/conversation.router';
 import { default as storageService } from '../../services/storageService';
 import { Mutex } from 'async-mutex';
 import { sessionAuditor } from '../../core/engine/session.auditor';
+import { officialWhatsAppClient } from './OfficialWhatsAppClient';
 
 // Anti-ban configuration
 const MIN_TYPING_DELAY = 300;
@@ -326,6 +327,11 @@ class WhatsAppClient {
     }
 
     public async sendMessage(to: string, message: { text: string }): Promise<void> {
+        if (officialWhatsAppClient.isConfigured()) {
+            await officialWhatsAppClient.sendMessage(to, message);
+            return;
+        }
+
         if (!this.sock) {
             console.error('Socket not initialized');
             return;
@@ -392,6 +398,11 @@ class WhatsAppClient {
     }
 
     private async sendFormattedMessage(jid: string, response: any) {
+        if (officialWhatsAppClient.isConfigured()) {
+            await officialWhatsAppClient.sendMessage(jid, response);
+            return;
+        }
+
         if (!this.sock) return;
 
         // Ensure JID is formatted correctly for Baileys
