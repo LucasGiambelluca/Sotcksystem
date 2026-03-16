@@ -17,7 +17,20 @@ const logFormat = winston.format.printf((info) => {
     delete cleanMeta.metadata; // If fillWith: ['metadata'] was used
 
     if (Object.keys(cleanMeta).length > 0) {
-        msg += JSON.stringify(cleanMeta);
+        // Safe stringify to handle circular references (like from Axios errors)
+        const getCircularReplacer = () => {
+          const seen = new WeakSet();
+          return (key: string, value: any) => {
+            if (typeof value === "object" && value !== null) {
+              if (seen.has(value)) {
+                return "[Circular]";
+              }
+              seen.add(value);
+            }
+            return value;
+          };
+        };
+        msg += JSON.stringify(cleanMeta, getCircularReplacer());
     }
     return msg;
 });
