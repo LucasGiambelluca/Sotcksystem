@@ -65,8 +65,9 @@ app.use(cors({
 
 app.use(express.json({
     verify: (req: any, _res, buf) => {
-        if (req.originalUrl && req.originalUrl.includes('/webhook')) {
+        if (req.originalUrl && req.originalUrl.includes('webhook')) {
             req.rawBody = buf;
+            console.log(`[Debug] Captured rawBody for ${req.originalUrl}, length: ${buf.length}`);
         }
     }
 }));

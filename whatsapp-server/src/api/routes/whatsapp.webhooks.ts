@@ -26,13 +26,19 @@ const verifySignature = (req: Request, res: Response, next: Function) => {
 
     const elements = signature.split('=');
     const signatureHash = elements[1];
+    const rawBody = (req as any).rawBody;
+    
+    if (!rawBody) {
+        logger.warn('[Webhook] rawBody is missing! falling back to JSON.stringify (likely to fail)');
+    }
+
     const expectedHash = crypto
         .createHmac('sha256', appSecret)
-        .update((req as any).rawBody || JSON.stringify(req.body))
+        .update(rawBody || JSON.stringify(req.body))
         .digest('hex');
 
     if (signatureHash !== expectedHash) {
-        logger.warn('[Webhook] Invalid X-Hub-Signature-256.');
+        logger.warn(`[Webhook] Invalid X-Hub-Signature-256.\n  - Received: ${signatureHash}\n  - Expected: ${expectedHash}\n  - Body Length: ${rawBody?.length || 0}\n  - Secret Start: ${appSecret.substring(0, 4)}...`);
         return res.sendStatus(401);
     }
 
