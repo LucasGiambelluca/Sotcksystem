@@ -63,7 +63,13 @@ app.use(cors({
     credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({
+    verify: (req: any, _res, buf) => {
+        if (req.originalUrl && req.originalUrl.includes('/webhook')) {
+            req.rawBody = buf;
+        }
+    }
+}));
 
 // --- Health Check ---
 // Siempre retorna 200 para que Docker no reinicie el contenedor.

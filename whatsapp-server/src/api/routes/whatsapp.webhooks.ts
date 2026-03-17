@@ -28,7 +28,7 @@ const verifySignature = (req: Request, res: Response, next: Function) => {
     const signatureHash = elements[1];
     const expectedHash = crypto
         .createHmac('sha256', appSecret)
-        .update(JSON.stringify(req.body))
+        .update((req as any).rawBody || JSON.stringify(req.body))
         .digest('hex');
 
     if (signatureHash !== expectedHash) {
