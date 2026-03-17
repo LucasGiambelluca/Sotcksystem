@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 export class OfficialWhatsAppClient {
     private accessToken: string;
     private phoneNumberId: string;
-    private apiVersion: string = 'v20.0';
+    private apiVersion: string = 'v22.0';
 
     constructor() {
         this.accessToken = process.env.WHATSAPP_CLOUD_TOKEN || '';

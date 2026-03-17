@@ -1,9 +1,43 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import conversationRouter from '../../core/engine/conversation.router';
 import { officialWhatsAppClient } from '../../infrastructure/whatsapp/OfficialWhatsAppClient';
 
 const router = Router();
+
+/**
+ * Middleware to verify X-Hub-Signature-256
+ * Required for production to ensure requests come from Meta.
+ */
+const verifySignature = (req: Request, res: Response, next: Function) => {
+    const signature = req.headers['x-hub-signature-256'] as string;
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+
+    if (!appSecret) {
+        // Skip validation if secret is not set (e.g., local development without secret)
+        return next();
+    }
+
+    if (!signature) {
+        logger.warn('[Webhook] Missing X-Hub-Signature-256 header.');
+        return res.sendStatus(401);
+    }
+
+    const elements = signature.split('=');
+    const signatureHash = elements[1];
+    const expectedHash = crypto
+        .createHmac('sha256', appSecret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+    if (signatureHash !== expectedHash) {
+        logger.warn('[Webhook] Invalid X-Hub-Signature-256.');
+        return res.sendStatus(401);
+    }
+
+    next();
+};
 
 // 1. Webhook Verification (GET)
 router.get('/webhook', (req: Request, res: Response) => {
@@ -17,13 +51,13 @@ router.get('/webhook', (req: Request, res: Response) => {
         logger.info('[Webhook] Webhook verified successfully.');
         res.status(200).send(challenge);
     } else {
-        logger.warn('[Webhook] Verification failed. Check tokens.');
+        logger.warn(`[Webhook] Verification failed. Mode: ${mode}, Received Token: ${token}, Expected: ${verifyToken}`);
         res.sendStatus(403);
     }
 });
 
 // 2. Message Event Handling (POST)
-router.post('/webhook', async (req: Request, res: Response) => {
+router.post('/webhook', verifySignature, async (req: Request, res: Response) => {
     const body = req.body;
 
     // Check if it's a WhatsApp event
@@ -34,6 +68,10 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     if (change.field !== 'messages') continue;
 
                     const value = change.value;
+                    const metadata = value.metadata;
+                    if (metadata) {
+                        logger.info(`[Webhook] Incoming from Phone Number ID: ${metadata.phone_number_id}`);
+                    }
                     const contact = value.contacts?.[0];
                     const message = value.messages?.[0];
 
