@@ -30,6 +30,8 @@ services:
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
     container_name: stock-app
+    env_file:
+      - .env
     # Puerto NO expuesto directamente — acceso solo vía Caddy
     expose:
       - "3001"
