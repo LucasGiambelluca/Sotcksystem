@@ -43,6 +43,7 @@ function getProvider(session: WhatsAppSession | null) {
   if (session?.status === 'demo_mode') return 'DEMO';
   if (session?.api_url?.includes('green-api.com')) return 'GREEN-API';
   if (session?.api_url?.includes('waha') || session?.api_url?.includes('onrender.com') || session?.api_url?.includes(':3001')) return 'WAHA';
+  if (session?.api_url === '/api' || session?.api_url === '' || !session?.api_url) return 'OFFICIAL';
   return 'EVOLUTION';
 }
 
@@ -54,7 +55,15 @@ async function getProviderConfig() {
     return { provider, idInstance: 'DEMO', apiToken: 'DEMO', apiUrl: '' };
   }
 
+  if (provider === 'OFFICIAL') {
+    return { provider, idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: '' };
+  }
+
   if (!data?.instance_name || !data?.api_key || !data?.api_url) {
+    // If we're on a VPS and it's not configured, maybe we want to use the local API
+    if (window.location.hostname !== 'localhost') {
+        return { provider: 'OFFICIAL', idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: '' };
+    }
     throw new Error('WhatsApp no configurado. Ve a WhatsApp → Conectar.');
   }
 
@@ -391,20 +400,9 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
 
   let result;
 
-
-  if (provider === 'GREEN-API') {
-    const url = `${apiUrl}/waInstance${idInstance}/sendMessage/${apiToken}`;
-    console.log('🌐 WhatsApp Service: Sending to Green-API:', url);
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId: apiPhone, message: message }),
-    });
-    result = await res.json();
-  } else if (provider === 'WAHA') {
-    // WAHA / Custom Baileys Server API
-    // Send the original phone (preserving @lid if present) so the server can handle it correctly
-    const url = `${apiUrl}/api/send-message`;
+  if (provider === 'OFFICIAL') {
+    // Official API via our own backend
+    const url = `/api/send-message`;
     
     const res = await fetch(url, {
       method: 'POST',
@@ -421,39 +419,42 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
         throw new Error(`WhatsApp API Error: ${res.status}`);
     }
 
-    await res.json();
-    result = { idMessage: 'SENT-OK' };
-  } else {
-    // Evolution API
-    const url = `${apiUrl}/message/sendText/${idInstance}`;
-    console.log('🌐 WhatsApp Service: Sending to Evolution:', url);
-    console.log('📦 Payload:', { number: rawPhone, text: message });
-    
+    result = await res.json();
+  } else if (provider === 'GREEN-API') {
+    const url = `${apiUrl}/waInstance${idInstance}/sendMessage/${apiToken}`;
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apiToken
-      },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId: apiPhone, message: message }),
+    });
+    result = await res.json();
+  } else if (provider === 'WAHA') {
+    const url = `${apiUrl}/api/send-message`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: originalPhone, message: message }),
+    });
+    if (!res.ok) throw new Error(`WhatsApp API Error: ${res.status}`);
+    result = await res.json();
+  } else {
+    // Evolution API (Fallback)
+    const url = `${apiUrl}/message/sendText/${idInstance}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': apiToken },
       body: JSON.stringify({
         number: rawPhone, 
         options: { delay: 1200, presence: 'composing' },
         textMessage: { text: message }
       }),
     });
-    
     if (!res.ok) {
         const text = await res.text();
-        console.error('❌ WhatsApp API Error:', res.status, text);
         throw new Error(`WhatsApp API Error: ${res.status} - ${text.substring(0, 100)}...`);
     }
-    
     const json = await res.json();
     result = { idMessage: json.key?.id || json.id };
-  }
-
-  if (provider === 'DEMO') {
-      // Note: for real providers the backend or the webhook handles inserting outbound messages.
   }
 
   return result;
@@ -631,7 +632,8 @@ export async function getOrCreateConversation(phone: string, contactName?: strin
 export async function takeControl(phone: string) {
   const { apiUrl } = await getProviderConfig();
   try {
-    const res = await fetch(`${apiUrl}/api/take-control`, {
+    const url = apiUrl ? `${apiUrl}/api/take-control` : '/api/take-control';
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
