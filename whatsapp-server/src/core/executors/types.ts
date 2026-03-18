@@ -23,4 +23,14 @@ export interface NodeExecutor {
         context: ExecutionContext,
         engine: any // Referencia al motor para acceso a servicios (db, orders, etc)
     ): Promise<NodeExecutionResult>;
+
+    // Opcional: Procesar input específico para este nodo (ej: búsqueda de stock, validación de DNI)
+    handleInput?(
+        input: string,
+        data: any,
+        context: ExecutionContext
+    ): Promise<{
+        updatedContext: Partial<ExecutionContext>;
+        messages: string[];
+    }>;
 }

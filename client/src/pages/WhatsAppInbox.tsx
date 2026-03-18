@@ -26,7 +26,7 @@ export default function WhatsAppInbox() {
     messagesEndRef, sidebarTab, setSidebarTab, loadingContacts,
     contactSearch, setContactSearch, activeConvo, filteredConversations,
     attentionCount, filteredContacts, selectConversation, handleContactClick,
-    handleSend, handleConvertToOrder, handleResolveHandover, handleSaveContact,
+    handleSend, handleTakeControl, handleConvertToOrder, handleResolveHandover, handleSaveContact,
     openContactModal, formatTime, formatDate,
   } = useWhatsAppInbox();
 
@@ -257,13 +257,28 @@ export default function WhatsAppInbox() {
               </div>
 
               {activeConvo.status === 'HANDOVER' && (
+                <>
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 text-sm font-medium rounded animate-pulse">
+                    🚨 Esperando Operador
+                  </span>
                   <button
                     onClick={handleResolveHandover}
-                    className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 text-sm font-medium rounded animate-pulse"
+                    className="px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 text-sm font-medium rounded ml-2"
                     title="Devolver control al bot automático"
                   >
-                    Resolver y Devolver al Bot
+                    Confirmar y Volver al Bot
                   </button>
+                </>
+              )}
+
+              {activeConvo.status !== 'HANDOVER' && (
+                <button
+                  onClick={handleTakeControl}
+                  className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-600 text-sm font-medium rounded border border-gray-200"
+                  title="Silenciar el bot y atender manualmente"
+                >
+                  Atención Manual
+                </button>
               )}
 
               <button

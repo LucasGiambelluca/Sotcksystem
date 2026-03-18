@@ -9,6 +9,7 @@ import {
   syncMessages,
   disableWebhook,
   resolveHandover,
+  takeControl,
 } from '../services/whatsappService';
 import { parseOrderFromText } from '../services/orderService';
 import { supabase } from '../supabaseClient';
@@ -204,6 +205,17 @@ export function useWhatsAppInbox() {
       toast.error('Error al resolver: ' + err.message);
     }
   }
+ 
+  async function handleTakeControl() {
+    if (!activeConvo) return;
+    try {
+      await takeControl(activeConvo.phone);
+      toast.success('Control manual activado. El bot no responderá hasta que lo resuelvas.');
+      loadConversations();
+    } catch (err: any) {
+      toast.error('Error al tomar control: ' + err.message);
+    }
+  }
 
   async function handleSaveContact(e: React.FormEvent) {
     e.preventDefault();
@@ -341,6 +353,7 @@ export function useWhatsAppInbox() {
     selectConversation,
     handleContactClick,
     handleSend,
+    handleTakeControl,
     handleConvertToOrder,
     handleResolveHandover,
     handleSaveContact,

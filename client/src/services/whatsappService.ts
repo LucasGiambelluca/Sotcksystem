@@ -628,6 +628,21 @@ export async function getOrCreateConversation(phone: string, contactName?: strin
   return newConvo as WhatsAppConversation;
 }
 
+export async function takeControl(phone: string) {
+  const { apiUrl } = await getProviderConfig();
+  try {
+    const res = await fetch(`${apiUrl}/api/take-control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('Error taking control:', error);
+    return { error };
+  }
+}
+
 export async function resolveHandover(conversationId: string, phone: string) {
   // Update status back to BOT in conversations
   await supabase

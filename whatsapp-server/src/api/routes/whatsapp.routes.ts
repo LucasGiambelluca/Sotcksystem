@@ -66,4 +66,30 @@ router.post('/send-message', async (req, res) => {
     }
 });
 
+// Manual Handover Control
+router.post('/take-control', async (req, res) => {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Missing phone' });
+
+    try {
+        const sanitizedPhone = formatArgentinaPhone(phone);
+        
+        // 1. Set status to HANDOVER
+        await supabase.from('whatsapp_conversations')
+            .update({ status: 'HANDOVER', updated_at: new Date().toISOString() })
+            .eq('phone', sanitizedPhone);
+            
+        // 2. Archive active sessions
+        await supabase.from('flow_executions')
+            .update({ status: 'archived', archived_reason: 'manual_takeover' })
+            .eq('phone', sanitizedPhone)
+            .in('status', ['active', 'waiting_input']);
+
+        res.json({ success: true, message: 'Bot muted, manual control activated' });
+    } catch (error) {
+        console.error('Error taking control:', error);
+        res.status(500).json({ error: 'Failed to take control' });
+    }
+});
+
 export default router;

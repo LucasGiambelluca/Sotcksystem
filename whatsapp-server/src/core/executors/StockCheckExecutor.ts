@@ -21,7 +21,7 @@ export class StockCheckExecutor implements NodeExecutor {
      * Called by FlowEngine when user input arrives for this node.
      * Parses the input, checks stock, and returns result to save in context.
      */
-    static async processInput(input: string, data: any, context: ExecutionContext): Promise<{
+    async handleInput(input: string, data: any, context: ExecutionContext): Promise<{
         updatedContext: Partial<ExecutionContext>;
         messages: string[];
     }> {

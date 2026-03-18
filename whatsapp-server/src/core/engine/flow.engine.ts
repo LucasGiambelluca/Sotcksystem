@@ -191,20 +191,43 @@ export class FlowEngine {
         let processedInput = input;
         const varName = (currentNode.data?.variable || 'user_choice').trim();
 
-        // Poll handling: resolve numeric input to option text
-        if (currentNode.type === 'pollNode') {
-            const options = currentNode.data?.options || ['Sí', 'No'];
-            const numericMatch = input.replace(/[\*_]/g, '').match(/\d+/);
-            const index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
+        // 1. Specialized input handling via Executor
+        const executor = nodeExecutorFactory.getExecutor(currentNode.type);
+        if (executor.handleInput) {
+            const result = await executor.handleInput(input, currentNode.data, session.getAllVariablesForCurrentFlow() as any);
             
-            if (index >= 0 && index < options.length) {
-                processedInput = options[index];
-                logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}"`);
+            // Apply context updates from executor
+            if (result.updatedContext) {
+                Object.entries(result.updatedContext).forEach(([k, v]) => {
+                    session.setVariable(k, v);
+                });
             }
+            
+            // If the executor returned immediate messages (like Stock results), add them to session logs 
+            // or we might need to handle how they are sent. 
+            // For now, let's assume session variables are the source of truth for the NEXT node.
+            if (result.messages && result.messages.length > 0) {
+                // These messages usually want to be seen immediately.
+                // We'll return them in handleInput so executeMessage can prepend them?
+                // Actually, let's just use the messages in the next execution cycle.
+                (session as any)._pendingMessages = result.messages;
+            }
+        } else {
+            // Default behavior: just store the raw input
+            // Poll handling (Legacy/Hardcoded): resolve numeric input to option text
+            if (currentNode.type === 'pollNode') {
+                const options = currentNode.data?.options || ['Sí', 'No'];
+                const numericMatch = input.replace(/[\*_]/g, '').match(/\d+/);
+                const index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
+                
+                if (index >= 0 && index < options.length) {
+                    processedInput = options[index];
+                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}"`);
+                }
+            }
+            session.setVariable(varName, processedInput);
         }
 
-        // 1. Store the value for the nodal variable
-        session.setVariable(varName, processedInput);
         session.logInteraction(session.currentNodeId, input);
 
         // 2. Advance to next node (Universal advancement for nodes that wait for input)
@@ -216,7 +239,9 @@ export class FlowEngine {
     }
 
     private async executeNodeChain(session: Session): Promise<string[]> {
-        let accumulatedMessages: string[] = [];
+        let accumulatedMessages: string[] = (session as any)._pendingMessages || [];
+        (session as any)._pendingMessages = []; // Clear after moving to accumulator
+        
         let iterations = 0;
         const MAX_ITERATIONS = 50;
 
