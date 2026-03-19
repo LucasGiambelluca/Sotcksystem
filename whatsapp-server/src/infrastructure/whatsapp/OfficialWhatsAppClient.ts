@@ -68,7 +68,9 @@ export class OfficialWhatsAppClient {
                 payload.text = { body: message.message };
             }
 
+            logger.info(`[OfficialWA] Sending message to ${to}`, { type: payload.type, url: `${this.baseUrl}/messages` });
             const response = await axios.post(`${this.baseUrl}/messages`, payload, { headers: this.headers });
+            logger.info(`[OfficialWA] Message sent successfully to ${to}. ID: ${response.data.messages[0].id}`);
             
             // Save to DB
             const content = payload.text?.body || payload.image?.caption || payload.document?.caption || '[Media/Poll]';
