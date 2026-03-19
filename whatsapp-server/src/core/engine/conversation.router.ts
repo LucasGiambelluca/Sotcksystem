@@ -684,13 +684,20 @@ export class ConversationRouter {
             .maybeSingle();
 
         if (existing) {
-            // Merge items: add quantity if item already exists, otherwise push
+            logger.info(`[Draft] Merging into existing draft ${existing.id}. Current items: ${existing.items?.length || 0}`);
+            // Merge items: add quantity if item already exists (by ID or exact Name), otherwise push
             const mergedItems = Array.isArray(existing.items) ? [...existing.items] : [];
             for (const newItem of newItems) {
-                const existingIdx = mergedItems.findIndex(i => i.catalog_item_id === newItem.catalog_item_id);
+                const existingIdx = mergedItems.findIndex(i => 
+                    (i.catalog_item_id && newItem.catalog_item_id && i.catalog_item_id === newItem.catalog_item_id) ||
+                    (i.name && newItem.name && i.name.toLowerCase().trim() === newItem.name.toLowerCase().trim())
+                );
+                
                 if (existingIdx !== -1) {
+                    logger.info(`[Draft] Merging item ${newItem.name} (found existing at index ${existingIdx})`);
                     mergedItems[existingIdx].qty += newItem.qty;
                 } else {
+                    logger.info(`[Draft] Adding new item ${newItem.name} to draft`);
                     mergedItems.push(newItem);
                 }
             }
