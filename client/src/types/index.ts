@@ -92,7 +92,7 @@ export interface Movement {
   created_at: string;
 }
 
-export type OrderChannel = 'WEB' | 'WHATSAPP' | 'PHONE' | 'OTHER';
+export type OrderChannel = 'WEB' | 'WHATSAPP' | 'PHONE' | 'TABLET' | 'OTHER';
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'IN_PREPARATION' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
 
 export interface Order {

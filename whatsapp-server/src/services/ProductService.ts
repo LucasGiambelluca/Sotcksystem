@@ -45,6 +45,11 @@ class ProductService {
         }
 
         const cleanTerm = this.normalize(searchTerm);
+        const stopWords = ['que', 'tenes', 'tiene', 'hay', 'donde', 'como', 'para', 'una', 'con', 'del', 'los', 'las', 'por', 'favor'];
+        if (cleanTerm.length < 3 || stopWords.includes(cleanTerm)) {
+            console.log(`[ProductService] Ignoring stop word or short term: "${cleanTerm}"`);
+            return null;
+        }
         console.log(`[ProductService] Normalized term: "${cleanTerm}"`);
         
         let bestMatch: Product | null = null;
@@ -53,10 +58,10 @@ class ProductService {
         for (const product of products) {
             const cleanProdName = this.normalize(product.name);
             
-            // 1. Exact match bypass
-            if (cleanProdName === cleanTerm || cleanProdName.includes(cleanTerm)) {
+            // 1. Exact match bypass (only for full exact match)
+            if (cleanProdName === cleanTerm) {
                 console.log(`[ProductService] Exact Match found for "${searchTerm}" -> "${product.name}"`);
-                return product; // Immediate return for perfect match
+                return product; 
             }
 
             const score = this.calculateScore(cleanTerm, cleanProdName);
@@ -70,6 +75,35 @@ class ProductService {
 
         // Threshold for acceptance (0-1 range)
         return maxScore > 0.4 ? bestMatch : null;
+    }
+
+    async findProductWithScore(searchTerm: string): Promise<{ product: Product, score: number } | null> {
+        const product = await this.findProduct(searchTerm);
+        if (!product) return null;
+        
+        const cleanTerm = this.normalize(searchTerm);
+        const cleanProdName = this.normalize(product.name);
+        
+        // Emulate exact match score bypass
+        if (cleanProdName === cleanTerm) {
+            return { product, score: 1.0 };
+        }
+        
+        const score = this.calculateScore(cleanTerm, cleanProdName);
+        return { product, score };
+    }
+
+    async findProductsByCategory(category: string): Promise<Product[]> {
+        const products = await this.getProducts();
+        const cleanCat = this.normalize(category);
+        return products.filter(p => p.category && this.normalize(p.category).includes(cleanCat));
+    }
+
+    async findCategories(): Promise<string[]> {
+        const products = await this.getProducts();
+        const categories = new Set<string>();
+        products.forEach(p => { if (p.category) categories.add(p.category); });
+        return Array.from(categories);
     }
 
     getEffectivePrice(product: Product): number {
@@ -98,32 +132,78 @@ class ProductService {
 
 
     private normalize(text: string): string {
-        return text.toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^\w\s]/g, ""); // Remove punctuation
+        let str = text.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            
+        // Expand abbreviations found in catalog names to full words
+        str = str.replace(/\bdoc\.?\s*emp\.?/g, 'docena empanadas')
+                 .replace(/\bemp\.?\b/g, 'empanada')
+                 .replace(/\bjyq\b/g, 'jamon y queso')
+                 .replace(/\bj y q\b/g, 'jamon y queso');
+                 
+        return str.replace(/[^\w\s\d\/]/g, " ").replace(/\s+/g, " ").trim();
     }
 
     private calculateScore(term: string, productName: string): number {
-        // 1. Direct inclusion check (high value)
-        if (productName.includes(term)) return 0.9;
-        if (term.includes(productName)) return 0.9;
-
         // 2. Token overlap & Levenshtein
-        const termTokens = term.split(/\s+/).filter(w => w.length > 2 && !['de', 'con', 'las', 'los'].includes(w));
-        const productTokens = productName.split(/\s+/);
+        const stopWords = ['de', 'con', 'las', 'los', 'a', 'la', 'el', 'en', 'y'];
+        const termTokens = term.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
+        const productTokens = productName.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
         
         let matchCount = 0;
         for (const token of termTokens) {
             // Find best matching token in product
             const bestTokenScore = Math.max(...productTokens.map(pt => {
-                if (pt.startsWith(token)) return 0.8; // Prefix match
-                if (this.levenshteinDistance(token, pt) <= 1) return 0.7; // Typo tolerance
+                const normPt = this.normalize(pt);
+                if (normPt === token) return 1.0;
+                
+                // Synonyms
+                if ((token === 'papas' && normPt === 'fritas') || (token === 'fritas' && normPt === 'papas')) return 0.9;
+                if ((token === 'coca' && normPt.includes('coca')) || (token === 'sprite' && normPt.includes('sprite'))) return 0.9;
+
+                if (normPt.startsWith(token)) return 0.8; // Prefix match
+                
+                // Fuzzy match: only for words longer than 4 chars
+                if (token.length > 4 && this.levenshteinDistance(token, normPt) <= 1) return 0.7;
                 return 0;
             }));
             matchCount += bestTokenScore;
         }
 
-        return termTokens.length > 0 ? matchCount / termTokens.length : 0;
+        let score = termTokens.length > 0 ? matchCount / termTokens.length : 0;
+        
+        // Length penalty: if search term is a tiny fraction of the product name, penalize it
+        if (productTokens.length > 0) {
+            const coverage = termTokens.length / productTokens.length;
+            if (coverage <= 0.5) {
+                // Exemption for generic brands to allow partial matches to surface
+                if (termTokens.length === 1 && ['coca', 'sprite', 'pepsi', 'fanta', 'cerveza', 'agua', 'vino'].includes(termTokens[0])) {
+                    score *= 0.8;
+                } else {
+                    score *= (coverage * 1.5); 
+                }
+            }
+        }
+        
+        return score;
+    }
+
+    async searchSimilarProducts(term: string): Promise<Product[]> {
+        const products = await this.getProducts();
+        const cleanTerm = this.normalize(term);
+        
+        const scored = products.map(p => {
+            const cleanProdName = this.normalize(p.name);
+            const score = this.calculateScore(cleanTerm, cleanProdName);
+            return { p, score };
+        });
+
+        // Filter high scores and sort descending
+        return scored
+            .filter(s => s.score > 0.4)
+            .sort((a, b) => b.score - a.score)
+            .map(s => s.p)
+            .slice(0, 3); // top 3 options
     }
 
     private levenshteinDistance(a: string, b: string): number {

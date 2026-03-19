@@ -9,7 +9,7 @@ export async function createOrder(orderData: {
   time_slot?: string;
   notes?: string;
   original_text?: string;
-  items: Array<{ product_id: string; quantity: number; unit_price: number }>;
+  items: Array<{ product_id?: string; catalog_item_id?: string; quantity: number; unit_price: number }>;
 }) {
   try {
     // Calculate total
@@ -38,7 +38,8 @@ export async function createOrder(orderData: {
     // Insert order items
     const itemsToInsert = orderData.items.map((item) => ({
       order_id: order.id,
-      product_id: item.product_id,
+      product_id: item.product_id || null,
+      catalog_item_id: item.catalog_item_id || null,
       quantity: item.quantity,
       unit_price: item.unit_price,
     }));

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, FileText, ChefHat, ShoppingBag, FlaskConical, Navigation } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, FileText, ChefHat, ShoppingBag, FlaskConical, Navigation, UtensilsCrossed } from 'lucide-react';
 import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
@@ -52,6 +52,7 @@ export default function Layout() {
     { name: 'Recetas', path: '/recipes', icon: FlaskConical },
     { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
     { name: 'Comandas', path: '/kitchen', icon: ChefHat },
+    { name: 'Menú Tablet', path: '/tablet-ordering', icon: UtensilsCrossed },
     // --- GRUPO 3: Atención y Logística ---
     { name: 'Clientes', path: '/clients', icon: Users },
     { name: 'Reportes', path: '/claims', icon: MessageCircle },

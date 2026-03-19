@@ -29,6 +29,7 @@ import CatalogAdmin from './pages/CatalogAdmin';
 import Recipes from './pages/Recipes';
 import CadetePWA from './pages/CadetePWA';
 import Dispatcher from './pages/Dispatcher';
+import TabletOrdering from './pages/TabletOrdering';
 
 function App() {
   return (
@@ -66,6 +67,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/admin/pricing-demo" element={<PricingPresentation />} />
               </Route>
+              <Route path="/tablet-ordering" element={<TabletOrdering />} />
             </Route>
           </Routes>
         </SoundProvider>

@@ -1,8 +1,9 @@
 import { supabase } from '../../config/database';
 import { logger } from '../../utils/logger';
+import { productService } from '../../services/ProductService';
 
 export interface ExtractedEntity {
-    type: 'product' | 'quantity' | 'modifier' | 'question_type';
+    type: 'product' | 'quantity' | 'modifier' | 'question_type' | 'category';
     value: string;
     normalizedValue: string;
     confidence: number;
@@ -41,10 +42,12 @@ export class EntityExtractor {
 
             const activeProducts = products?.filter((p: any) => p.is_active) || [];
             this.productCatalog.clear();
+            const categories = new Set<string>();
             
             for (const product of activeProducts) {
                 // Main name
                 this.indexProduct(product.name.toLowerCase(), product);
+                if (product.category) categories.add(product.category.toLowerCase());
                 
                 // Synonyms
                 if (product.synonyms && Array.isArray(product.synonyms)) {
@@ -52,6 +55,11 @@ export class EntityExtractor {
                         this.indexProduct(syn.toLowerCase(), product, true);
                     }
                 }
+            }
+
+            // Index categories as separate entities
+            for (const cat of categories) {
+                this.productCatalog.set(cat, { type: 'category', name: cat, confidence: 0.9 });
             }
             logger.info(`[NLU] Catalog bootstrap: ${activeProducts.length} active products found. ${this.productCatalog.size} terms indexed.`);
             if (activeProducts.length === 0 && products && products.length > 0) {
@@ -73,17 +81,20 @@ export class EntityExtractor {
     }
 
     /**
-     * Extracts entities from raw text
+     * Extracts entities from raw text (Async version to use ProductService)
      */
-    extract(text: string): ExtractedEntity[] {
+    async extract(text: string): Promise<ExtractedEntity[]> {
         const normalized = this.normalizeText(text);
         const entities: ExtractedEntity[] = [];
 
-        // 1. Quantities
-        entities.push(...this.extractQuantities(normalized));
+        // 1. Quantities (Sync) - extracted FIRST so products can avoid quantity tokens
+        const quantityEntities = this.extractQuantities(normalized);
+        entities.push(...quantityEntities);
 
-        // 2. Products (Greedy matching)
-        entities.push(...this.extractProducts(normalized));
+        // 2. Products (Async) - skip tokens already covered by quantities
+        const quantityRanges = quantityEntities.map(e => e.position as [number, number]);
+        const productEntities = await this.extractProducts(normalized, quantityRanges);
+        entities.push(...productEntities);
 
         return this.resolveConflicts(entities);
     }
@@ -100,7 +111,43 @@ export class EntityExtractor {
 
     private extractQuantities(text: string): ExtractedEntity[] {
         const entities: ExtractedEntity[] = [];
-        const words = text.split(' ');
+
+        // Compound quantity phrases first (media docena, etc.)
+        const compoundPatterns: Array<{ regex: RegExp; value: number }> = [
+            { regex: /\bmedia\s+docena\b/gi, value: 6 },
+            { regex: /\b(\d+)\s+docenas?\b/gi, value: -1 }, // special: multiply by 12
+            { regex: /\buna?\s+docena\b/gi, value: 12 },
+            { regex: /\bdocena\b/gi, value: 12 },
+        ];
+        
+        const coveredRanges: Array<[number, number]> = [];
+        
+        for (const pattern of compoundPatterns) {
+            let match;
+            while ((match = pattern.regex.exec(text)) !== null) {
+                const start = match.index;
+                const end = match.index + match[0].length;
+                
+                // Skip if this range overlaps with an already covered range
+                const overlaps = coveredRanges.some(([s, e]) => !(end <= s || start >= e));
+                if (overlaps) continue;
+                
+                let value = pattern.value;
+                if (value === -1) {
+                    // N docenas → N * 12
+                    value = parseInt(match[1]) * 12;
+                }
+                
+                entities.push({
+                    type: 'quantity',
+                    value: match[0],
+                    normalizedValue: String(value),
+                    confidence: 1.0,
+                    position: [start, end]
+                });
+                coveredRanges.push([start, end]);
+            }
+        }
 
         const numberWords: Record<string, number> = {
             'un': 1, 'una': 1, 'uno': 1,
@@ -113,13 +160,19 @@ export class EntityExtractor {
             const regex = new RegExp(`\\b${word}\\b`, 'gi');
             let match;
             while ((match = regex.exec(text)) !== null) {
+                const start = match.index;
+                const end = match.index + match[0].length;
+                const overlaps = coveredRanges.some(([s, e]) => !(end <= s || start >= e));
+                if (overlaps) continue;
+                
                 entities.push({
                     type: 'quantity',
                     value: word,
                     normalizedValue: String(value),
                     confidence: 0.9,
-                    position: [match.index, match.index + match[0].length]
+                    position: [start, end]
                 });
+                coveredRanges.push([start, end]);
             }
         }
 
@@ -127,50 +180,78 @@ export class EntityExtractor {
         const digitRegex = /\b(\d+(?:[.,]\d+)?)\b/g;
         let match;
         while ((match = digitRegex.exec(text)) !== null) {
+            const start = match.index;
+            const end = match.index + match[0].length;
+            const overlaps = coveredRanges.some(([s, e]) => !(end <= s || start >= e));
+            if (overlaps) continue;
+            
             entities.push({
                 type: 'quantity',
                 value: match[1],
                 normalizedValue: match[1].replace(',', '.'),
                 confidence: 1.0,
-                position: [match.index, match.index + match[0].length]
+                position: [start, end]
             });
+            coveredRanges.push([start, end]);
         }
 
         return entities;
     }
 
-    private extractProducts(text: string): ExtractedEntity[] {
+    private async extractProducts(text: string, quantityRanges: Array<[number, number]> = []): Promise<ExtractedEntity[]> {
         const entities: ExtractedEntity[] = [];
         const tokens = text.split(' ');
 
-        // Try N-grams from 4 down to 1
-        for (let n = Math.min(4, tokens.length); n >= 1; n--) {
+        // Build a set of character positions covered by quantity entities
+        const isQuantityPos = (start: number, end: number) => {
+            return quantityRanges.some(([qs, qe]) => !(end <= qs || start >= qe));
+        };
+
+        // Try N-grams from 6 down to 1 (increased for '1 docena de empanadas de carne')
+        for (let n = Math.min(6, tokens.length); n >= 1; n--) {
             for (let i = 0; i <= tokens.length - n; i++) {
                 const phrase = tokens.slice(i, i + n).join(' ');
+                const phraseStart = text.indexOf(phrase);
+                const phraseEnd = phraseStart + phrase.length;
                 
-                if (this.productCatalog.has(phrase)) {
-                    const product = this.productCatalog.get(phrase);
+                // Skip if this phrase starts inside a quantity range
+                if (isQuantityPos(phraseStart, phraseEnd) && n <= 2) continue;
+                
+                // Skip noise words (quantities, articles, verbs)
+                if (n === 1 && (phrase.length < 3 || ['y', 'con', 'para', 'una', 'un', 'uno', 'del', 'los', 'las', 'quiero', 'mandame', 'dame', 'docena', 'docenas', 'media', 'medio'].includes(phrase))) continue;
+
+                // 1. Prioritize EXACT Category match (e.g. "empanadas")
+                const localMatch = this.productCatalog.get(phrase.toLowerCase());
+                if (localMatch && localMatch.type === 'category') {
+                    entities.push({
+                        type: 'category',
+                        value: phrase,
+                        normalizedValue: localMatch.name,
+                        confidence: 0.95,
+                        position: [text.indexOf(phrase), text.indexOf(phrase) + phrase.length]
+                    });
+                    continue; // Skip product check if we have a category match
+                }
+
+                // 2. Use ProductService for smart matching
+                const matchResult = await productService.findProductWithScore(phrase);
+
+                if (matchResult) {
+                    const { product, score } = matchResult;
                     entities.push({
                         type: 'product',
                         value: phrase,
-                        normalizedValue: product.productName,
-                        confidence: product.confidence,
+                        normalizedValue: product.name,
+                        confidence: score,
                         position: [text.indexOf(phrase), text.indexOf(phrase) + phrase.length],
-                        metadata: product
+                        metadata: {
+                            productId: product.id,
+                            productName: product.name,
+                            basePrice: product.price,
+                            category: product.category,
+                            stock: product.stock
+                        }
                     });
-                } else if (n === 1 && phrase.length > 4) {
-                    // Fuzzy match for single words (typos)
-                    const fuzzy = this.fuzzySearch(phrase);
-                    if (fuzzy) {
-                        entities.push({
-                            type: 'product',
-                            value: phrase,
-                            normalizedValue: fuzzy.productName,
-                            confidence: 0.8,
-                            position: [text.indexOf(phrase), text.indexOf(phrase) + phrase.length],
-                            metadata: fuzzy
-                        });
-                    }
                 }
             }
         }
@@ -205,8 +286,17 @@ export class EntityExtractor {
     }
 
     private resolveConflicts(entities: ExtractedEntity[]): ExtractedEntity[] {
-        // Remove overlapping entities, keeping the one with higher confidence or length
-        entities.sort((a, b) => (b.position[1] - b.position[0]) - (a.position[1] - a.position[0]));
+        // Sort: quantities first (always keep), then by confidence desc, then by length desc
+        entities.sort((a, b) => {
+            // Quantities always win over products/categories
+            if (a.type === 'quantity' && b.type !== 'quantity') return -1;
+            if (a.type !== 'quantity' && b.type === 'quantity') return 1;
+            
+            if (Math.abs(b.confidence - a.confidence) > 0.05) {
+                return b.confidence - a.confidence;
+            }
+            return (b.position[1] - b.position[0]) - (a.position[1] - a.position[0]);
+        });
         
         const result: ExtractedEntity[] = [];
         for (const entity of entities) {

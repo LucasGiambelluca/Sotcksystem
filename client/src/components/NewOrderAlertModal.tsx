@@ -23,27 +23,20 @@ interface IncomingOrder {
   items: IncomingOrderItem[];
 }
 
-// Notification sound using simple oscillator (works after ANY user interaction on page)
+// Notification sound using comanda.wav
 const playAlertSound = (() => {
   let lastPlayed = 0;
   return () => {
     const now = Date.now();
-    if (now - lastPlayed < 3000) return; // 3s debounce
+    if (now - lastPlayed < 15000) return; // 15s debounce for the physical sound
     lastPlayed = now;
     try {
-      const ctx = new (window.AudioContext || (window as unknown as any).webkitAudioContext)();
-      // Play 3 short beeps for urgency
-      [0, 0.25, 0.5].forEach((offset) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.5, ctx.currentTime + offset);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.2);
-        osc.start(ctx.currentTime + offset);
-        osc.stop(ctx.currentTime + offset + 0.2);
+      // Try both absolute and relative paths to be super safe
+      const audio = new Audio('/sounds/comanda.wav');
+      audio.play().catch(() => {
+        // Fallback to basename path if first fails
+        const fallback = new Audio('/elpollocomilon/sounds/comanda.wav');
+        fallback.play().catch(e => console.warn('Audio playback failed entirely:', e));
       });
     } catch (e) {
       console.warn('Audio API not available:', e);

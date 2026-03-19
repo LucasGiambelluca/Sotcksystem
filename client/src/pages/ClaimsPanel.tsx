@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
-import { Loader2, AlertCircle, CheckCircle, Clock, MessageSquare, Lightbulb, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, CheckCircle, Clock, MessageSquare, Lightbulb, ShoppingCart, AlertTriangle } from 'lucide-react';
 
 interface Claim {
     id: string;
@@ -129,19 +129,19 @@ export default function ClaimsPanel() {
     const getPriorityLabel = (priority: string) => PRIORITY_LABELS[priority] || priority;
 
     return (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-gray-50 overflow-hidden">
             {/* Sidebar List */}
-            <div className="w-1/3 border-r bg-white flex flex-col">
+            <div className={`w-full md:w-1/3 border-r bg-white flex flex-col ${selectedClaim ? 'hidden md:flex' : 'flex'}`}>
                 <div className="p-4 border-b">
                     <h1 className="text-xl font-bold mb-3">Reportes</h1>
 
                     {/* Status Filter */}
-                    <div className="flex gap-2 mb-3">
+                    <div className="flex flex-wrap gap-2 mb-3">
                         {Object.entries(STATUS_LABELS).map(([value, label]) => (
                             <button
                                 key={value}
                                 onClick={() => setFilterStatus(value)}
-                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${filterStatus === value ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}
+                                className={`px-3 py-1 rounded-full text-[10px] md:text-xs font-medium border transition-colors ${filterStatus === value ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}
                             >
                                 {label}
                             </button>
@@ -196,13 +196,19 @@ export default function ClaimsPanel() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
+            <div className={`w-full md:flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8 ${selectedClaim ? 'flex' : 'hidden md:flex'}`}>
                 {selectedClaim ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="p-6 border-b flex justify-between items-start">
-                            <div>
-                                <h2 className="text-2xl font-bold mb-1">Detalle del Reporte</h2>
-                                <p className="text-gray-500 text-sm">ID: {selectedClaim.id}</p>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full max-w-5xl mx-auto">
+                        <div className="p-4 md:p-6 border-b flex flex-col md:flex-row justify-between items-start gap-4">
+                            <div className="flex flex-col gap-2 w-full">
+                                <button 
+                                    onClick={() => setSelectedClaim(null)}
+                                    className="md:hidden flex items-center gap-2 text-blue-600 font-medium text-sm mb-2"
+                                >
+                                    <ChevronLeft size={16} /> Volver a la lista
+                                </button>
+                                <h2 className="text-xl md:text-2xl font-bold">Detalle del Reporte</h2>
+                                <p className="text-gray-500 text-xs md:text-sm">ID: {selectedClaim.id}</p>
                             </div>
                             <div className="flex gap-2">
                                 {selectedClaim.status !== 'resolved' && (
@@ -227,7 +233,7 @@ export default function ClaimsPanel() {
                             </div>
                         </div>
 
-                        <div className="p-6 grid grid-cols-3 gap-6">
+                        <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                             <div>
                                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Cliente</h3>
                                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">

@@ -4,6 +4,10 @@ export class CreateOrderExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
         let items = Array.isArray(context.order_items) ? context.order_items : [];
         let total = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * (i.qty || i.quantity || 1)), 0);
+        
+        if (items.length === 0 && !context.draft_order_id) {
+            return { messages: ["⚠️ No hay items en tu pedido. Por favor, volvé a intentar."], wait_for_input: false };
+        }
         let pushName = context.pushName;
         const { supabase } = require('../../config/database');
         const { LocationService } = require('../../services/LocationService');
@@ -14,6 +18,11 @@ export class CreateOrderExecutor implements NodeExecutor {
             if (draftOrder && draftOrder.items) {
                  items = Array.isArray(draftOrder.items) ? draftOrder.items : [];
                  total = draftOrder.total;
+                 
+                 if (items.length === 0) {
+                     return { messages: ["⚠️ El pedido está vacío (desde catálogo). Por favor, volvé a intentar."], wait_for_input: false };
+                 }
+
                  pushName = draftOrder.push_name || pushName;
                  
                  // Strict Stock Re-Validation for Catalog V2

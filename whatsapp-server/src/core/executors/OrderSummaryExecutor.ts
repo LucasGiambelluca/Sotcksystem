@@ -23,8 +23,8 @@ export class OrderSummaryExecutor implements NodeExecutor {
         
         if (items.length === 0) {
             return {
-                messages: ["🛒 Tu carrito está vacío. Volvé a intentar."],
-                wait_for_input: false
+                messages: ["🛒 Tu carrito está vacío. Por favor, volvé al menú para elegir tus productos."],
+                wait_for_input: true
             };
         }
 

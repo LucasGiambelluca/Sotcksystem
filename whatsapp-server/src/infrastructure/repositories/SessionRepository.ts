@@ -213,4 +213,45 @@ export class SessionRepository {
     await this.archiveAll(sessions, 'user_reset');
     return sessions.length;
   }
+
+  /**
+   * Update session context by merging new variables
+   */
+  async updateContext(sessionId: string, newVariables: any): Promise<void> {
+    const finalSessionId = sessionId.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    
+    // 1. Get current session
+    const { data: existing } = await supabase
+      .from(this.TABLE)
+      .select('*')
+      .eq('session_id', finalSessionId)
+      .in('status', ['active', 'waiting_input'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!existing) return;
+
+    // 2. Merge context
+    const currentContext = existing.context || { variables: { global: {} } };
+    const updatedContext = {
+      ...currentContext,
+      variables: {
+        ...currentContext.variables,
+        global: {
+          ...currentContext.variables?.global,
+          ...newVariables
+        }
+      }
+    };
+
+    // 3. Update
+    await supabase
+      .from(this.TABLE)
+      .update({ 
+        context: updatedContext,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existing.id);
+  }
 }
