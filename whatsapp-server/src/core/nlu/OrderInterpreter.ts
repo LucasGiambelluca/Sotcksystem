@@ -2,7 +2,7 @@ import { EntityExtractor, ExtractedEntity } from './EntityExtractor';
 import { logger } from '../../utils/logger';
 
 export interface InterpretedIntent {
-    type: 'direct_order' | 'product_inquiry' | 'category_inquiry' | 'greeting' | 'ambiguous' | 'unknown';
+    type: 'direct_order' | 'product_inquiry' | 'category_inquiry' | 'greeting' | 'ambiguous' | 'unknown' | 'remove_item';
     confidence: number;
     entities: ExtractedEntity[];
     parsedOrder?: {
@@ -60,6 +60,9 @@ export class OrderInterpreter {
         const asksVarieties = /variedad|sabores|tipos|sabores|gustos|que hay de/i.test(text);
         const isGreeting = /^(hola|buenas|buen dia|que tal)/i.test(lower);
 
+        const isRemoval = /\b(quitar|sacar|borrar|eliminar|sacame|quitame)\b/i.test(text);
+
+        if (isRemoval) return 'remove_item';
         if (hasCategory || (hasProduct && asksVarieties)) return 'category_inquiry';
         if (hasProduct && !hasQuestion) return 'direct_order';
         if (hasProduct && hasQuestion) return 'product_inquiry';
