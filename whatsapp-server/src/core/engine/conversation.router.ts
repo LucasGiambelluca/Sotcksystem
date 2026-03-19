@@ -90,7 +90,26 @@ export class ConversationRouter {
                 return this.handleCatalogOrder(phone, catalogItems, metadata, pushName, context);
             }
 
-            // --- 2.5 GLOBAL PRIORITY: Suggestion handling ---
+            // --- 2.5 NLU PRIORITY (Detect new intents before falling back to session state) ---
+            const nluResult = await this.nluInterpreter.interpret(text);
+            const highConfidence = nluResult.confidence > 0.6;
+
+            if (highConfidence) {
+                if (nluResult.type === 'direct_order' && nluResult.parsedOrder) {
+                    return await this.handleNluDirectOrder(phone, nluResult, context);
+                }
+                if (nluResult.type === 'product_inquiry') {
+                    return await this.handleNluProductInquiry(phone, nluResult, context);
+                }
+                if (nluResult.type === 'category_inquiry') {
+                    return await this.handleNluCategoryInquiry(phone, nluResult, context);
+                }
+                if (nluResult.type === 'remove_item') {
+                    return await this.handleOverrideResponse(phone, cleanText, context, pushName);
+                }
+            }
+
+            // --- 3. SESSION STATE PRIORITY: Suggestion handling ---
             const { data: suggestionDraft } = await supabase.from('draft_orders')
                 .select('*')
                 .eq('phone', phone)
@@ -102,13 +121,6 @@ export class ConversationRouter {
 
             if (suggestionDraft) {
                 return await this.handleSuggestionResponse(phone, cleanText, suggestionDraft, context, pushName);
-            }
-
-            // --- 3. GLOBAL PRIORITY: Override responses (SI/NO/quitar) ---
-            const isConfirmation = /\b(si|sí|no|quitar|sacar|borrar|anotame|anotá)\b/i.test(cleanText);
-            if (isConfirmation) {
-                const overrideResult = await this.handleOverrideResponse(phone, cleanText, context, pushName);
-                if (overrideResult) return overrideResult;
             }
 
             // --- 3.5 SELECTION HANDLING: Resolve "la segunda", "2", etc. from last shown list ---
@@ -132,22 +144,11 @@ export class ConversationRouter {
                 }
             }
 
-            // 4. NLU Attempt
-            const nluResult = await this.nluInterpreter.interpret(text);
-            
-            if (nluResult.confidence > 0.5) {
-                if (nluResult.type === 'direct_order' && nluResult.parsedOrder) {
-                    const nluMessages = await this.handleNluDirectOrder(phone, nluResult, context);
-                    if (nluMessages.length > 0) return nluMessages;
-                }
-                
-                if (nluResult.type === 'product_inquiry') {
-                    return this.handleNluProductInquiry(phone, nluResult, context);
-                }
-
-                if (nluResult.type === 'category_inquiry') {
-                    return this.handleNluCategoryInquiry(phone, nluResult, context);
-                }
+            // 4. Fallback NLU (if confidence was low but it's the only thing we have)
+            if (nluResult.confidence > 0.3) {
+                if (nluResult.type === 'direct_order') return await this.handleNluDirectOrder(phone, nluResult, context);
+                if (nluResult.type === 'product_inquiry') return await this.handleNluProductInquiry(phone, nluResult, context);
+                if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context);
             }
 
             const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
