@@ -229,7 +229,7 @@ export class ConversationRouter {
         const { data: pendingDraft } = await supabase.from('draft_orders')
             .select('*')
             .eq('phone', phone)
-            .eq('status', 'pending_override')
+            .in('status', ['pending_override', 'pending_suggestion'])
             .gte('created_at', fifteenMinsAgo)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -385,10 +385,16 @@ export class ConversationRouter {
             'nada', 'asi esta bien', 'continuar', 'solo eso', 'listo',
             'esta bien', 'nada mas', 'eso es todo', 'ya esta',
             'con eso', 'suficiente', 'paso', 'no gracias', 'avanzar', 'seguir',
-            'confirmar', 'confirmo', 'eso nomas', 'eso nada mas', 'todo bien'
+            'confirmar', 'confirmo', 'eso nomas', 'eso nada mas', 'todo bien', 'asi nomas'
         ].some(word => lower.includes(word));
         
-        if (isNo) {
+        const isRemoval = ['quitar', 'sacar', 'no quiero', 'borrar', 'eliminar'].some(word => lower.includes(word));
+
+        if (isRemoval) {
+            return (await this.handleOverrideResponse(phone, cleanText, context, pushName)) || [];
+        }
+
+        if (isNo && !isRemoval) {
             // Clear pending options and proceed to checkout
             const meta = draft.metadata || {};
             delete meta.pending_options;
@@ -678,17 +684,24 @@ export class ConversationRouter {
             .maybeSingle();
 
         if (existing) {
-            // Append items
-            const currentItems = Array.isArray(existing.items) ? [...existing.items] : [];
-            const mergedItems = [...currentItems, ...newItems];
-            const mergedTotal = (existing.total || 0) + newTotal;
+            // Merge items: add quantity if item already exists, otherwise push
+            const mergedItems = Array.isArray(existing.items) ? [...existing.items] : [];
+            for (const newItem of newItems) {
+                const existingIdx = mergedItems.findIndex(i => i.catalog_item_id === newItem.catalog_item_id);
+                if (existingIdx !== -1) {
+                    mergedItems[existingIdx].qty += newItem.qty;
+                } else {
+                    mergedItems.push(newItem);
+                }
+            }
+            const mergedTotal = mergedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
             const mergedMeta = { ...(existing.metadata || {}), ...metadata };
 
             const { data: updated } = await supabase.from('draft_orders')
                 .update({ 
                     items: mergedItems, 
                     total: mergedTotal, 
-                    status: status, // Update status to the new one (e.g. if was override, now suggestion or vice versa)
+                    status: status,
                     metadata: mergedMeta 
                 })
                 .eq('id', existing.id)
