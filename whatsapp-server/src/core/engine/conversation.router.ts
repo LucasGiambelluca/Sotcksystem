@@ -685,28 +685,31 @@ export class ConversationRouter {
 
         if (existing) {
             logger.info(`[Draft] Merging into existing draft ${existing.id}. Current items: ${existing.items?.length || 0}`);
-            // Merge items: add quantity if item already exists (by ID or exact Name), otherwise push
-            const mergedItems = Array.isArray(existing.items) ? [...existing.items] : [];
-            for (const newItem of newItems) {
-                const existingIdx = mergedItems.findIndex(i => 
-                    (i.catalog_item_id && newItem.catalog_item_id && i.catalog_item_id === newItem.catalog_item_id) ||
-                    (i.name && newItem.name && i.name.toLowerCase().trim() === newItem.name.toLowerCase().trim())
+            
+            // Combine current and new items, then deduplicate/group everything
+            const currentItems = Array.isArray(existing.items) ? existing.items : [];
+            const allItems = [...currentItems, ...newItems];
+            const deduplicatedItems: any[] = [];
+
+            for (const item of allItems) {
+                const existingIdx = deduplicatedItems.findIndex(i => 
+                    (i.catalog_item_id && item.catalog_item_id && i.catalog_item_id === item.catalog_item_id) ||
+                    (i.name && item.name && i.name.toLowerCase().trim() === item.name.toLowerCase().trim())
                 );
                 
                 if (existingIdx !== -1) {
-                    logger.info(`[Draft] Merging item ${newItem.name} (found existing at index ${existingIdx})`);
-                    mergedItems[existingIdx].qty += newItem.qty;
+                    deduplicatedItems[existingIdx].qty += item.qty;
                 } else {
-                    logger.info(`[Draft] Adding new item ${newItem.name} to draft`);
-                    mergedItems.push(newItem);
+                    deduplicatedItems.push({ ...item });
                 }
             }
-            const mergedTotal = mergedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+            const mergedTotal = deduplicatedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
             const mergedMeta = { ...(existing.metadata || {}), ...metadata };
 
             const { data: updated } = await supabase.from('draft_orders')
                 .update({ 
-                    items: mergedItems, 
+                    items: deduplicatedItems, 
                     total: mergedTotal, 
                     status: status,
                     metadata: mergedMeta 
@@ -715,6 +718,7 @@ export class ConversationRouter {
                 .select()
                 .single();
             
+            logger.info(`[Draft] Updated draft ${existing.id}. New item count: ${deduplicatedItems.length}`);
             return updated;
         } else {
             // Create new draft
