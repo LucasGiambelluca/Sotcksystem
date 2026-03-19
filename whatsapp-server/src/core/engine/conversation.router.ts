@@ -93,18 +93,19 @@ export class ConversationRouter {
             // --- 2.5 NLU PRIORITY (Detect new intents before falling back to session state) ---
             const nluResult = await this.nluInterpreter.interpret(text);
             const highConfidence = nluResult.confidence > 0.6;
+            const intentType = nluResult.type as any;
 
             if (highConfidence) {
-                if (nluResult.type === 'direct_order' && nluResult.parsedOrder) {
+                if (intentType === 'direct_order' && nluResult.parsedOrder) {
                     return await this.handleNluDirectOrder(phone, nluResult, context);
                 }
-                if (nluResult.type === 'product_inquiry') {
+                if (intentType === 'product_inquiry') {
                     return await this.handleNluProductInquiry(phone, nluResult, context);
                 }
-                if (nluResult.type === 'category_inquiry') {
+                if (intentType === 'category_inquiry') {
                     return await this.handleNluCategoryInquiry(phone, nluResult, context);
                 }
-                if (nluResult.type === 'remove_item') {
+                if (intentType === 'remove_item') {
                     return await this.handleOverrideResponse(phone, cleanText, context, pushName);
                 }
             }
