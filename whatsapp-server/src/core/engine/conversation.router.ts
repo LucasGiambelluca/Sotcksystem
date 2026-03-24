@@ -61,6 +61,19 @@ export class ConversationRouter {
                 contextKeys: Object.keys(context)
             });
 
+            // --- 0.5 AI-FIRST ANALYSIS (Priority Interception) ---
+            const aiResult = await AIExtractor.analyze(text);
+            const aiConfidence = aiResult ? parseFloat(aiResult.confidence) : 0;
+            const isOrder = aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
+
+            logger.info(`[Router] AI-First Analysis: Intent=${aiResult?.intent}, Confidence=${aiConfidence.toString()}, IsOrder=${isOrder.toString()}`);
+
+            if (isOrder) {
+                logger.info(`[Router] High confidence ORDER detected via AI. Archiving current session to process order.`, { sessionId });
+                await this.sessionRepository.archive(sessionId, 'ai_order_interception');
+                return await this.handleAIOrder(phone, aiResult, context, pushName, sessionId);
+            }
+
             // --- 1. PRE-CHECK: Handover Status (Human Support) ---
             const { data: convo } = await supabase
                 .from('whatsapp_conversations')
@@ -100,13 +113,6 @@ export class ConversationRouter {
                     return await this.handleSuggestionResponse(phone, cleanText, activeDraft, context, pushName, sessionId);
                 }
             }
-
-            // --- AI Analysis (Always analyze to allow interception) ---
-            const aiResult = await AIExtractor.analyze(text);
-            const aiConfidence = aiResult ? parseFloat(aiResult.confidence) : 0;
-            const isOrder = aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
-
-            logger.info(`[Router] AI Analysis: Intent=${aiResult?.intent}, Confidence=${aiConfidence.toString()}, IsOrder=${isOrder.toString()}`);
 
             // --- 2.5 QUICK PATH: Active Flow Sessions (Priority for non-orders) ---
             const isWaitingInput = session && session.status === 'waiting_input';

@@ -121,7 +121,9 @@ export class FlowEngine {
                 let flow = null;
 
                 if (flowId) {
-                    const { data: fetchedFlow } = await this.db.from('flows').select('id, name').eq('id', flowId).single();
+                    logger.info(`[FlowEngine] Attempting to fetch flow by ID: "${flowId}"`);
+                    const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
+                    if (fetchError) logger.error(`[FlowEngine] Error fetching flow ${flowId}:`, fetchError);
                     flow = fetchedFlow;
                 } else {
                    flow = await this.findFlowByTrigger(messageText);
@@ -129,7 +131,7 @@ export class FlowEngine {
 
                 if (!flow) {
                     logger.info(`[FlowEngine] No flow matched for: "${messageText}" (FlowId: ${flowId || 'none'})`);
-                    const fallbackMessage = '❌ No entendí. Escribe "hola" o "menú" para ver las opciones.';
+                    const fallbackMessage = '❌ No entendí. Escríbí "hola" o "menú" para ver las opciones.';
                     return { currentStateDefinition: { message_template: fallbackMessage } };
                 }
                 
