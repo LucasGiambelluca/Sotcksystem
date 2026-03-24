@@ -87,7 +87,7 @@ export default function Catalog() {
 
   async function loadData() {
     const [{ data: prods }, { data: cfg }] = await Promise.all([
-      supabase.from('public_catalog').select('*').order('is_special', { ascending: false }).order('category').order('name'),
+      supabase.from('public_catalog').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
       supabase.from('public_branding').select('*').maybeSingle()
     ]);
     if (prods) setProducts(prods as PublicCatalogItem[]);
@@ -99,27 +99,29 @@ export default function Catalog() {
   const filtered = products.filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     return matchSearch;
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
 
-  const rawCategories = Array.from(new Set(filtered.map(p => p.category).filter(Boolean))) as string[];
-  rawCategories.sort((a, b) => a.localeCompare(b));
+  const categoriesInOrder: string[] = [];
+  const grouped: Record<string, PublicCatalogItem[]> = {};
   
   const specials = filtered.filter(p => p.is_special);
-  const categories = specials.length > 0 ? ['⭐ Especiales', ...rawCategories] : rawCategories;
+  if (specials.length > 0) {
+    categoriesInOrder.push('⭐ Especiales');
+    grouped['⭐ Especiales'] = specials;
+  }
 
-  const grouped = categories.reduce((acc, cat) => {
-    const items = cat === '⭐ Especiales' 
-      ? specials 
-      : filtered.filter(p => p.category === cat);
-    
-    if (items.length) acc[cat] = items;
-    return acc;
-  }, {} as Record<string, PublicCatalogItem[]>);
+  filtered.forEach(p => {
+    if (p.is_special) return;
+    const cat = p.category || 'General';
+    if (!grouped[cat]) {
+      grouped[cat] = [];
+      categoriesInOrder.push(cat);
+    }
+    grouped[cat].push(p);
+  });
 
-  // If there are no categories but there are products, group them under "Productos"
-  const finalGrouped = Object.keys(grouped).length > 0 
-    ? grouped 
-    : (filtered.length > 0 ? { 'Productos': filtered } : {});
+  const finalGrouped = grouped;
+  const categories = categoriesInOrder;
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cart.reduce((s, i) => {
@@ -237,7 +239,7 @@ export default function Catalog() {
             className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${!activeCategory && !search ? 'text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             style={!activeCategory && !search ? { backgroundColor: accent } : {}}
           >Inicio</button>
-          {Object.keys(finalGrouped).map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               onClick={() => { 
@@ -258,7 +260,9 @@ export default function Catalog() {
 
       {/* ── MAIN CONTENT ── */}
       <div className="max-w-5xl mx-auto px-4 py-6 pb-28 md:pb-8">
-        {Object.entries(finalGrouped).map(([cat, items]) => (
+        {categories.map(cat => {
+          const items = finalGrouped[cat];
+          return (
           <div key={cat} id={`category-${cat.replace(/\s+/g, '-')}`} className="mb-10 scroll-mt-24">
             {/* Category header */}
             {Object.keys(finalGrouped).length > 1 && (
@@ -335,7 +339,8 @@ export default function Catalog() {
             </div>
 
           </div>
-        ))}
+        );
+      })}
 
         {Object.keys(finalGrouped).length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">

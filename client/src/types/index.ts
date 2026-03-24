@@ -81,6 +81,7 @@ export interface PublicCatalogItem {
   is_special?: boolean;
   special_price?: number | null;
   offer_label?: string | null;
+  sort_order: number;
 }
 
 export interface Movement {
@@ -112,6 +113,8 @@ export interface Order {
   shipping_zone_id?: number;
   delivery_slot_id?: number;
   is_assembled?: boolean;
+  assigned_to?: string | null;
+  assigned_at?: string | null;
   
   created_at: string;
 }
@@ -143,6 +146,7 @@ export interface CatalogItem {
   is_special?: boolean;
   special_price?: number | null;
   offer_label?: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
   // Joined

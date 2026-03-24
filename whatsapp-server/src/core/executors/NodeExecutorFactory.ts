@@ -21,6 +21,7 @@ import { HandoverExecutor } from './HandoverExecutor';
 import { BusinessHoursExecutor } from './BusinessHoursExecutor';
 import { SendCatalogExecutor } from './SendCatalogExecutor';
 import { SendMediaExecutor } from './SendMediaExecutor';
+import { GroqExecutor } from './GroqExecutor';
 
 export class NodeExecutorFactory {
   private executors = new Map<string, NodeExecutor>();
@@ -46,6 +47,7 @@ export class NodeExecutorFactory {
     this.register('businessHoursNode', new BusinessHoursExecutor());
     this.register('sendCatalogNode', new SendCatalogExecutor());
     this.register('sendMediaNode', new SendMediaExecutor());
+    this.register('groqNode', new GroqExecutor());
     this.register('orderStatusNode', new OrderStatusExecutor());
     
     // Start / Input nodes

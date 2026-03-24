@@ -7,7 +7,8 @@ import { stationService } from '../services/stationService';
 import { updateOrderStatus } from '../services/orderService';
 import { toast } from 'sonner';
 import ShiftLogin from '../components/ShiftLogin';
-import type { Shift, Station } from '../types';
+import type { Shift, Station, Employee } from '../types';
+import { employeeService } from '../services/employeeService';
 
 // Types
 interface OrderItem {
@@ -184,6 +185,11 @@ export default function KitchenDashboard() {
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [stations, setStations] = useState<Station[]>([]);
     const [activeViewStationId, setActiveViewStationId] = useState<string | 'ALL'>('ALL'); // 'ALL' or station.id
+    const [couriers, setCouriers] = useState<Employee[]>([]);
+    const [logisticsEnabled, setLogisticsEnabled] = useState(() => {
+        return localStorage.getItem('kitchen_logistics_enabled') === 'true';
+    });
+    const [assignedToMap, setAssignedToMap] = useState<Record<string, string>>({}); // orderId -> courierId
     const { soundEnabled, enableSound, disableSound, playNotification } = useSound();
 
     // Check for saved shifts in localStorage
@@ -227,6 +233,11 @@ export default function KitchenDashboard() {
 
         // Load all stations for tabs
         stationService.getAll().then(sts => setStations(sts));
+        
+        // Load couriers
+        employeeService.getAll().then(emps => {
+            setCouriers(emps.filter(e => (e.role === 'cadete' || e.role === 'delivery') && e.is_active));
+        });
         
         const channel = supabase
             .channel('public:orders:kitchen_live') // Use a unique channel name
@@ -357,7 +368,7 @@ export default function KitchenDashboard() {
     const updateStatus = async (orderId: string, newStatus: string) => {
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, isNew: false } : o));
 
-        const dbStatus = mapLocalToDBStatus(newStatus);
+        let dbStatus = mapLocalToDBStatus(newStatus);
         
         try {
             await updateOrderStatus(orderId, dbStatus as any);
@@ -365,6 +376,39 @@ export default function KitchenDashboard() {
             console.error('Error updating status:', error);
             fetchOrders();
         }
+    };
+
+    const handleAssignAndShip = async (orderId: string, courierId: string) => {
+        if (!courierId) {
+            toast.error('Por favor, selecciona un cadete');
+            return;
+        }
+        
+        try {
+            // 1. Assign courier in DB
+            const { error: assignErr } = await supabase
+                .from('orders')
+                .update({ 
+                    assigned_to: courierId,
+                    assigned_at: new Date().toISOString(),
+                    status: 'IN_TRANSIT' // Same as 'PEDIDO ENVIADO'
+                })
+                .eq('id', orderId);
+            
+            if (assignErr) throw assignErr;
+
+            toast.success('Cadete asignado y pedido enviado');
+            fetchOrders();
+        } catch (err) {
+            console.error(err);
+            toast.error('Error al asignar cadete');
+        }
+    };
+
+    const toggleLogistics = (val: boolean) => {
+        setLogisticsEnabled(val);
+        localStorage.setItem('kitchen_logistics_enabled', String(val));
+        toast.info(val ? 'Sistema de cadetes activado' : 'Sistema de cadetes desactivado');
     };
 
     const handleShiftStarted = (shift: Shift) => {
@@ -405,7 +449,7 @@ export default function KitchenDashboard() {
     // Pending = pending + confirmed
     const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
     const cookingOrders = orders.filter(o => o.status === 'preparing');
-    const readyOrders = orders.filter(o => o.status === 'ready');
+    const readyOrders = orders.filter(o => o.status === 'ready' || o.status === 'OUT_FOR_DELIVERY');
 
     const activeTabOrders =
         activeTab === 'pending' ? pendingOrders :
@@ -481,6 +525,16 @@ export default function KitchenDashboard() {
                             Iniciar Turno
                         </button>
                     )}
+
+                    <div className="flex items-center gap-2 ml-2 pl-4 border-l border-gray-200">
+                        <span className={`text-[10px] font-bold ${logisticsEnabled ? 'text-blue-600' : 'text-gray-400'}`}>CADETES</span>
+                        <button
+                            onClick={() => toggleLogistics(!logisticsEnabled)}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${logisticsEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                        >
+                            <span className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${logisticsEnabled ? 'translate-x-5' : ''}`} />
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -550,7 +604,7 @@ export default function KitchenDashboard() {
                     const isPending = order.status === 'pending';
                     const isConfirmed = order.status === 'confirmed';
                     const isCooking = order.status === 'preparing';
-                    const isReady = ['ready', 'completed'].includes(order.status);
+                    const isReady = ['ready', 'completed', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.status);
 
                     const borderColor = isPending ? '#f97316' : isConfirmed ? '#3b82f6' : isCooking ? '#ef4444' : '#22c55e';
                     const bgBadge = isPending ? 'bg-orange-100 text-orange-600 border border-orange-200' : isConfirmed ? 'bg-blue-100 text-blue-600 border border-blue-200' : isCooking ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-green-100 text-green-600 border border-green-200';
@@ -637,10 +691,37 @@ export default function KitchenDashboard() {
                                         </button>
                                     )}
                                     {isCooking && (
-                                        <button onClick={() => updateStatus(order.id, 'ready')}
-                                            className="flex-1 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-green-500/20 border-b-4 border-green-700">
-                                            {order.delivery_address ? '📞 LLAMAR CADETE' : '🥡 LISTO PARA RETIRAR'}
-                                        </button>
+                                        <div className="flex-1 flex flex-col gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                                            {logisticsEnabled && (order.delivery_type === 'DELIVERY' || order.delivery_address) ? (
+                                                <>
+                                                    <select 
+                                                        className="w-full p-3 border-2 border-orange-200 rounded-xl bg-orange-50 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
+                                                        value={assignedToMap[order.id] || ''}
+                                                        onChange={(e) => setAssignedToMap(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                    >
+                                                        <option value="">-- Seleccionar Cadete --</option>
+                                                        {couriers.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <button 
+                                                        onClick={() => handleAssignAndShip(order.id, assignedToMap[order.id])}
+                                                        disabled={!assignedToMap[order.id]}
+                                                        className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-orange-500/20 disabled:bg-gray-300 disabled:shadow-none"
+                                                    >
+                                                        🛵 ASIGNAR Y ENVIAR
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button onClick={() => {
+                                                    const nextStatus = (order.delivery_type === 'DELIVERY' || order.delivery_address) ? 'OUT_FOR_DELIVERY' : 'ready';
+                                                    updateStatus(order.id, nextStatus as any);
+                                                }}
+                                                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-green-500/20 border-b-4 border-green-700">
+                                                    {order.delivery_type === 'DELIVERY' || order.delivery_address ? '🛵 PEDIDO ENVIADO' : '🥡 AVISAR PARA RETIRAR'}
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                     {isReady && (
                                         <button onClick={() => updateStatus(order.id, 'delivered')}

@@ -11,6 +11,7 @@ export interface Product {
     is_special?: boolean;
     special_price?: number;
     offer_label?: string;
+    sort_order: number;
     created_at?: string;
 }
 

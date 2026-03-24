@@ -12,7 +12,8 @@ export class SessionRepository {
     sessionId: string, 
     userPhone: string, 
     flowId: string,
-    initialContext?: Partial<SessionContext>
+    initialContext?: Partial<SessionContext>,
+    startNodeId: string = 'start'
   ): Promise<Session> {
     const finalSessionId = sessionId.replace('@s.whatsapp.net', '').replace('@c.us', '');
 
@@ -35,13 +36,13 @@ export class SessionRepository {
       if (Date.now() - session.lastActivity.getTime() > expirationMs) {
         console.log(`[SessionRepo] Archiving expired session: ${finalSessionId}`);
         await this.archive(finalSessionId, 'expired');
-        return this.createNew(finalSessionId, userPhone, flowId, initialContext);
+        return this.createNew(finalSessionId, userPhone, flowId, initialContext, startNodeId);
       }
       
       return session;
     }
 
-    return this.createNew(finalSessionId, userPhone, flowId, initialContext);
+    return this.createNew(finalSessionId, userPhone, flowId, initialContext, startNodeId);
   }
 
   /**
@@ -51,7 +52,8 @@ export class SessionRepository {
     sessionId: string,
     userPhone: string,
     flowId: string,
-    initialContext?: Partial<SessionContext>
+    initialContext?: Partial<SessionContext>,
+    startNodeId: string = 'start'
   ): Promise<Session> {
     const context: SessionContext = {
       variables: {
@@ -81,7 +83,7 @@ export class SessionRepository {
       userPhone,
       userPhone, // chatJid usage is simplified
       context,
-      'start', // Default start node
+      startNodeId, // Use the provided start node
       'active',
       new Date(),
       0 // initial version

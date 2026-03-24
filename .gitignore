@@ -16,3 +16,4 @@ whatsapp-server/integration_output.log
 
 # Archivos temporales y de test
 tmp/
+backups/

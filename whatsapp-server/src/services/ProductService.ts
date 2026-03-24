@@ -15,11 +15,7 @@ class ProductService {
         // Only fetch products with stock > 0
         const products = await this.repository.getAll();
         return products.filter(p => p.stock > 0).sort((a, b) => {
-            if (a.category && b.category) {
-                 const catCompare = a.category.localeCompare(b.category);
-                 if (catCompare !== 0) return catCompare;
-            }
-            return a.name.localeCompare(b.name);
+            return (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name);
         });
     }
 
@@ -139,7 +135,13 @@ class ProductService {
         str = str.replace(/\bdoc\.?\s*emp\.?/g, 'docena empanadas')
                  .replace(/\bemp\.?\b/g, 'empanada')
                  .replace(/\bjyq\b/g, 'jamon y queso')
-                 .replace(/\bj y q\b/g, 'jamon y queso');
+                 .replace(/\bj y q\b/g, 'jamon y queso')
+                 .replace(/\bnapo\b/g, 'napolitana')
+                 .replace(/\bmuzza\b/g, 'muzzarella')
+                 .replace(/\bfugaz\b/g, 'fugazzetta')
+                 .replace(/\bmila\b/g, 'milanesa')
+                 .replace(/\broque\b/g, 'roquefort')
+                 .replace(/\bfritas\b/g, 'papas fritas');
                  
         return str.replace(/[^\w\s\d\/]/g, " ").replace(/\s+/g, " ").trim();
     }

@@ -49,11 +49,11 @@ export default function Dashboard() {
   const lastSoundTime = useRef<number>(0);
   const SOUND_COOLDOWN_MS = 10000; // max 1 sound per 10 seconds
 
-  const playSound = useCallback((type: 'newOrder' | 'cancel') => {
+  const playSound = useCallback((type: 'newOrder' | 'cancel' | 'delivery') => {
     const now = Date.now();
     if (now - lastSoundTime.current < SOUND_COOLDOWN_MS) return;
     lastSoundTime.current = now;
-    // Simple Web Audio API beeps — no asset files needed
+    // Simple Web Audio API beeps
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -65,6 +65,14 @@ export default function Dashboard() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.6);
+    } else if (type === 'delivery') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.5); // C6
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.7);
     } else {
       osc.frequency.value = 220; // A3 — low alert
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
@@ -93,6 +101,19 @@ export default function Dashboard() {
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'status=eq.CANCELLED' },
         () => {
           playSound('cancel');
+          loadStats();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'type=eq.DELIVERY_CONFIRMED' },
+        (payload) => {
+          console.log('🔔 Internal notification received:', payload.new);
+          playSound('delivery');
+          toast.success(payload.new.title, {
+            description: payload.new.message,
+            duration: 10000,
+          });
           loadStats();
         }
       )

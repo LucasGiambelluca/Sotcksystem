@@ -25,12 +25,18 @@ export class OfficialWhatsAppClient {
 
     async sendMessage(to: string, message: any): Promise<any> {
         const cleanTo = to.replace(/[^0-9]/g, '');
+        
+        // Normalize Argentine numbers for Meta API: 54 + 9 + area + number -> 54 + area + number
+        let apiTo = cleanTo;
+        if (apiTo.startsWith('549') && apiTo.length === 13) {
+            apiTo = '54' + apiTo.substring(3);
+        }
 
         try {
             let payload: any = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
-                to: cleanTo
+                to: apiTo
             };
 
             if (typeof message === 'string') {

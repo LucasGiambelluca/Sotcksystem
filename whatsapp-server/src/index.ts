@@ -3,6 +3,7 @@ import app from './api/app';
 import { whatsappClient } from './infrastructure/whatsapp/WhatsAppClient';
 import { stockCronService } from './services/StockCronService';
 import { orderNotificationListener } from './services/OrderNotificationListener';
+import { logisticsNotificationListener } from './services/LogisticsNotificationListener';
 
 const PORT = process.env.PORT || 3001;
 
@@ -29,6 +30,10 @@ async function bootstrap() {
         // Start Order Notification Listener
         orderNotificationListener.start();
         console.log(`🔔 Order Notification Listener started.`);
+        
+        // Start Courier Arrival Notification Listener
+        logisticsNotificationListener.start();
+        console.log(`🔔 Courier Arrival Notification Listener started.`);
     } catch (error) {
         console.error('❌ Failed to initialize WhatsApp Client:', error);
     }

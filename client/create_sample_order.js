@@ -1,11 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
 
 async function main() {
   console.log('Connecting to:', process.env.VITE_SUPABASE_URL);
+
+  const addresses = [
+    'Av. Corrientes 1234, CABA',
+    'Calle Falsa 123, Bahía Blanca',
+    'Sarmiento 450, Bahía Blanca',
+    'Cramer 330, Bahía Blanca',
+    'Brown 1200, Bahía Blanca',
+    'Rodriguez 55, Bahía Blanca'
+  ];
 
   try {
     const { data: items } = await supabase.from('catalog_items').select('id, name, price').limit(2);
@@ -16,34 +24,39 @@ async function main() {
 
     const { data: client } = await supabase.from('clients').select('id, phone, name').limit(1).single();
     
-    const total = items.reduce((sum, i) => sum + Number(i.price), 0);
-    
-    const { data: order, error: orderErr } = await supabase.from('orders').insert({
-      client_id: client ? client.id : null,
-      status: 'PENDING',
-      total_amount: total,
-      channel: 'WHATSAPP',
-      phone: client ? client.phone : '549111222333',
-      delivery_address: 'Av. Corrientes 1234, CABA',
-      delivery_type: 'DELIVERY',
-      chat_context: { pushName: 'Cliente de Prueba' }
-    }).select().single();
+    for (let i = 0; i < 2; i++) {
+        const total = (items || []).reduce((sum, item) => sum + Number(item.price), 0);
+        const status = i === 0 ? 'PENDING' : 'IN_PREPARATION';
+        
+        const { data: order, error: orderErr } = await supabase.from('orders').insert({
+          client_id: client ? client.id : null,
+          status: status,
+          total_amount: total,
+          channel: 'WHATSAPP',
+          phone: client ? client.phone : `54911122233${i}`,
+          delivery_address: addresses[i],
+          delivery_type: 'DELIVERY',
+          chat_context: { pushName: `Test ${status} ${i + 1}` }
+        }).select().single();
 
-    if (orderErr) throw orderErr;
+        if (orderErr) {
+            console.error(`Error creating order ${i}:`, orderErr);
+            continue;
+        }
 
-    const orderItems = items.map(i => ({
-      order_id: order.id,
-      catalog_item_id: i.id,
-      quantity: 1,
-      unit_price: i.price,
-      subtotal: i.price
-    }));
+        const orderItems = items.map(item => ({
+          order_id: order.id,
+          catalog_item_id: item.id,
+          quantity: 1,
+          unit_price: item.price,
+          subtotal: item.price
+        }));
 
-    const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
-    if (itemsErr) throw itemsErr;
+        const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
+        if (itemsErr) console.error(`Error items for order ${i}:`, itemsErr);
 
-    console.log(`✅ Pedido #${order.order_number} creado con éxito.`);
-    console.log(`Detalles: ${items.map(i => i.name).join(', ')}`);
+        console.log(`✅ Pedido #${order.order_number} (${addresses[i]}) creado con éxito.`);
+    }
   } catch (err) {
     console.error('Error:', err);
   }

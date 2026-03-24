@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search } from 'lucide-react';
+import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search, Brain } from 'lucide-react';
 
 const nodeItems = [
   { type: 'messageNode', icon: MessageSquare, label: 'Mensaje', desc: 'Envía un texto simple.', bg: 'bg-blue-100', text: 'text-blue-600' },
@@ -22,6 +22,7 @@ const nodeItems = [
   { type: 'businessHoursNode', icon: Store, label: 'Horario Atención', desc: 'Detecta si el local está abierto.', bg: 'bg-orange-100', text: 'text-orange-600' },
   { type: 'sendCatalogNode', icon: ShoppingBag, label: 'Enviar Catálogo', desc: 'Envía link del catálogo online.', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   { type: 'sendMediaNode', icon: Image, label: 'Enviar Multimedia', desc: 'Envía imagen o PDF.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  { type: 'groqNode', icon: Brain, label: 'Cerebro IA', desc: 'Usa IA (Groq) para responder o analizar.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
 ];
 
 export default function Sidebar() {

@@ -43,13 +43,20 @@ export class CreateOrderExecutor implements NodeExecutor {
         }
         
         // Extract address - try multiple possible variable names and typos
-        const address = context.direccion || context.dirección || context.address || context.delivery_address || context.domicilio || context.dirrecion || context.respuesta || null;
-        const deliveryType = context.tipo_entrega || context.delivery_type || context.respuesta_envio || context.delivery_method || null;
+        const address = (context.direccion_cliente || context.direccion || context.dirección || context.address || context.delivery_address || context.domicilio || context.dirrecion || context.respuesta || context.direccion_cliente_raw) ?? null;
+        const deliveryType = (context.envio_opcion || context.tipo_entrega || context.delivery_type || context.respuesta_envio || context.delivery_method || context.envio_opcion_raw) ?? null;
+        
+        // Extract payment method
+        const rawPaymentMethod = context.metodo_pago || context.payment_method || context.metodo_pago_raw || 'No especificado';
+        const paymentMethod = typeof rawPaymentMethod === 'string' ? rawPaymentMethod.substring(0, 100) : 'No especificado';
         
         // Extract delivery date
         const deliveryDate = context.fecha_entrega || context.fecha || context.date || context.delivery_date || null;
         
-        console.log('[CreateOrderExecutor] Context keys:', Object.keys(context));
+        console.log('[CreateOrderExecutor] Context keys (Raw):', JSON.stringify(Object.keys(context)));
+        console.log('[CreateOrderExecutor] Value - direccion_cliente:', context.direccion_cliente);
+        console.log('[CreateOrderExecutor] Value - envio_opcion:', context.envio_opcion);
+        console.log('[CreateOrderExecutor] Value - metodo_pago:', context.metodo_pago);
         console.log('[CreateOrderExecutor] Address:', address, '| Delivery type:', deliveryType, '| Date:', deliveryDate);
 
         // --- Módulo LIV (Logística Inteligente y Verificación) ---
@@ -130,7 +137,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                 deliverySlotId: context.selected_slot_id,
                 address: address,
                 deliveryDate: deliveryDate,
-                paymentMethod: context.metodo_pago || context.payment_method,
+                paymentMethod: paymentMethod,
                 deliveryType: (deliveryType?.toLowerCase().includes('retiro') || deliveryType?.toLowerCase().includes('local')) ? 'PICKUP' : (deliveryType || 'DELIVERY'),
                 status: 'PENDING',
                 pushName: pushName,

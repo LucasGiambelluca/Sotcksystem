@@ -47,8 +47,10 @@ export class SessionAuditor {
     try {
         const { error } = await supabase.from('audit_logs').insert(batch);
         if (error) {
-            console.error('❌ [SessionAuditor] Error flushing logs to Supabase:', error.message);
-            // Put logs back into buffer if it failed? For now, just log the error to avoid infinite retry issues
+            // Silence if table is missing to avoid spamming the console
+            if (!error.message.includes('audit_logs')) {
+                console.error('❌ [SessionAuditor] Error flushing logs to Supabase:', error.message);
+            }
         }
     } catch (err) {
         console.error('❌ [SessionAuditor] Critical error during flush:', err);

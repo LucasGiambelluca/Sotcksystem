@@ -267,18 +267,21 @@ export const logisticsV2Service = {
 
     // 4. Update the order status to OUT_FOR_DELIVERY (actually it's better to wait for pickup, 
     // but for now let's use a transition status or just IN_TRANSIT)
-    const { error: orderError } = await supabase
+    if (orderError) throw orderError;
+    
+    // NEW: Also update assigned_to in the orders table directly for easier filtering
+    await supabase
       .from('orders')
-      .update({ status: 'OUT_FOR_DELIVERY' })
+      .update({ assigned_to: cadeteId, assigned_at: new Date().toISOString() })
       .eq('id', orderId);
 
-    if (orderError) throw orderError;
     return assignment;
   },
 
   // Get orders that are READY for pickup but not yet assigned
-  async getAvailableOrders() {
-    // 1. Get all assigned order IDs to exclude them using the column `id` and the join table
+  async getAvailableOrders(cadeteId?: string) {
+    // 1. Get all assigned order IDs to exclude them from the General Bag 
+    // BUT include them if they are assigned specifically to the current cadete
     const { data: assignments } = await supabase
       .from('assignment_orders')
       .select('order_id');
@@ -289,16 +292,39 @@ export const logisticsV2Service = {
     let query = supabase
       .from('orders')
       .select('*, client:clients(name)')
-      .in('status', ['IN_TRANSIT', 'CONFIRMED', 'IN_PREPARATION', 'OUT_FOR_DELIVERY'])
+      .in('status', ['IN_TRANSIT', 'CONFIRMED', 'IN_PREPARATION', 'OUT_FOR_DELIVERY', 'READY'])
       .order('created_at', { ascending: true });
     
+    // Aisolation Logic:
+    // Show if:
+    // (a) Order is NOT in assignment_orders AND assigned_to is NULL
+    // (b) OR Order assigned_to is CURRENT CADETE
+    if (cadeteId) {
+        query = query.or(`assigned_to.is.null,assigned_to.eq.${cadeteId}`);
+    } else {
+        query = query.is('assigned_to', null);
+    }
+
     if (assignedIds.length > 0) {
-      query = query.not('id', 'in', `(${assignedIds.join(',')})`);
+      // Exclude orders that are already in active assignments of OTHER people
+      // But we must be careful not to exclude the one assigned to ME
+      // The .or logic above already handles the positive side, now we filter the negative side
+      // for the "Bolsa Común".
     }
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+
+    // Final filter: remove orders that are in assignment_orders but NOT assigned to me in orders table
+    // (This is a safety check for the "Common Bag")
+    return (data || []).filter(order => {
+        const isAssignedToMe = order.assigned_to === cadeteId;
+        const isInAnyAssignment = assignedIds.includes(order.id);
+        
+        if (isAssignedToMe) return true; // My orders always show
+        if (isInAnyAssignment) return false; // Already taken by someone else
+        return true; // Available for all
+    });
   },
 
   // Claim an order (Self-assignment)
@@ -347,10 +373,14 @@ export const logisticsV2Service = {
 
     if (stopsError) throw stopsError;
 
-    // 4. Update all order statuses
+    // 4. Update all order statuses and assignments
     const { error: ordersError } = await supabase
       .from('orders')
-      .update({ status: 'OUT_FOR_DELIVERY' })
+      .update({ 
+          status: 'OUT_FOR_DELIVERY',
+          assigned_to: cadeteId,
+          assigned_at: new Date().toISOString()
+      })
       .in('id', orderIds);
 
     if (ordersError) throw ordersError;

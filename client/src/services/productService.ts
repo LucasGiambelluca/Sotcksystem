@@ -73,8 +73,8 @@ export const catalogItemService = {
       .from('catalog_items')
       .select('*')
       .eq('is_active', true)
-      .order('category')
-      .order('name');
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
     if (error) throw error;
     return data as CatalogItem[];
   },
@@ -95,5 +95,16 @@ export const catalogItemService = {
       .update({ stock: newStock, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  async updateAllOrders(items: { id: string; sort_order: number }[]) {
+    // Using individual updates to be more robust with RLS and avoids upsert quirks
+    for (const item of items) {
+      const { error } = await supabase
+        .from('catalog_items')
+        .update({ sort_order: item.sort_order })
+        .eq('id', item.id);
+      if (error) throw error;
+    }
   }
 };

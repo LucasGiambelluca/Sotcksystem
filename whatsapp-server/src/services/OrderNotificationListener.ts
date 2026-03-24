@@ -31,14 +31,18 @@ Hola {clientName}! Estamos preparando tu pedido.
 
 Te avisaremos cuando salga para entrega.`,
 
-  IN_TRANSIT: `🚚 *Pedido en Camino*
-
-Hola {clientName}! Tu pedido está en camino.
+  OUT_FOR_DELIVERY: `🛵 *¡Tu pedido ya salió!*
+  
+Hola {clientName}! El repartidor ya está en camino con tu pedido.
 
 📦 Pedido: #{orderId}
 {deliveryAddress}
 
-¡Pronto estaremos ahí!`,
+¡Preparate para recibirlo! 🎉`,
+
+  PICKED_UP: `🛵 *¡Pedido Retirado!*
+
+Hola {clientName}! El repartidor ya retiró tu pedido y pronto saldrá para allá.`,
 
   DELIVERED: `✅ *Pedido Entregado*
 
@@ -86,6 +90,7 @@ function formatMessage(template: string, data: OrderNotificationData): string {
 export class OrderNotificationListener {
   private static instance: OrderNotificationListener;
   private channel: any = null;
+  private processedChanges: Map<string, string> = new Map(); // orderId -> status to prevent duplicates
 
   private constructor() {}
 
@@ -109,13 +114,34 @@ export class OrderNotificationListener {
           table: 'orders',
         },
         async (payload) => {
-          const oldStatus = payload.old.status;
-          const newStatus = payload.new.status;
+          console.log(`\n========================================`);
+          console.log(`[OrderNotificationListener] Received Realtime UPDATE:`, JSON.stringify(payload));
+          const oldStatus = payload.old?.status;
+          const newStatus = payload.new?.status;
 
-          if (oldStatus !== newStatus && newStatus !== 'PENDING') {
-            console.log(`🔔 [OrderNotificationListener] Status changed: ${oldStatus} -> ${newStatus} for order ${payload.new.id}`);
-            await this.handleStatusChange(payload.new.id, newStatus);
+          console.log(`[OrderNotificationListener] Parsed statuses -> old: ${oldStatus}, new: ${newStatus}`);
+
+          const lastProcessed = this.processedChanges.get(payload.new?.id);
+          if (lastProcessed === newStatus) {
+            console.log(`[OrderNotificationListener] Skipping (Already processed status ${newStatus} for order ${payload.new?.id})`);
+            return;
           }
+
+          if (oldStatus !== newStatus && newStatus && newStatus !== 'PENDING') {
+            console.log(`🔔 [OrderNotificationListener] Triggering handleStatusChange: ${oldStatus} -> ${newStatus} for order ${payload.new?.id}`);
+            this.processedChanges.set(payload.new?.id, newStatus);
+            
+            // Clean up cache to prevent memory leaks (keep last 500 orders)
+            if (this.processedChanges.size > 500) {
+              const firstKey = this.processedChanges.keys().next().value;
+              if (firstKey) this.processedChanges.delete(firstKey);
+            }
+
+            await this.handleStatusChange(payload.new?.id, newStatus);
+          } else {
+            console.log(`[OrderNotificationListener] Skipping handleStatusChange (No change, null status or PENDING).`);
+          }
+          console.log(`========================================\n`);
         }
       )
       .subscribe((status) => {
@@ -133,11 +159,13 @@ export class OrderNotificationListener {
         .single();
 
       if (orderError || !order) {
-        console.error('❌ [OrderNotificationListener] Error fetching order details:', orderError);
+        console.error(`❌ [OrderNotificationListener] Error fetching order ${orderId} details:`, orderError);
         return;
       }
 
-      const phone = order.client?.phone;
+      console.log(`[OrderNotificationListener] Processing status "${newStatus}" for order #${order.id.slice(0,8)}...`);
+
+      const phone = order.phone || order.client?.phone;
       if (!phone) {
         console.log(`⚠️ [OrderNotificationListener] No phone for order ${orderId}, skipping.`);
         return;
@@ -159,21 +187,38 @@ export class OrderNotificationListener {
           template = waConfig?.template_preparation || DEFAULT_TEMPLATES.IN_PREPARATION;
           break;
         case 'IN_TRANSIT':
-          template = waConfig?.template_transit || DEFAULT_TEMPLATES.IN_TRANSIT;
+        case 'OUT_FOR_DELIVERY':
+          if (order.delivery_type === 'PICKUP' || !order.delivery_address) {
+            template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
+          } else {
+            template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+          }
+          break;
+        case 'PICKED_UP':
+          template = waConfig?.template_picked_up || DEFAULT_TEMPLATES.PICKED_UP;
+          console.log(`🛵 [OrderNotificationListener] Order #${order.id.slice(0,8)} marked as PICKED_UP.`);
           break;
         case 'DELIVERED':
           template = waConfig?.template_delivered || DEFAULT_TEMPLATES.DELIVERED;
+          
+          // Internal notification for the owner
+          await this.createInternalNotification(order);
           break;
         case 'CANCELLED':
           template = waConfig?.template_cancelled || DEFAULT_TEMPLATES.CANCELLED;
           break;
         case 'READY_FOR_PICKUP':
-        case 'READY': // Handle both possible names from UI
+        case 'READY':
           template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           break;
       }
 
-      if (!template) return;
+      console.log(`[OrderNotificationListener] Selected template:`, !!template ? "Found" : "NOT FOUND");
+
+      if (!template) {
+         console.log(`⚠️ [OrderNotificationListener] No template found for status: ${newStatus}`);
+         return;
+      }
 
       // 4. Format Message
       const notificationData: OrderNotificationData = {
@@ -194,6 +239,21 @@ export class OrderNotificationListener {
 
     } catch (err) {
       console.error('❌ [OrderNotificationListener] Fatal error:', err);
+    }
+  }
+
+  private async createInternalNotification(order: any) {
+    try {
+      console.log(`🔔 [OrderNotificationListener] Creating internal notification for owner...`);
+      await supabase.from('notifications').insert({
+        title: '✅ Entrega Confirmada',
+        message: `El pedido #${order.order_number || order.id.slice(0, 8)} de ${order.client?.name || order.phone} ha sido entregado por el cadete.`,
+        type: 'DELIVERY_CONFIRMED',
+        metadata: { orderId: order.id, orderNumber: order.order_number },
+        read: false
+      });
+    } catch (err) {
+      console.error('❌ [OrderNotificationListener] Error creating internal notification:', err);
     }
   }
 

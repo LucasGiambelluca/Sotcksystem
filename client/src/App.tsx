@@ -30,6 +30,8 @@ import Recipes from './pages/Recipes';
 import CadetePWA from './pages/CadetePWA';
 import Dispatcher from './pages/Dispatcher';
 import TabletOrdering from './pages/TabletOrdering';
+import Staff from './pages/Staff';
+import CourierManagement from './pages/CourierManagement';
 
 function App() {
   return (
@@ -47,6 +49,8 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/clients/:id" element={<ClientDetails />} />
+                <Route path="/staff" element={<Staff />} />
+                <Route path="/couriers" element={<CourierManagement />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/stock-reports" element={<StockReports />} />
                 <Route path="/catalog-admin" element={<CatalogAdmin />} />

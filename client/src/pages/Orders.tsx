@@ -5,6 +5,8 @@ import type { OrderWithDetails, OrderStatus, OrderChannel } from '../types';
 import { Package, Phone, MessageCircle, Globe, Filter, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import Pagination from '../components/common/Pagination';
+import { employeeService } from '../services/employeeService';
+import { toast } from 'sonner';
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ export default function Orders() {
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+  const [couriers, setCouriers] = useState<any[]>([]);
 
   // Sound refs & debounce
   const lastSoundTime = useRef<number>(0);
@@ -46,6 +49,7 @@ export default function Orders() {
 
   useEffect(() => {
     loadOrders();
+    loadCouriers();
     // Reset page when filter changes
     setCurrentPage(1);
 
@@ -53,24 +57,42 @@ export default function Orders() {
       .channel('orders-page-alerts')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
+        { event: '*', schema: 'public', table: 'orders' },
         () => {
-          playSound('newOrder');
-          loadOrders(); // Refresh table
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'status=eq.CANCELLED' },
-        () => {
-          playSound('cancel');
-          loadOrders();
+          loadOrders(); // Refresh table on any change
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [statusFilter, channelFilter, playSound]);
+
+  async function loadCouriers() {
+    try {
+      const emps = await employeeService.getAll();
+      setCouriers(emps.filter(e => e.role === 'cadete' || e.role === 'delivery'));
+    } catch (err) {
+      console.error('Error loading couriers:', err);
+    }
+  }
+
+  async function handleAssignCourier(orderId: string, courierId: string | null) {
+      try {
+          const { error } = await supabase
+              .from('orders')
+              .update({ 
+                  assigned_to: courierId,
+                  assigned_at: courierId ? new Date().toISOString() : null
+              })
+              .eq('id', orderId);
+          
+          if (error) throw error;
+          toast.success(courierId ? 'Cadete asignado' : 'Asignación removida');
+          loadOrders();
+      } catch (err) {
+          toast.error('Error al asignar cadete');
+      }
+  }
 
   async function loadOrders() {
     setLoading(true);
@@ -236,6 +258,29 @@ export default function Orders() {
                       📦 {order.items?.length || 0} producto(s) • ${order.total_amount.toFixed(2)}
                     </p>
                   </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Asignar Cadete</label>
+                    <select 
+                        className="text-xs border rounded-lg p-1.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={order.assigned_to || ''}
+                        onChange={(e) => handleAssignCourier(order.id, e.target.value || null)}
+                    >
+                        <option value="">-- Sin asignar --</option>
+                        {couriers && couriers.length > 0 ? (
+                            couriers.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))
+                        ) : (
+                            <option disabled>Cargando cadetes...</option>
+                        )}
+                    </select>
+                    {order.assigned_to && (
+                        <span className="text-[10px] text-blue-600 font-medium italic">
+                           ✓ Asignado a {couriers.find(c => c.id === order.assigned_to)?.name}
+                        </span>
+                    )}
                 </div>
               </div>
             </div>

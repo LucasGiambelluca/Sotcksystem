@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, Search, X, ShoppingBag, Filter, ArrowUpDown, Image, EyeOff, Eye, Layers } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X, ShoppingBag, Filter, ArrowUpDown, Image, EyeOff, Eye, Layers, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../supabaseClient';
 import type { CatalogItem, Station, RecipeComponent } from '../types';
 import { stationService } from '../services/stationService';
 import { recipeComponentService } from '../services/recipeComponentService';
+import { catalogItemService } from '../services/productService';
 import ExportButtons from '../components/ExportButtons';
 import Pagination from '../components/common/Pagination';
 
@@ -47,7 +48,7 @@ export default function CatalogAdmin() {
   const img2Ref = useRef<HTMLInputElement>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 100;
 
   useEffect(() => { loadItems(); loadStations(); }, []);
 
@@ -57,7 +58,11 @@ export default function CatalogAdmin() {
 
   const loadItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('catalog_items').select('*, station:stations(id, name, color)').order('is_special', { ascending: false }).order('category').order('name');
+    const { data, error } = await supabase
+      .from('catalog_items')
+      .select('*, station:stations(id, name, color)')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
     if (error) {
       toast.error('Error al cargar el catálogo');
       console.error(error);
@@ -101,11 +106,14 @@ export default function CatalogAdmin() {
       if (error) { toast.error('Error al actualizar'); console.error(error); return; }
       toast.success('Ítem actualizado');
     } else {
+      // Get max sort_order to put it at the end
+      const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order || 0)) : 0;
       const { error } = await supabase.from('catalog_items').insert({
         ...payload,
         is_special: formData.is_special,
         special_price: formData.is_special ? (Number(formData.special_price) || null) : null,
         offer_label: formData.is_special ? (formData.offer_label || null) : null,
+        sort_order: maxOrder + 1
       });
       if (error) { toast.error('Error al crear el ítem'); console.error(error); return; }
       toast.success('Ítem creado');
@@ -247,6 +255,39 @@ export default function CatalogAdmin() {
     }
   };
 
+  const handleMove = async (item: CatalogItem, direction: 'up' | 'down') => {
+    const currentIndex = items.findIndex(i => i.id === item.id);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= items.length) return;
+
+    // Create a new version of the full list with the item moved
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(currentIndex, 1);
+    newItems.splice(newIndex, 0, movedItem);
+
+    // Re-assign sort_order to EVERYONE sequentially (10, 20, 30...)
+    // This ensures that even if they all had 0, they now have distinct values.
+    const updates = newItems.map((it, idx) => ({
+      id: it.id,
+      sort_order: (idx + 1) * 10
+    }));
+
+    try {
+      // Optimistic update
+      setItems(newItems.map((it, idx) => ({ ...it, sort_order: (idx + 1) * 10 })));
+      
+      await catalogItemService.updateAllOrders(updates);
+      toast.success('Orden actualizado');
+    } catch (err) {
+      console.error('Error swapping order', err);
+      toast.error('Error al cambiar el orden');
+      // Revert on error
+      loadItems();
+    }
+  };
+
   async function uploadImage(file: File, slot: 1 | 2, tempId: string) {
     setUploadingImg(true);
     try {
@@ -358,49 +399,86 @@ export default function CatalogAdmin() {
           </div>
         </div>
 
-        {/* Mobile View: Cards */}
+        {/* Mobile View: Cards Grouped by Category */}
         <div className="md:hidden divide-y divide-gray-100">
-          {paginated.map((item) => (
-            <div key={item.id} className="p-4 flex items-start space-x-4">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                {item.image_url_1
-                  ? <img src={item.image_url_1} alt={item.name} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={24} className="text-gray-400" /></div>
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-gray-900 truncate pr-2">{item.name}</h3>
-                    <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-bold border border-emerald-100 uppercase mb-1">
-                      {item.category || 'General'}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openModal(item)} className="p-2 bg-gray-50 text-gray-600 rounded-lg border border-gray-100">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-red-50 text-red-600 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+          {(() => {
+            const categoriesInOrder: string[] = [];
+            const grouped: Record<string, CatalogItem[]> = {};
+            paginated.forEach(item => {
+              const cat = item.category || 'General';
+              if (!grouped[cat]) {
+                grouped[cat] = [];
+                categoriesInOrder.push(cat);
+              }
+              grouped[cat].push(item);
+            });
+
+            return categoriesInOrder.map(cat => (
+              <div key={cat} className="bg-white">
+                <div className="bg-gray-50 px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-y border-gray-100">
+                  {cat}
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-bold text-gray-900">
-                    ${(item.is_special && item.special_price ? item.special_price : item.price).toLocaleString('es-AR')}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold ${item.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      Stock: {item.stock}
-                    </span>
-                    <button onClick={() => toggleActive(item)} className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase border ${item.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
-                      {item.is_active ? 'Activo' : 'Inactivo'}
-                    </button>
-                  </div>
+                <div className="divide-y divide-gray-50">
+                  {grouped[cat].map((item) => (
+                    <div key={item.id} className="p-2 flex items-center space-x-3">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                        {item.image_url_1
+                          ? <img src={item.image_url_1} alt={item.name} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={20} className="text-gray-400" /></div>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <h3 className="font-bold text-gray-900 text-sm truncate pr-1">{item.name}</h3>
+                          <div className="flex gap-1 shrink-0">
+                            <div className="flex bg-gray-50 rounded-md border border-gray-100">
+                              <button 
+                                onClick={() => handleMove(item, 'up')}
+                                disabled={items.indexOf(item) === 0}
+                                className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-30"
+                              >
+                                <ChevronUp size={12} />
+                              </button>
+                              <button 
+                                onClick={() => handleMove(item, 'down')}
+                                disabled={items.indexOf(item) === items.length - 1}
+                                className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-30 border-l border-gray-100"
+                              >
+                                <ChevronDown size={12} />
+                              </button>
+                            </div>
+                            <button onClick={() => openModal(item)} className="p-1.5 bg-gray-50 text-gray-600 rounded-md border border-gray-100">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => handleDelete(item.id, item.name)} className="p-1.5 bg-red-50 text-red-600 rounded-md">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-gray-900 text-xs">
+                            ${(item.is_special && item.special_price ? item.special_price : item.price).toLocaleString('es-AR')}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold ${item.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                              Stock: {item.stock}
+                            </span>
+                            <button 
+                              onClick={() => toggleActive(item)} 
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${item.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}
+                            >
+                              {item.is_active ? 'Activo' : 'Inactivo'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
+            ));
+          })()}
+
           {filtered.length === 0 && (
             <div className="p-12 text-center text-gray-400">
               <p>No se encontraron resultados.</p>
@@ -414,7 +492,6 @@ export default function CatalogAdmin() {
             <thead className="bg-gray-50 text-gray-500 font-medium text-sm uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4">Ítem</th>
-                <th className="px-6 py-4">Categoría</th>
                 <th className="px-6 py-4">Estación</th>
                 <th className="px-6 py-4">Precio</th>
                 <th className="px-6 py-4">Stock Disponible</th>
@@ -423,95 +500,132 @@ export default function CatalogAdmin() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginated.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-                        {item.image_url_1
-                          ? <img src={item.image_url_1} alt={item.name} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={20} className="text-gray-400" /></div>
-                        }
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900 flex items-center gap-2">
-                          {item.name}
-                          {item.is_special && (
-                            <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight border border-amber-200">
-                              Especial
+              {(() => {
+                const categoriesInOrder: string[] = [];
+                const grouped: Record<string, CatalogItem[]> = {};
+                paginated.forEach(item => {
+                  const cat = item.category || 'General';
+                  if (!grouped[cat]) {
+                    grouped[cat] = [];
+                    categoriesInOrder.push(cat);
+                  }
+                  grouped[cat].push(item);
+                });
+
+                return categoriesInOrder.map(cat => (
+                  <>
+                    <tr key={`header-${cat}`} className="bg-gray-50 select-none">
+                      <td colSpan={6} className="px-6 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-y border-gray-100">
+                        {cat}
+                      </td>
+                    </tr>
+                    {grouped[cat].map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group border-b border-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                              {item.image_url_1
+                                ? <img src={item.image_url_1} alt={item.name} className="w-full h-full object-cover" />
+                                : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={20} className="text-gray-400" /></div>
+                              }
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                {item.name}
+                                {item.is_special && (
+                                  <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight border border-amber-200">
+                                    Especial
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500 max-w-xs truncate">
+                                {item.offer_label && <span className="text-emerald-600 font-bold mr-1">[{item.offer_label}]</span>}
+                                {item.description || '-'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {item.station ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ backgroundColor: `${item.station.color}15`, color: item.station.color, borderColor: `${item.station.color}30` }}>
+                              {item.station.name}
                             </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">Sin asignar</span>
                           )}
-                        </div>
-                        <div className="text-sm text-gray-500 max-w-xs truncate">
-                          {item.offer_label && <span className="text-emerald-600 font-bold mr-1">[{item.offer_label}]</span>}
-                          {item.description || '-'}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-100">
-                      {item.category || 'General'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {item.station ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold border" style={{ backgroundColor: `${item.station.color}15`, color: item.station.color, borderColor: `${item.station.color}30` }}>
-                        {item.station.name}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs italic">Sin asignar</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 font-bold text-gray-900">
-                    {item.is_special && item.special_price ? (
-                      <div className="flex flex-col">
-                        <span className="text-emerald-600">${item.special_price.toLocaleString('es-AR')}</span>
-                        <span className="text-xs text-gray-400 line-through">${item.price.toLocaleString('es-AR')}</span>
-                      </div>
-                    ) : (
-                      <span>${item.price.toLocaleString('es-AR')}</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`font-medium text-sm ${
-                      item.stock > 5 ? 'text-green-700' : item.stock > 0 ? 'text-yellow-700' : 'text-red-700'
-                    }`}>
-                      {item.stock} un.
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => toggleActive(item)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                        item.is_active
-                          ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                          : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
-                      }`}
-                    >
-                      {item.is_active ? <><Eye size={12} /> Activo</> : <><EyeOff size={12} /> Inactivo</>}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end space-x-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => openModal(item)}
-                        className="bg-gray-50 text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
-                        title="Editar"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.name)}
-                        className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        </td>
+                        <td className="px-6 py-4 font-bold text-gray-900">
+                          {item.is_special && item.special_price ? (
+                            <div className="flex flex-col">
+                              <span className="text-emerald-600">${item.special_price.toLocaleString('es-AR')}</span>
+                              <span className="text-xs text-gray-400 line-through">${item.price.toLocaleString('es-AR')}</span>
+                            </div>
+                          ) : (
+                            <span>${item.price.toLocaleString('es-AR')}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`font-medium text-sm ${
+                            item.stock > 5 ? 'text-green-700' : item.stock > 0 ? 'text-yellow-700' : 'text-red-700'
+                          }`}>
+                            {item.stock} un.
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => toggleActive(item)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                              item.is_active
+                                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                                : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                            }`}
+                          >
+                            {item.is_active ? <><Eye size={12} /> Activo</> : <><EyeOff size={12} /> Inactivo</>}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end items-center space-x-1.5 transition-opacity">
+                            {/* Sorting controls */}
+                            <div className="flex flex-col -space-y-1 mr-2 border-r pr-2 border-gray-100">
+                              <button
+                                onClick={() => handleMove(item, 'up')}
+                                disabled={items.indexOf(item) === 0}
+                                className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-30 transition-colors"
+                                title="Subir"
+                              >
+                                <ChevronUp size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleMove(item, 'down')}
+                                disabled={items.indexOf(item) === items.length - 1}
+                                className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-30 transition-colors"
+                                title="Bajar"
+                              >
+                                <ChevronDown size={16} />
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => openModal(item)}
+                              className="bg-gray-50 text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
+                              title="Editar"
+                            >
+                              <Pencil size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id, item.name)}
+                              className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </>
+                ));
+              })()}
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-400">

@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/elpollocomilon/', // Ensure assets load correctly from the subpath
   plugins: [react()],
+  server: {
+    allowedHosts: ['.ngrok-free.app', '.loca.lt', 'all']
+  },
   build: {
     target: 'esnext',
     sourcemap: false,

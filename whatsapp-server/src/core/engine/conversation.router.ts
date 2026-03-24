@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger';
 import { SessionRepository } from '../../infrastructure/repositories/SessionRepository';
 import { EntityExtractor } from '../nlu/EntityExtractor';
 import { OrderInterpreter } from '../nlu/OrderInterpreter';
+import { AIExtractor } from '../nlu/AIExtractor';
 import { inventoryManager } from '../inventory/InventoryManager';
 import { productService } from '../../services/ProductService';
 
@@ -47,18 +48,17 @@ export class ConversationRouter {
         
         try {
             // --- 0. LOADS SESSION DATA ---
-            // If we don't have a full context, we must fetch/create it to have access to variables (like last_inquiry)
-            // Using '304c5d15-ffbb-4b2a-a4de-f81aaa938fdf' (inicio) as default flow if new
-            const session = await this.sessionRepository.getOrCreate(phone, cleanPhone, '304c5d15-ffbb-4b2a-a4de-f81aaa938fdf', initialContext);
+            const sessionId = this.getSessionId(phone, initialContext);
+            const session = await this.sessionRepository.getOrCreate(sessionId, cleanPhone, '304c5d15-ffbb-4b2a-a4de-f81aaa938fdf', initialContext);
             const context = { ...session.getAllVariablesForCurrentFlow(), ...initialContext };
-            
-            const sessionId = this.getSessionId(phone, context);
             const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${cleanPhone}@s.whatsapp.net`);
             
             logger.info(`Message routing`, { 
                 sessionId, 
                 pushName, 
-                text: text.substring(0, 50)
+                text: text.substring(0, 50),
+                hasLastInquiry: !!context.last_inquiry,
+                contextKeys: Object.keys(context)
             });
 
             // --- 1. PRE-CHECK: Handover Status (Human Support) ---
@@ -74,14 +74,45 @@ export class ConversationRouter {
                     await supabase.from('whatsapp_conversations')
                         .update({ status: 'ACTIVE' })
                         .eq('phone', cleanPhone);
-                    // Continue to normal flow
                 } else {
                     logger.debug(`[HANDOVER] Message ignored (Human active)`, { phone });
                     return []; 
                 }
             }
 
-            // --- 2. GLOBAL PRIORITY: Catalog Order Detection (V2) ---
+            // --- 2. TOP PRIORITY: Active Cart (pending_suggestion or pending_override) ---
+            const { data: activeDraft } = await supabase.from('draft_orders')
+                .select('*')
+                .eq('phone', cleanPhone)
+                .in('status', ['pending_suggestion', 'pending_override'])
+                .gte('created_at', new Date(Date.now() - 15 * 60 * 1000).toISOString())
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (activeDraft) {
+                if (activeDraft.status === 'pending_override') {
+                    logger.info(`[Router] Active override draft found for ${cleanPhone}, routing to override handler`);
+                    const overrideResponse = await this.handleOverrideResponse(phone, cleanText, context, pushName, sessionId);
+                    if (overrideResponse) return overrideResponse;
+                } else {
+                    logger.info(`[Router] Active cart found for ${cleanPhone}, routing to suggestion handler`, { draftId: activeDraft.id });
+                    return await this.handleSuggestionResponse(phone, cleanText, activeDraft, context, pushName, sessionId);
+                }
+            }
+
+            // --- 2.5 QUICK PATH: Active Flow Sessions (Priority) ---
+            const isWaitingInput = session && session.status === 'waiting_input';
+            const globalTriggers = ['menu', 'menú', 'cancelar', 'inicio', 'salir', 'reset', 'reiniciar', 'hola'];
+            const isGlobalCommand = globalTriggers.includes(cleanText);
+
+            if (isWaitingInput && !isGlobalCommand) {
+                logger.info(`[Router] Session is waiting input. Bypassing AI/NLU to prioritize FlowEngine.`, { sessionId });
+                const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+                return this.extractMessages(engineResponse);
+            }
+
+            // --- 3. CORE LOGIC: Catalog, NLU and AI ---
             const catalogDataRaw = Parser.parseCatalogCheckout(text) || { items: Parser.parseCatalogOrder(text), metadata: null };
             const catalogItems = catalogDataRaw?.items;
             const metadata = (catalogDataRaw as any)?.metadata || {};
@@ -90,68 +121,91 @@ export class ConversationRouter {
                 return this.handleCatalogOrder(phone, catalogItems, metadata, pushName, context);
             }
 
-            // --- 2.5 NLU PRIORITY (Detect new intents before falling back to session state) ---
+            // NLU Priority
             const nluResult = await this.nluInterpreter.interpret(text);
-            const highConfidence = nluResult.confidence > 0.6;
-            const intentType = nluResult.type as any;
+            if (nluResult.confidence > 0.6) {
+                if (nluResult.type === 'direct_order' && nluResult.parsedOrder) return await this.handleNluDirectOrder(phone, nluResult, context, sessionId);
+                if (nluResult.type === 'product_inquiry') return await this.handleNluProductInquiry(phone, nluResult, context, sessionId);
+                if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context, sessionId);
+            }
 
-            if (highConfidence) {
-                if (intentType === 'direct_order' && nluResult.parsedOrder) {
-                    return await this.handleNluDirectOrder(phone, nluResult, context);
-                }
-                if (intentType === 'product_inquiry') {
-                    return await this.handleNluProductInquiry(phone, nluResult, context);
-                }
-                if (intentType === 'category_inquiry') {
-                    return await this.handleNluCategoryInquiry(phone, nluResult, context);
-                }
-                if (intentType === 'remove_item') {
-                    return await this.handleOverrideResponse(phone, cleanText, context, pushName);
+            // AI Interceptor (Inquiries/Support)
+            const earlyAI = await AIExtractor.analyze(text);
+            const isInquiryOrSupport = earlyAI && earlyAI.confidence > 0.7 && (earlyAI.intent === 'inquiry' || earlyAI.intent === 'support');
+            const isAiContextualResponse = earlyAI && earlyAI.confidence > 0.8 && 
+                                           (earlyAI.intent === 'confirmation' || earlyAI.intent === 'rejection') && 
+                                           context.last_inquiry;
+
+            if (isInquiryOrSupport) {
+                if (isWaitingInput && earlyAI.intent === 'support') {
+                    logger.info(`[AI Interceptor] Deferring 'support' to FlowEngine because session is waiting input`);
+                } else {
+                    logger.info(`[AI Interceptor] Answering question`, { intent: earlyAI.intent });
+                    if (!isWaitingInput) await this.sessionRepository.archive(sessionId, 'ai_inquiry_interception');
+                    return await this.handleAIInquiry(phone, earlyAI, text, sessionId);
                 }
             }
 
-            // --- 3. SESSION STATE PRIORITY: Suggestion handling ---
-            const { data: suggestionDraft } = await supabase.from('draft_orders')
-                .select('*')
-                .eq('phone', phone)
-                .eq('status', 'pending_suggestion')
-                .gte('created_at', new Date(Date.now() - 15 * 60 * 1000).toISOString())
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            if (suggestionDraft) {
-                return await this.handleSuggestionResponse(phone, cleanText, suggestionDraft, context, pushName);
-            }
-
-            // --- 3.5 SELECTION HANDLING: Resolve "la segunda", "2", etc. from last shown list ---
-            if (context.last_options && Array.isArray(context.last_options)) {
-                const selected = this.resolveSelection(cleanText, context.last_options);
-                if (selected) {
-                    const item = {
-                        qty: 1,
-                        name: selected.name,
-                        price: selected.price,
-                        catalog_item_id: selected.id
+            if (isAiContextualResponse) {
+                logger.info(`[AI Interceptor] Handling ${earlyAI.intent} for last inquiry`, { product: context.last_inquiry.name });
+                await this.sessionRepository.archive(sessionId, 'ai_confirmation_interception');
+                if (earlyAI.intent === 'confirmation') {
+                    const syntheticResult = {
+                        intent: 'order' as const,
+                        items: [{
+                            name: context.last_inquiry.name,
+                            quantity: 1,
+                            resolvedProduct: { id: context.last_inquiry.productId, name: context.last_inquiry.name, price: context.last_inquiry.price },
+                            matchConfidence: 1
+                        }],
+                        confidence: 1,
+                        reasoning: `Intercepted confirmation`
                     };
-                    const draft = await this.getOrCreateActiveDraft(phone, [item], selected.price, context, 'pending_suggestion');
-                    const itemsSummary = draft.items.map((i: any) => `• ${i.qty}x ${i.name} ($${i.price * i.qty})`).join('\n');
-                    await this.sessionRepository.updateContext(phone, { last_options: null });
-                    return [
-                        `¡Perfecto! Agregué *${selected.name}*. 📝`,
-                        `Tu pedido actual:\n${itemsSummary}\n*Total: $${draft.total}*`,
-                        `¿Querés agregar algo más o ya confirmamos? (Respondé *confirmar* o decime qué más querés)`
-                    ];
+                    await this.sessionRepository.updateContext(sessionId, { last_inquiry: null });
+                    return await this.handleAIOrder(phone, syntheticResult, context, pushName, sessionId);
+                } else {
+                    await this.sessionRepository.updateContext(sessionId, { last_inquiry: null });
+                    return ['¡Entendido! No hay problema. 😊 ¿En qué otra cosa puedo ayudarte?'];
                 }
             }
 
-            // 4. Fallback NLU (if confidence was low but it's the only thing we have)
+            // --- 4. FALLBACKS ---
             if (nluResult.confidence > 0.3) {
-                if (nluResult.type === 'direct_order') return await this.handleNluDirectOrder(phone, nluResult, context);
-                if (nluResult.type === 'product_inquiry') return await this.handleNluProductInquiry(phone, nluResult, context);
-                if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context);
+                if (nluResult.type === 'direct_order') return await this.handleNluDirectOrder(phone, nluResult, context, sessionId);
+                if (nluResult.type === 'product_inquiry') return await this.handleNluProductInquiry(phone, nluResult, context, sessionId);
+                if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context, sessionId);
             }
 
+            const aiResult = earlyAI;
+            if (aiResult && aiResult.confidence > 0.6) {
+                logger.info(`[AI Router] AI understood message`, { intent: aiResult.intent });
+                
+                if (aiResult.intent === 'order' && aiResult.items.length > 0) {
+                    await this.sessionRepository.archive(sessionId, 'ai_order_fallback');
+                    return await this.handleAIOrder(phone, aiResult, context, pushName, sessionId);
+                }
+                
+                if (aiResult.intent === 'menu_request') {
+                    await this.sessionRepository.archive(sessionId, 'ai_menu_request');
+                    const engineResponse = await this.flowEngine.processMessage(phone, 'menu', { ...context, pushName, remoteJid });
+                    return this.extractMessages(engineResponse);
+                }
+
+                if (aiResult.intent === 'greeting') {
+                    const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+                    return this.extractMessages(engineResponse);
+                }
+
+                if (['confirmation', 'rejection'].includes(aiResult.intent) && context.last_inquiry) {
+                    await this.sessionRepository.updateContext(sessionId, { last_inquiry: null });
+                    if (aiResult.intent === 'confirmation') {
+                         return await this.handleAIOrder(phone, { intent: 'order' as any, items: [{ name: context.last_inquiry.name, quantity: 1, resolvedProduct: { id: context.last_inquiry.productId, name: context.last_inquiry.name, price: context.last_inquiry.price }, matchConfidence: 1 }], confidence: 1, reasoning: 'Confirmado' }, context, pushName, sessionId);
+                    }
+                    return ['¡Entendido! No hay problema. 😊 ¿En qué otra cosa puedo ayudarte?'];
+                }
+            }
+
+            // 6. Final fallback: Flow Engine
             const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
             return this.extractMessages(engineResponse);
 
@@ -226,7 +280,7 @@ export class ConversationRouter {
         return [];
     }
 
-    private async handleOverrideResponse(phone: string, cleanText: string, context: any, pushName: string): Promise<any[] | null> {
+    private async handleOverrideResponse(phone: string, cleanText: string, context: any, pushName: string, sessionId: string): Promise<any[] | null> {
         const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
         const { data: pendingDraft } = await supabase.from('draft_orders')
             .select('*')
@@ -240,7 +294,7 @@ export class ConversationRouter {
         if (!pendingDraft && !context.last_inquiry) return null;
 
         const lower = cleanText.toLowerCase().trim();
-        const isYes = ['si', 'sí', 'dale', 'anotame', 'anotá', 'quiero', 'bueno'].some(word => lower.includes(word));
+        const isYes = ['si', 'sí', 'dale', 'anotame', 'anotá', 'quiero', 'bueno', 'terminar', 'termina', 'termino', 'finalizar', 'finaliza', 'finalizo'].some(word => lower.includes(word));
         const isNo = /\bno\b/i.test(lower) || ['incorrecto', 'nada que ver', 'borralo', 'cancelar', 'olvidalo'].some(word => lower.includes(word));
         const isRemoval = ['quitar', 'sacar', 'no quiero', 'borrar', 'eliminar'].some(word => lower.includes(word));
 
@@ -318,8 +372,8 @@ export class ConversationRouter {
                 };
 
                 await this.getOrCreateActiveDraft(phone, [item], inquiry.price, context, 'pending_override');
-
-                await this.sessionRepository.updateContext(phone, { last_inquiry: null });
+                const sessionId = this.getSessionId(phone, context);
+                await this.sessionRepository.updateContext(sessionId, { last_inquiry: null });
 
                 return [
                     `¡Excelente elección! Ya anoté *1x ${inquiry.name}*. 📝`,
@@ -379,7 +433,7 @@ export class ConversationRouter {
         return ['🤔 No me quedó claro... ¿Es correcta la lista anterior? Responde con *SÍ* o *NO*, o decime qué querés quitar (ej: "quitar papas").'];
     }
 
-    private async handleSuggestionResponse(phone: string, cleanText: string, draft: any, context: any, pushName: string): Promise<any[]> {
+    private async handleSuggestionResponse(phone: string, cleanText: string, draft: any, context: any, pushName: string, sessionId: string): Promise<any[]> {
         const lower = cleanText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const { productService } = require('../../services/ProductService');
 
@@ -387,16 +441,30 @@ export class ConversationRouter {
             'nada', 'asi esta bien', 'continuar', 'solo eso', 'listo',
             'esta bien', 'nada mas', 'eso es todo', 'ya esta',
             'con eso', 'suficiente', 'paso', 'no gracias', 'avanzar', 'seguir',
-            'confirmar', 'confirmo', 'eso nomas', 'eso nada mas', 'todo bien', 'asi nomas'
+            'todo bien', 'asi nomas', 'terminar mi pedido', 'termina mi pedido', 'finaliza mi pedido',
+            'termina el pedido', 'cerrar pedido', 'cerrar', 'no quiero nada mas',
+            'terminar', 'finalizar', 'finaliza', 'termina'
         ].some(word => lower.includes(word));
+
+        // Positive confirmations like 'si', 'dale', 'vamos' should ALSO proceed to checkout
+        const isYes = !isNo && [
+            'si', 'sí', 'dale', 'vamos', 'ok', 'bueno', 'perfecto', 'correcto',
+            'esta bien', 'de acuerdo', 'genial', 'claro'
+        ].some(word => lower === word || lower === word + '!');
         
         const isRemoval = ['quitar', 'sacar', 'no quiero', 'borrar', 'eliminar'].some(word => lower.includes(word));
 
         if (isRemoval) {
-            return (await this.handleOverrideResponse(phone, cleanText, context, pushName)) || [];
+            return (await this.handleOverrideResponse(phone, cleanText, context, pushName, sessionId)) || [];
         }
 
-        if (isNo && !isRemoval) {
+        if ((isNo || isYes) && !isRemoval) {
+            // If the cart is completely empty and they say "no", they just rejected the options.
+            if ((!draft.items || draft.items.length === 0) && isNo) {
+                await supabase.from('draft_orders').update({ status: 'abandoned' }).eq('id', draft.id);
+                return ['¡Entendido! ¿Buscabas alguna otra cosa? Podés escribir *menú* para ver nuestras categorías.'];
+            }
+
             // Clear pending options and proceed to checkout
             const meta = draft.metadata || {};
             delete meta.pending_options;
@@ -406,7 +474,10 @@ export class ConversationRouter {
             // Force reset session before checkout to ensure a fresh start of the checkout flow
             await this.sessionRepository.forceReset(phone.replace(/[^0-9]/g, ''));
             
-            const response = await this.flowEngine.processMessage(phone, "checkout_catalogo", { ...context, ...payload, pushName });
+            const response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
+                flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20", 
+                startNodeId: "n_ask_delivery" 
+            });
             return ['Perfecto, seguimos con el pedido.', ...this.extractMessages(response)];
         }
 
@@ -491,6 +562,31 @@ export class ConversationRouter {
 
         if (lower === 'si' || lower === 'si' || lower === 'quiero' || lower === 'dale') {
             return ['¿Qué te gustaría agregar? Tenemos gaseosas, cervezas, postres... Decime qué buscas.'];
+        }
+
+        // --- AI Fallback for contextual awareness ---
+        // If they say "hola" or ask a question during checkout, handle it gracefully
+        try {
+            const aiAnalysis = await AIExtractor.analyze(cleanText);
+            
+            if (aiAnalysis.intent === 'greeting') {
+                const itemsSummary = Array.isArray(draft.items) ? draft.items.map((i: any) => `• ${i.qty || i.quantity || 1}x ${i.name}`).join('\n') : '';
+                return [`¡Hola de nuevo! Recordá que estabas armando este pedido:\n${itemsSummary}\n\n¿Te gustaría agregar algo para tomar o algún postre? 🥤🍰\n(Decime qué querés o respondé *NO* para continuar)`];
+            }
+            
+            if (aiAnalysis.intent === 'menu_request') {
+                await this.sessionRepository.archive(sessionId, 'ai_menu_request_override');
+                // The bot will now answer with the menu, but the draft is technically still in the DB 
+                // However, they can start a new flow.
+                const engineResponse = await this.flowEngine.processMessage(phone, 'menu', { ...context, pushName });
+                return this.extractMessages(engineResponse);
+            }
+
+            if (aiAnalysis.intent === 'inquiry' || aiAnalysis.intent === 'support') {
+                return await this.handleAIInquiry(phone, aiAnalysis, cleanText, sessionId);
+            }
+        } catch (error) {
+            console.error('[Router] Fallback AI Analysis failed in suggestion response', error);
         }
 
         return ['No te entendí bien. ¿Querés agregar algo más (bebida/postre) o continuamos con el envío/pago? Respondé *NO* para avanzar.'];
@@ -592,7 +688,7 @@ export class ConversationRouter {
         return [];
     }
 
-    private async handleNluProductInquiry(phone: string, nlu: any, context: any): Promise<any[]> {
+    private async handleNluProductInquiry(phone: string, nlu: any, context: any, sessionId: string): Promise<any[]> {
         const productEntity = nlu.entities.find((e: any) => e.type === 'product');
         if (!productEntity) return ['¿De qué producto me preguntás? Podés decir "tenés tarta?" o consultarme por precios.'];
 
@@ -608,8 +704,7 @@ export class ConversationRouter {
                 name: p.name,
                 price: productService.getEffectivePrice(p)
             }));
-            
-            await this.sessionRepository.updateContext(phone, { last_options: options });
+            await this.getOrCreateActiveDraft(phone, [], 0, context, 'pending_suggestion', { pending_options: options });
             
             const list = options.map((opt, i) => `${i + 1}. ${opt.name} ($${opt.price})`).join('\n');
             return [
@@ -622,7 +717,7 @@ export class ConversationRouter {
         const price = productService.getEffectivePrice(product);
         
         // Save inquiry context to allow "si" response to create an order
-        await this.sessionRepository.updateContext(phone, {
+        await this.sessionRepository.updateContext(sessionId, {
             last_inquiry: {
                 productId: product.id,
                 name: product.name,
@@ -638,7 +733,7 @@ export class ConversationRouter {
         }
     }
 
-    private async handleNluCategoryInquiry(phone: string, nlu: any, context: any): Promise<any[]> {
+    private async handleNluCategoryInquiry(phone: string, nlu: any, context: any, sessionId: string): Promise<any[]> {
         const categoryEntity = nlu.entities.find((e: any) => e.type === 'category');
         const productEntity = nlu.entities.find((e: any) => e.type === 'product');
         
@@ -663,7 +758,7 @@ export class ConversationRouter {
             price: productService.getEffectivePrice(p)
         }));
 
-        await this.sessionRepository.updateContext(phone, { last_options: options });
+        await this.getOrCreateActiveDraft(phone, [], 0, context, 'pending_suggestion', { pending_options: options });
 
         const list = options.map((opt, i) => `${i + 1}. ${opt.name} ($${opt.price})`).join('\n');
 
@@ -707,9 +802,13 @@ export class ConversationRouter {
             }
 
             const mergedTotal = deduplicatedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            const mergedMeta = { ...(existing.metadata || {}), ...metadata };
+            const mergedMeta = { 
+                ...(existing.metadata || {}), 
+                ...metadata,
+                push_name: context.pushName || (existing.metadata?.push_name) || 'Cliente'
+            };
 
-            const { data: updated } = await supabase.from('draft_orders')
+            const { data: updated, error: updateError } = await supabase.from('draft_orders')
                 .update({ 
                     items: deduplicatedItems, 
                     total: mergedTotal, 
@@ -718,26 +817,38 @@ export class ConversationRouter {
                 })
                 .eq('id', existing.id)
                 .select()
-                .single();
+                .maybeSingle();
             
+            if (updateError) {
+                logger.error(`[Draft] Error updating draft ${existing.id}`, { error: updateError.message });
+                return null;
+            }
+
             logger.info(`[Draft] Updated draft ${existing.id}. New item count: ${deduplicatedItems.length}`);
             return updated;
         } else {
             // Create new draft
-            const { data: inserted } = await supabase.from('draft_orders').insert({
+            const { data: inserted, error: insertError } = await supabase.from('draft_orders').insert({
                 phone,
                 items: newItems,
                 total: newTotal,
-                push_name: context.pushName || 'Cliente',
                 status: status,
-                metadata: metadata
-            }).select().single();
+                metadata: {
+                    ...metadata,
+                    push_name: context.pushName || 'Cliente'
+                }
+            }).select().maybeSingle();
             
+            if (insertError) {
+                logger.error(`[Draft] Error creating new draft for ${phone}`, { error: insertError.message });
+                return null;
+            }
+
             return inserted;
         }
     }
 
-    private async handleNluDirectOrder(phone: string, nlu: any, context: any): Promise<any[]> {
+    private async handleNluDirectOrder(phone: string, nlu: any, context: any, sessionId: string): Promise<any[]> {
         const items = nlu.parsedOrder.items;
         logger.info(`[NLU] Handling direct order`, { phone, items: items.length, confidence: nlu.confidence });
 
@@ -802,6 +913,100 @@ export class ConversationRouter {
         }
 
         return [];
+    }
+
+    // ============================================================
+    // AI-POWERED HANDLERS (Groq LLM)
+    // ============================================================
+
+    private async handleAIOrder(phone: string, aiResult: any, context: any, pushName: string, sessionId: string): Promise<any[]> {
+        logger.info(`[AI Order] Processing AI-extracted order`, { phone, items: aiResult.items.length });
+
+        const verifiedItems: any[] = [];
+        const ambiguousItems: any[] = [];
+        const notFoundItems: string[] = [];
+
+        for (const item of aiResult.items) {
+            if (item.resolvedProduct) {
+                verifiedItems.push({
+                    qty: item.quantity,
+                    name: item.resolvedProduct.name,
+                    price: item.resolvedProduct.price,
+                    catalog_item_id: item.resolvedProduct.id,
+                });
+            } else if ((item as any).ambiguousOptions) {
+                ambiguousItems.push(item);
+            } else {
+                notFoundItems.push(item.rawName);
+            }
+        }
+
+        // If we have ambiguous items, ask the user to clarify
+        if (ambiguousItems.length > 0 && verifiedItems.length === 0) {
+            const first = ambiguousItems[0];
+            const options = (first as any).ambiguousOptions;
+            const optionsList = options.map((p: any, i: number) => `${i + 1}. ${p.name} ($${p.price})`).join('\n');
+            return [`Encontré varias opciones para *${first.rawName}*. ¿Cuál preferís?\n\n${optionsList}\n\nResponde con el *número* o el *nombre*.`];
+        }
+
+        if (verifiedItems.length === 0) {
+            return ['No pude identificar los productos del mensaje. ¿Podés repetirlo? O escribí *menú* para ver lo disponible.'];
+        }
+
+        const total = verifiedItems.reduce((sum: number, i: any) => sum + (i.price * i.qty), 0);
+
+        // Build metadata from AI extraction (address, payment, delivery)
+        const metadata: any = { ai_source: true };
+        if (aiResult.address) metadata.delivery_address = aiResult.address;
+        if (aiResult.paymentMethod) metadata.payment_method = aiResult.paymentMethod;
+        if (aiResult.deliveryMethod) metadata.delivery_method = aiResult.deliveryMethod;
+        if (aiResult.customerName) metadata.customer_name = aiResult.customerName;
+
+        const draftOrder = await this.getOrCreateActiveDraft(
+            phone,
+            verifiedItems,
+            total,
+            { ...context, pushName },
+            'pending_suggestion',
+            metadata
+        );
+
+        if (draftOrder) {
+            const itemsSummary = draftOrder.items.map((i: any) => `• ${i.qty}x ${i.name} ($${i.price * i.qty})`).join('\n');
+            const totalDisplay = draftOrder.total;
+
+            let msg = `✅ *¡Entendido!*\n\n${itemsSummary}\n\n*Total: $${totalDisplay}*`;
+            if (notFoundItems.length > 0) {
+                msg += `\n\n⚠️ No encontré: ${notFoundItems.join(', ')}`;
+            }
+            if (aiResult.address) {
+                msg += `\n📍 Envío a: ${aiResult.address}`;
+            }
+            msg += `\n\n¿Querés agregar algo más o confirmamos? (Respondé *NO* para avanzar)`;
+            return [msg];
+        }
+
+        return ['⚠️ No pude guardar tu pedido por un error técnico. Por favor, intentá de nuevo o pedí ayuda humana.'];
+    }
+
+    private async handleAIInquiry(phone: string, aiResult: any, text: string, sessionId: string): Promise<any[]> {
+        // Use AI to generate a natural response based on the catalog
+        const naturalResponse = await AIExtractor.generateNaturalResponse(text, aiResult);
+        
+        // Optional: Update context if a specific product was mentioned (best effort)
+        const item = aiResult.items[0];
+        if (item?.resolvedProduct) {
+            await this.sessionRepository.updateContext(sessionId, {
+                last_inquiry: {
+                    productId: item.resolvedProduct.id,
+                    name: item.resolvedProduct.name,
+                    price: item.resolvedProduct.price,
+                },
+                last_options: null,
+            });
+        }
+
+        return [naturalResponse];
     }
 }
 

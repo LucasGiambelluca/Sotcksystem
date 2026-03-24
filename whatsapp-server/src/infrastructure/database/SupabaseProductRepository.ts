@@ -44,7 +44,9 @@ export class SupabaseProductRepository implements IProductRepository {
             query = query.ilike('name', `%${filters.search}%`);
         }
 
-        const { data, error } = await query;
+        const { data, error } = await query
+            .order('sort_order', { ascending: true })
+            .order('name', { ascending: true });
         
         if (error) {
             console.error('Error fetching catalog_items:', error);

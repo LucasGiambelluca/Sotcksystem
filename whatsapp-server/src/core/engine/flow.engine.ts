@@ -25,24 +25,24 @@ export class FlowEngine {
     /**
      * Entry point for messages. Routes to the appropriate session queue.
      */
-    async processMessage(phone: string, messageText: string, context: any = {}): Promise<any> {
+    async processMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
         const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${phone}@s.whatsapp.net`);
         const cleanPhone = phone.replace(/[^0-9]/g, '');
         const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
         
         let queue = this.sessionQueues.get(sessionId);
         if (!queue) {
-            queue = new SessionQueue(sessionId, (msg) => this.executeMessage(phone, msg.text, msg.context));
+            queue = new SessionQueue(sessionId, (msg) => this.executeMessage(phone, msg.text, msg.context, msg.options));
             this.sessionQueues.set(sessionId, queue);
         }
 
-        return queue.enqueue({ phone, text: messageText, context });
+        return queue.enqueue({ phone, text: messageText, context, options });
     }
 
     /**
      * Internal execution logic, called sequentially by the queue.
      */
-    private async executeMessage(phone: string, messageText: string, context: any = {}): Promise<any> {
+    private async executeMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
         const startTime = Date.now();
         const cleanPhone = phone.replace(/[^0-9]/g, '');
         const remoteJid = context.remoteJid || (cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`);
@@ -117,18 +117,27 @@ export class FlowEngine {
             const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
 
             if (!session) {
-                // ... (no change in this block logic except the move)
-                const flow = await this.findFlowByTrigger(messageText);
+                let flowId = options.flowId;
+                let flow = null;
+
+                if (flowId) {
+                    const { data: fetchedFlow } = await this.db.from('flows').select('id, name').eq('id', flowId).single();
+                    flow = fetchedFlow;
+                } else {
+                   flow = await this.findFlowByTrigger(messageText);
+                }
+
                 if (!flow) {
-                    logger.info(`[FlowEngine] No flow trigger matched for: "${messageText}"`);
+                    logger.info(`[FlowEngine] No flow matched for: "${messageText}" (FlowId: ${flowId || 'none'})`);
                     const fallbackMessage = '❌ No entendí. Escribe "hola" o "menú" para ver las opciones.';
                     return { currentStateDefinition: { message_template: fallbackMessage } };
                 }
                 
-                logger.info(`[FlowEngine] Matched flow "${flow.name}" for trigger. Forcing session reset.`);
+                flowId = flow.id;
+                logger.info(`[FlowEngine] Using flow "${flow.name}" (${flowId}). Forcing session reset.`);
                 await this.sessionRepository.forceReset(cleanPhone);
 
-                session = await this.sessionRepository.getOrCreate(sessionId, phone, flow.id, {
+                session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId, {
                     variables: { 
                         global: { 
                             ...context, // Merge ALL external context
@@ -139,15 +148,19 @@ export class FlowEngine {
                             startedAt: new Date().toISOString()
                         } 
                     },
-                    metadata: { flowId: flow.id, flowVersion: 1, entryPoint: 'trigger' }
-                });
+                    metadata: { flowId: flowId, flowVersion: 1, entryPoint: flowId === options.flowId ? 'manual' : 'trigger' }
+                }, options.startNodeId || 'start');
                 
                 const TTL_HOURS = 2;
                 const expirationDate = new Date();
                 expirationDate.setHours(expirationDate.getHours() + TTL_HOURS);
                 session.getContext().metadata.expiresAt = expirationDate;
                 
-                await this.handleInput(session, this.normalizeInput(messageText));
+                if (options.startNodeId && options.startNodeId !== 'start') {
+                    logger.info(`[FlowEngine] Programmatic start at ${options.startNodeId}. Skipping initial trigger input handling.`);
+                } else {
+                    await this.handleInput(session, this.normalizeInput(messageText));
+                }
             } else {
                 // EXISTING SESSION: Always handle input if it was waiting
                 if (session.status === 'waiting_input') {
@@ -218,14 +231,36 @@ export class FlowEngine {
             if (currentNode.type === 'pollNode') {
                 const options = currentNode.data?.options || ['Sí', 'No'];
                 const numericMatch = input.replace(/[\*_]/g, '').match(/\d+/);
-                const index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
+                let index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
                 
+                if (index < 0 || index >= options.length) {
+                    // Try exact ignore-case match
+                    const exactIndex = options.findIndex((o: string) => o.toLowerCase().trim() === input.toLowerCase().trim());
+                    if (exactIndex !== -1) {
+                        index = exactIndex;
+                    } else {
+                        // AI-Powered Semantic Matching
+                        try {
+                            const { AIExtractor } = require('../nlu/AIExtractor');
+                            const aiIndex = await AIExtractor.resolveMenuOption(input, options);
+                            if (aiIndex !== -1) {
+                                index = aiIndex;
+                                logger.info(`[FlowEngine] [AI INPUT] Semantically resolved "${input}" to option ${index + 1}: "${options[index]}"`);
+                            }
+                        } catch (e) {
+                            logger.error('[FlowEngine] Error resolving semantic poll input', e);
+                        }
+                    }
+                }
+
                 if (index >= 0 && index < options.length) {
                     processedInput = options[index];
-                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}"`);
+                    session.setVariable(`${varName}_index`, (index + 1).toString());
+                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}" (Index: ${index + 1})`);
                 }
             }
             session.setVariable(varName, processedInput);
+            session.setVariable(`${varName}_raw`, input);
         }
 
         session.logInteraction(session.currentNodeId, input);
@@ -347,9 +382,22 @@ export class FlowEngine {
         const edges = flow.edges || [];
         const normalizedHandle = handle ? handle.toLowerCase() : undefined;
         
-        const edge = normalizedHandle 
-            ? edges.find((e: any) => e.source === currentNodeId && String(e.sourceHandle || '').toLowerCase() === normalizedHandle)
-            : edges.find((e: any) => e.source === currentNodeId);
+        let edge;
+        if (normalizedHandle) {
+            edge = edges.find((e: any) => {
+                if (e.source !== currentNodeId) return false;
+                const srcHandle = String(e.sourceHandle || '').toLowerCase();
+                if (normalizedHandle === 'true' && (srcHandle === 'true' || srcHandle === 'yes')) return true;
+                if (normalizedHandle === 'false' && (srcHandle === 'false' || srcHandle === 'no')) return true;
+                return srcHandle === normalizedHandle;
+            });
+        }
+        
+        // Fallback to the first connection from this source if no handle-specific edge was found
+        // or if there's no handle required.
+        if (!edge) {
+            edge = edges.find((e: any) => e.source === currentNodeId);
+        }
             
         return edge ? edge.target : null;
     }

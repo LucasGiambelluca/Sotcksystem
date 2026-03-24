@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, FileText, ChefHat, ShoppingBag, FlaskConical, Navigation, UtensilsCrossed } from 'lucide-react';
+import { LayoutDashboard, Users, Package, LogOut, Menu, X, ShoppingCart, MapPin, MessageCircle, Settings, Share2, FileText, ChefHat, ShoppingBag, FlaskConical, Navigation, UtensilsCrossed, Truck, Download } from 'lucide-react';
 import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
@@ -15,8 +15,17 @@ export default function Layout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [waUnread, setWaUnread] = useState(0);
+  const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
+    // Check if PWA is already installable
+    if ((window as any).deferredPrompt) {
+      setIsInstallable(true);
+    }
+
+    const handlePwaInstallable = () => setIsInstallable(true);
+    window.addEventListener('pwa-installable', handlePwaInstallable);
+
     getTotalUnreadCount().then(setWaUnread);
     const interval = setInterval(() => {
       getTotalUnreadCount().then(setWaUnread);
@@ -39,8 +48,23 @@ export default function Layout() {
     return () => {
         clearInterval(interval);
         supabase.removeChannel(channel);
+        window.removeEventListener('pwa-installable', handlePwaInstallable);
     };
   }, []);
+
+  const handleInstallClick = async () => {
+    const promptEvent = (window as any).deferredPrompt;
+    if (!promptEvent) {
+      toast.info('Para instalar en iPhone: Compartir > Añadir a pantalla de inicio');
+      return;
+    }
+
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    (window as any).deferredPrompt = null;
+    setIsInstallable(false);
+  };
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -55,6 +79,8 @@ export default function Layout() {
     { name: 'Menú Tablet', path: '/tablet-ordering', icon: UtensilsCrossed },
     // --- GRUPO 3: Atención y Logística ---
     { name: 'Clientes', path: '/clients', icon: Users },
+    { name: 'Personal', path: '/staff', icon: Users },
+    { name: 'Cadetes', path: '/couriers', icon: Truck },
     { name: 'Reportes', path: '/claims', icon: MessageCircle },
     { name: 'Rutas', path: '/routes', icon: MapPin },
     { name: 'Despacho', path: '/despacho', icon: Navigation },
@@ -141,8 +167,17 @@ export default function Layout() {
             );
           })}
         </nav>
-
-        <div className="p-4 mx-4 mb-4">
+        
+        <div className="p-4 mx-4 mb-4 space-y-2">
+          {isInstallable && (
+            <button
+              onClick={handleInstallClick}
+              className="flex items-center space-x-3 px-4 py-3 w-full text-left text-primary-400 hover:text-primary-300 hover:bg-primary-900/10 rounded-xl transition-all duration-200 group border border-primary-900/20 shadow-inner"
+            >
+              <Download size={20} className="text-primary-500 animate-bounce" />
+              <span className="font-bold flex-1 uppercase tracking-wider text-[10px]">Instalar Sistema</span>
+            </button>
+          )}
           <button
             onClick={() => {
               signOut();

@@ -3,10 +3,11 @@ import { supabase } from '../supabaseClient';
 import { logisticsV2Service } from '../services/logisticsV2Service';
 import { employeeService } from '../services/employeeService';
 import { shiftService } from '../services/shiftService';
+import { updateOrderStatus } from '../services/orderService';
 import { 
   Power, Navigation, CheckCircle2, 
   Clock, MapPin, Store, User, 
-  Radio, LogOut, TrendingUp, Bell
+  Radio, LogOut, TrendingUp, BellRing
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSound } from '../context/SoundContext';
@@ -54,9 +55,9 @@ export default function CadetePWA() {
 
   // 2. Fetch Active Mission
     const fetchAvailable = useCallback(async () => {
-        if (!isOnline) return;
+        if (!isOnline || !employee) return;
         try {
-            const orders = await logisticsV2Service.getAvailableOrders();
+            const orders = await logisticsV2Service.getAvailableOrders(employee.id);
             if (orders.length > prevAvailableCount) {
                 playNotification();
             }
@@ -65,7 +66,7 @@ export default function CadetePWA() {
         } catch (err) {
             console.error(err);
         }
-    }, [isOnline]);
+    }, [isOnline, employee, prevAvailableCount, playNotification]);
 
   const fetchMission = useCallback(async () => {
     if (!employee || !isOnline) return;
@@ -78,17 +79,33 @@ export default function CadetePWA() {
     } catch (err) {
       console.error(err);
     }
-  }, [employee, isOnline]);
+  }, [employee, isOnline, activeAssignment, playNotification]);
 
     useEffect(() => {
-        if (!isOnline) return;
+        if (!isOnline || !employee) return;
+        
         fetchMission();
         fetchAvailable();
         
+        // Comprehensive Realtime Subscription
         const channel = supabase
-            .channel('logistics_pwa_updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => fetchMission())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchAvailable())
+            .channel(`cadete_${employee.id}_updates`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'assignments', 
+                filter: `cadete_id=eq.${employee.id}` 
+            }, () => fetchMission())
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'assignment_orders' 
+            }, () => fetchMission())
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'orders'
+            }, () => fetchAvailable())
             .subscribe();
         
         return () => { channel.unsubscribe(); };
@@ -187,6 +204,12 @@ export default function CadetePWA() {
               }
           } else {
               await logisticsV2Service.updateStopStatus(stopId, status);
+              
+              // NEW: If delivery is completed, update the main order status to DELIVERED
+              if (stop?.action_type === 'DELIVERY' && status === 'COMPLETED' && stop.order_id) {
+                  console.log(`[CadetePWA] Confirming final delivery for order ${stop.order_id}`);
+                  await updateOrderStatus(stop.order_id, 'DELIVERED');
+              }
           }
           toast.success('Estado actualizado');
           fetchMission();
@@ -227,149 +250,195 @@ export default function CadetePWA() {
   // Login Screen if no employee
   if (!employee || !isOnline) {
       return (
-          <div className="min-h-screen bg-[#f8fafc] p-6 flex flex-col items-center justify-center font-sans">
-              <div className="bg-white w-20 h-20 rounded-2xl flex items-center justify-center mb-6 shadow-xl border border-gray-100">
-                  <Navigation className="text-secondary w-10 h-10" />
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#0f172a] mb-2 text-center text-red-600">Modo Cadete</h1>
-              <p className="text-[#64748b] text-center mb-8 text-sm">Iniciá tu turno para ver tus misiones de reparto.</p>
-              
-              {showSelector ? (
-                  <div className="w-full max-w-xs space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                      <p className="text-xs font-bold text-gray-400 uppercase text-center mb-2">Seleccioná tu nombre</p>
-                      {cadetesDisponibles.length === 0 ? (
-                          <div className="bg-white border-2 border-dashed border-gray-100 rounded-3xl p-6 text-center">
-                              <p className="text-sm text-gray-400">No hay cadetes registrados en el sistema.</p>
-                          </div>
-                      ) : (
-                          cadetesDisponibles.map(c => (
-                              <button
-                                key={c.id}
-                                onClick={() => handleStartShift(c.id)}
-                                className="w-full py-4 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-700 hover:border-red-500 hover:text-red-500 transition-all flex items-center px-6 gap-4 shadow-sm"
-                              >
-                                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                      <User size={16} />
-                                  </div>
-                                  {c.name}
-                              </button>
-                          ))
-                      )}
-                      <button 
-                        onClick={() => setShowSelector(false)}
-                        className="w-full py-2 text-gray-400 text-xs font-bold"
-                      >
-                          VOLVER
-                      </button>
+          <div className="min-h-screen bg-[#0f172a] p-8 flex flex-col items-center justify-center font-sans relative overflow-hidden">
+              {/* Decorative background elements */}
+              <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[40%] bg-red-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+              <div className="absolute bottom-[-5%] left-[-5%] w-[50%] h-[30%] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+              <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
+                  <div className="bg-white/5 backdrop-blur-2xl w-24 h-24 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-2xl border border-white/10 group hover:scale-110 transition-transform duration-500">
+                      <Navigation className="text-red-500 w-12 h-12 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
                   </div>
-              ) : (
-                  <button 
-                    onClick={() => {
-                        setLoading(true);
-                        employeeService.getAll().then(emps => {
-                            const filtered = emps.filter(e => e.role === 'cadete' || e.role === 'delivery');
-                            if (filtered.length > 0) {
-                                setCadetesDisponibles(filtered);
-                                setShowSelector(true);
-                            } else {
-                                toast.error('No hay cadetes registrados');
-                            }
-                            setLoading(false);
-                        });
-                    }}
-                    className="w-full max-w-xs py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-500/30 active:scale-95 transition-all text-lg flex items-center justify-center gap-3 border-b-4 border-red-800"
-                  >
-                      <Power size={22} />
-                      INICIAR TURNO
-                  </button>
-              )}
+                  
+                  <div className="text-center mb-10 space-y-2">
+                      <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
+                        Modo <span className="text-red-500">Cadete</span>
+                      </h1>
+                      <p className="text-slate-400 font-medium text-sm">Tu centro de operaciones logísticas en tiempo real.</p>
+                  </div>
+                  
+                  {showSelector ? (
+                      <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-500">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] text-center mb-4">Identificate para Continuar</p>
+                          {cadetesDisponibles.length === 0 ? (
+                              <div className="bg-white/5 backdrop-blur-md border border-dashed border-white/10 rounded-[2.5rem] p-10 text-center">
+                                  <p className="text-sm text-slate-500 font-medium">No hay personal logístico registrado.</p>
+                              </div>
+                          ) : (
+                              <div className="grid gap-4 max-h-[40vh] overflow-y-auto px-2 no-scrollbar">
+                                  {cadetesDisponibles.map(c => (
+                                      <button
+                                        key={c.id}
+                                        onClick={() => handleStartShift(c.id)}
+                                        className="w-full py-5 bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl font-black text-white hover:bg-white/10 hover:border-red-500/50 transition-all flex items-center px-8 gap-5 group shadow-lg"
+                                      >
+                                          <div className="w-10 h-10 bg-slate-800 rounded-2xl flex items-center justify-center border border-white/5 group-hover:bg-red-500 group-hover:text-white transition-colors shadow-inner">
+                                              <User size={20} />
+                                          </div>
+                                          <span className="text-lg tracking-tight uppercase italic">{c.name}</span>
+                                          <CheckCircle2 size={16} className="ml-auto text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
+                          <button 
+                            onClick={() => setShowSelector(false)}
+                            className="w-full py-4 text-slate-500 text-xs font-black tracking-widest hover:text-white transition-colors mt-4"
+                          >
+                              ← VOLVER ATRÁS
+                          </button>
+                      </div>
+                  ) : (
+                    <div className="w-full flex flex-col items-center gap-6 animate-in fade-in zoom-in-95 duration-700">
+                        <button 
+                            onClick={() => {
+                                setLoading(true);
+                                employeeService.getAll().then(emps => {
+                                    const filtered = emps.filter(e => e.role === 'cadete' || e.role === 'delivery');
+                                    if (filtered.length > 0) {
+                                        setCadetesDisponibles(filtered);
+                                        setShowSelector(true);
+                                    } else {
+                                        toast.error('No hay cadetes registrados');
+                                    }
+                                    setLoading(false);
+                                });
+                            }}
+                            className="w-full py-6 bg-red-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_60px_rgba(220,38,38,0.4)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-4 border-red-800"
+                        >
+                            <Power size={26} />
+                            INICIAR TURNO
+                        </button>
+                        
+                        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black tracking-widest uppercase opacity-50">
+                            <div className="w-8 h-[1px] bg-slate-700"></div>
+                            V0.4 ALPHA
+                            <div className="w-8 h-[1px] bg-slate-700"></div>
+                        </div>
+                    </div>
+                  )}
+              </div>
           </div>
       );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans pb-24">
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col font-sans pb-24 relative overflow-x-hidden">
+      {/* Dynamic Background Orbs */}
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none"></div>
+
       {/* Header */}
-      <header className="bg-white p-5 flex justify-between items-center sticky top-0 z-20 shadow-sm border-b border-gray-100">
-        <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200">
-                <User className="text-gray-400" size={20} />
+      <header className="sticky top-0 z-30 px-6 py-5 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex justify-between items-center shadow-2xl">
+        <div className="flex items-center gap-4">
+            <div className="relative">
+                <div className="w-12 h-12 bg-gradient-to-tr from-slate-700 to-slate-800 rounded-2xl flex items-center justify-center overflow-hidden border border-white/10 shadow-inner">
+                    <User className="text-slate-400" size={24} />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-lg"></div>
             </div>
             <div>
-                <p className="text-[10px] font-bold text-success uppercase tracking-wider leading-none">Conectado</p>
-                <h2 className="text-lg font-bold text-[#0f172a] leading-tight">{employee.name}</h2>
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] leading-none mb-1">En Línea</p>
+                <h2 className="text-xl font-black text-white leading-tight tracking-tight">{employee.name}</h2>
             </div>
         </div>
         <button 
           onClick={handleEndShift}
-          className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all border border-gray-100"
+          className="p-3 bg-white/5 text-slate-400 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all border border-white/5 active:scale-90"
         >
-            <LogOut size={20} />
+            <LogOut size={22} />
         </button>
       </header>
 
-      <main className="flex-1 p-5 overflow-y-auto">
+      <main className="flex-1 p-6 z-10 space-y-8 max-w-lg mx-auto w-full">
         {!activeAssignment ? (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Dashboard Stats */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Misiones hoy</p>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 size={16} className="text-emerald-500" />
-                        <span className="text-lg font-black text-gray-800">4</span>
+            <div className="grid grid-cols-2 gap-5">
+                <div className="bg-white/5 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 shadow-xl group hover:bg-white/10 transition-colors">
+                    <div className="bg-emerald-500/10 w-10 h-10 rounded-xl flex items-center justify-center mb-3 border border-emerald-500/20">
+                        <CheckCircle2 size={20} className="text-emerald-500" />
                     </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Misiones hoy</p>
+                    <span className="text-2xl font-black text-white">4</span>
                 </div>
-                <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ganado</p>
-                    <div className="flex items-center gap-2">
-                        <TrendingUp size={16} className="text-blue-500" />
-                        <span className="text-lg font-black text-gray-800">$58.400</span>
+                <div className="bg-white/5 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 shadow-xl group hover:bg-white/10 transition-colors">
+                    <div className="bg-blue-500/10 w-10 h-10 rounded-xl flex items-center justify-center mb-3 border border-blue-500/20">
+                        <TrendingUp size={20} className="text-blue-500" />
                     </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ganado</p>
+                    <span className="text-2xl font-black text-white">$58.400</span>
                 </div>
             </div>
 
-            <div className="mt-4 text-center py-10 opacity-80 flex flex-col items-center bg-white rounded-[40px] border border-dashed border-gray-200 shadow-inner">
-                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-3">
-                    <Radio className="text-red-500 animate-pulse" size={28} />
+            {/* Pulsing Radar Section */}
+            <div className="relative py-14 flex flex-col items-center justify-center bg-gradient-to-b from-white/5 via-transparent to-transparent rounded-[3rem] border border-white/5 overflow-hidden">
+                {/* Sonar Effect */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-40 h-40 bg-red-500/10 rounded-full animate-ping duration-[3000ms]"></div>
+                    <div className="absolute w-60 h-60 bg-red-500/5 rounded-full animate-ping duration-[4000ms]"></div>
                 </div>
-                <h3 className="text-lg font-black text-[#0f172a]">Buscando pedidos...</h3>
-                <p className="text-xs mt-1 text-gray-500 max-w-[200px]">Te notificaremos cuando haya una misión disponible para vos.</p>
+
+                <div className="relative z-10 flex flex-col items-center text-center">
+                    <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-red-500/40 rotate-12 group-hover:rotate-0 transition-transform">
+                        <Radio className="text-white animate-pulse" size={32} />
+                    </div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">Rastreo de Pedidos</h3>
+                    <p className="text-slate-400 text-sm mt-2 max-w-[240px] font-medium">Buscando misiones cercanas para asignarte automáticamente.</p>
+                </div>
             </div>
 
             {availableOrders.length > 0 && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="w-1 h-4 bg-red-600 rounded-full"></div>
-                        <h4 className="text-xs font-black text-[#0f172a] uppercase tracking-widest">Bolsa de Pedidos ({availableOrders.length})</h4>
+                <div className="space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-6 bg-red-500 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.5)]"></div>
+                            <h4 className="text-xs font-black text-white uppercase tracking-[0.2em]">Pedidos Disponibles</h4>
+                        </div>
+                        <span className="bg-white/10 text-white text-[10px] font-black px-3 py-1 rounded-full border border-white/5">{availableOrders.length} DISPONIBLES</span>
                     </div>
                     
-                    <div className="space-y-4">
-                        {availableOrders.map(order => {
+                    <div className="grid gap-4">
+                        {availableOrders.map((order, idx) => {
                             const isSelected = selectedOrderIds.includes(order.id);
                             return (
                                 <div 
                                   key={order.id} 
                                   onClick={() => toggleOrderSelection(order.id)}
-                                  className={`bg-white rounded-3xl p-5 border-2 transition-all shadow-sm active:scale-95 ${
-                                    isSelected ? 'border-red-500 ring-4 ring-red-50' : 'border-gray-100'
+                                  style={{ animationDelay: `${idx * 100}ms` }}
+                                  className={`group relative bg-slate-900 rounded-[2rem] p-6 border-2 transition-all transition-all animate-in fade-in slide-in-from-right-4 shadow-xl ${
+                                    isSelected 
+                                        ? 'border-red-500 ring-8 ring-red-500/5 bg-slate-800' 
+                                        : 'border-white/5 hover:border-white/15'
                                   }`}
                                 >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                                isSelected ? 'bg-red-500 border-red-500' : 'border-gray-200'
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                                isSelected ? 'bg-red-500 border-red-500 rotate-[360deg]' : 'border-slate-700'
                                             }`}>
-                                                {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                                {isSelected && <CheckCircle2 size={12} className="text-white" />}
                                             </div>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Pedido #{order.order_number}</p>
+                                            <p className="text-[10px] font-mono font-bold text-slate-500">ORDEN #{order.order_number}</p>
                                         </div>
-                                        <span className="text-emerald-600 font-bold text-sm">${order.total_amount?.toLocaleString()}</span>
+                                        <div className="bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/20">
+                                            <span className="text-emerald-400 font-black text-sm">${order.total_amount?.toLocaleString()}</span>
+                                        </div>
                                     </div>
-                                    <h5 className="text-base font-black text-[#0f172a]">{order.client?.name || 'Cliente'}</h5>
-                                    <div className="flex items-center gap-1 text-gray-500 text-xs mt-1">
-                                        <MapPin size={12} className="text-blue-500" />
-                                        {order.delivery_address || 'Bahía Blanca'}
+                                    <h5 className="text-lg font-black text-white group-hover:text-red-400 transition-colors uppercase tracking-tight">{order.client?.name || 'Cliente'}</h5>
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs mt-2 font-medium">
+                                        <MapPin size={14} className="text-red-500/70" />
+                                        <span className="truncate">{order.delivery_address || 'Bahía Blanca'}</span>
                                     </div>
                                 </div>
                             );
@@ -379,44 +448,53 @@ export default function CadetePWA() {
             )}
             
             {selectedOrderIds.length > 0 && (
-                <div className="fixed bottom-24 left-5 right-5 z-30 animate-in slide-in-from-bottom-10">
+                <div className="fixed bottom-32 left-8 right-8 z-40 animate-in slide-in-from-bottom-20 duration-500">
                     <button 
                       onClick={handleClaimMultiple}
-                      className="w-full py-5 bg-[#0f172a] text-white rounded-3xl font-black shadow-2xl flex items-center justify-center gap-3 border-b-4 border-black active:translate-y-1 transition-all"
+                      className="w-full py-6 bg-red-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(220,38,38,0.4)] flex items-center justify-center gap-4 border-b-4 border-red-800 active:translate-y-1 active:border-b-0 transition-all text-xl"
                     >
-                        <Navigation size={20} className="text-red-500" />
-                        ARMAR RUTA ({selectedOrderIds.length})
+                        <Navigation size={24} className="animate-pulse" />
+                        TOMAR RUTA ({selectedOrderIds.length})
                     </button>
                 </div>
             )}
           </div>
         ) : (
-          <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
-            <div className="flex items-center justify-between mb-4">
-                <span className="text-[11px] font-extrabold text-[#64748b] uppercase tracking-widest">Misión Activa</span>
-                <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-[11px] font-bold border border-red-200">#{activeAssignment.id.slice(-4).toUpperCase()}</span>
+          <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6">
+            <div className="flex items-center justify-between px-2">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Misión Activa</span>
+                <span className="bg-white/5 backdrop-blur-sm text-red-400 px-4 py-1.5 rounded-full text-[11px] font-black border border-white/10 shadow-lg">#{activeAssignment.id.slice(-4).toUpperCase()}</span>
             </div>
 
-            <div className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 mb-6 relative overflow-hidden">
-                {/* Visual indicator of progress */}
-                <div className="flex justify-between items-start mb-6 border-b border-dashed border-gray-100 pb-5">
+            <div className="bg-white/[0.03] backdrop-blur-2xl rounded-[3rem] p-8 shadow-2xl border border-white/5 relative overflow-hidden group">
+                {/* Background lighting */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full"></div>
+
+                <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
                     <div>
-                        <h3 className="text-2xl font-extrabold text-[#0f172a]">${activeAssignment.assignment_orders?.reduce((acc: number, o: any) => acc + (o.order?.total_amount || 0), 0).toLocaleString()}</h3>
-                        <p className="text-xs font-semibold text-gray-400">{activeAssignment.assignment_orders?.length} paradas en esta misión</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total a Recaudar</p>
+                        <h3 className="text-4xl font-black text-white tracking-tighter">${activeAssignment.assignment_orders?.reduce((acc: number, o: any) => acc + (o.order?.total_amount || 0), 0).toLocaleString()}</h3>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-[2rem] border border-white/5 text-center min-w-[80px]">
+                        <p className="text-2xl font-black text-white leading-none">{activeAssignment.assignment_orders?.length}</p>
+                        <p className="text-[8px] font-extrabold text-slate-500 uppercase mt-1">Paradas</p>
                     </div>
                 </div>
 
-                <div className="space-y-8 relative">
+                <div className="space-y-10 relative">
                     {(() => {
                         if (activeAssignment.status === 'ASSIGNED') {
                             return (
-                                <div className="text-center py-10 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-300">
-                                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-2 shadow-inner">
-                                        <Bell size={40} className="animate-bounce" />
+                                <div className="text-center py-10 flex flex-col items-center gap-8 animate-in zoom-in-95 duration-500">
+                                    <div className="relative">
+                                        <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 shadow-[inset_0_0_20px_rgba(59,130,246,0.2)]">
+                                            <BellRing size={48} className="animate-bounce" />
+                                        </div>
+                                        <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-[40px] animate-pulse"></div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <h3 className="text-xl font-black text-[#0f172a]">¡Nueva Misión Asignada!</h3>
-                                        <p className="text-sm text-gray-500 px-6">Tenés una nueva ruta con {activeAssignment.assignment_orders?.length} paradas.</p>
+                                    <div className="space-y-3">
+                                        <h3 className="text-2xl font-black text-white tracking-tight uppercase">Nueva Ruta Disponible</h3>
+                                        <p className="text-slate-400 text-sm px-6 font-medium">Se te ha asignado una misión con {activeAssignment.assignment_orders?.length} destinos prioritarios.</p>
                                     </div>
                                     <button 
                                       onClick={async () => {
@@ -429,10 +507,10 @@ export default function CadetePWA() {
                                               toast.error('Error al aceptar misión');
                                           }
                                       }}
-                                      className="w-full py-6 bg-blue-600 text-white rounded-[32px] font-black shadow-2xl shadow-blue-500/30 active:scale-95 transition-all text-lg flex items-center justify-center gap-3 border-b-4 border-blue-900"
+                                      className="w-full py-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(37,99,235,0.4)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-4 border-blue-800"
                                     >
-                                        <Navigation size={24} />
-                                        ACEPTAR Y EMPEZAR
+                                        <Navigation size={26} />
+                                        INICIAR LOGÍSTICA
                                     </button>
                                 </div>
                             );
@@ -459,12 +537,14 @@ export default function CadetePWA() {
 
                         if (!firstIncomplete && allDeliveriesDone) {
                             return (
-                                <div className="text-center py-6 flex flex-col items-center gap-4">
-                                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-2">
-                                        <CheckCircle2 size={32} />
+                                <div className="text-center py-8 flex flex-col items-center gap-6 animate-in zoom-in duration-500">
+                                    <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                                        <CheckCircle2 size={48} />
                                     </div>
-                                    <h3 className="text-lg font-black text-[#0f172a]">¡Misión Completada!</h3>
-                                    <p className="text-sm text-gray-500 px-6">Ya entregaste todos los pedidos de esta ruta.</p>
+                                    <div className="space-y-1">
+                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">¡Objetivos Logrados!</h3>
+                                        <p className="text-slate-400 text-sm font-medium">Todas las entregas fueron completadas con éxito.</p>
+                                    </div>
                                     <button 
                                       onClick={async () => {
                                           try {
@@ -475,9 +555,9 @@ export default function CadetePWA() {
                                               toast.error('Error al finalizar misión');
                                           }
                                       }}
-                                      className="w-full py-5 bg-[#10b981] text-white rounded-3xl font-black shadow-xl shadow-emerald-500/20 active:scale-95 transition-all mt-4"
+                                      className="w-full py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-2xl shadow-emerald-600/30 active:scale-95 transition-all mt-4 text-lg border-b-4 border-emerald-800"
                                     >
-                                        FINALIZAR Y VOLVER AL INICIO
+                                        CERRAR MISIÓN Y VOLVER
                                     </button>
                                 </div>
                             );
@@ -489,49 +569,69 @@ export default function CadetePWA() {
                             const address = stop.action_type === 'PICKUP' ? 'S. Martín 450 (Local)' : stop.order?.delivery_address || 'Bahía Blanca';
                             
                             return (
-                                <div key={stop.id} className={`flex gap-5 relative ${isDone ? 'opacity-40' : ''}`}>
-                                    {/* Connector Line */}
+                                <div key={stop.id} className={`flex gap-6 relative transition-all duration-500 ${isDone ? 'opacity-30 blur-[0.5px]' : ''}`}>
+                                    {/* Vertical Connector */}
                                     {idx < displayStops.length - 1 && (
-                                        <div className="absolute left-4 top-8 bottom-[-32px] w-[2px] bg-gray-100"></div>
+                                        <div className={`absolute left-[1.15rem] top-10 bottom-[-40px] w-0.5 ${isDone ? 'bg-emerald-500/50' : 'bg-white/5'}`}></div>
                                     )}
 
-                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 z-10 transition-colors ${
-                                        isDone ? 'bg-green-500 text-white' : 
-                                        isCurrent ? 'bg-red-600 text-white shadow-lg shadow-red-500/20 scale-110' : 
-                                        'bg-gray-100 text-gray-400'
+                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
+                                        isDone ? 'bg-emerald-500 text-white rotate-[360deg]' : 
+                                        isCurrent ? 'bg-red-600 text-white shadow-[0_0_25px_rgba(220,38,38,0.5)] scale-125 border-2 border-white/20' : 
+                                        'bg-slate-800 text-slate-500 border border-white/5'
                                     }`}>
-                                        {stop.action_type === 'PICKUP' ? <Store size={16} /> : <MapPin size={16} />}
+                                        {stop.action_type === 'PICKUP' ? <Store size={20} /> : <MapPin size={20} />}
                                     </div>
 
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start">
-                                            <h4 className="font-bold text-[#0f172a] truncate max-w-[180px]">
+                                            <h4 className={`font-black text-lg truncate tracking-tight transition-colors ${isCurrent ? 'text-white' : 'text-slate-400'}`}>
                                                 {stop.action_type === 'PICKUP' 
-                                                    ? `Retirar ${stop.isConsolidated ? `(${stop.count} pedidos)` : `#${stop.order?.id?.slice(-4).toUpperCase()}`}` 
-                                                    : `Entregar #${stop.order?.id?.slice(-4).toUpperCase()}`}
+                                                    ? `RETIRO LOCAL ${stop.isConsolidated ? `(${stop.count})` : ''}` 
+                                                    : `ENTREGA #${stop.order?.id?.slice(-4).toUpperCase()}`}
                                             </h4>
-                                            <span className="text-[10px] font-bold text-gray-400">
-                                                {stop.estimated_arrival ? stop.estimated_arrival.slice(11, 16) : '--:--'}
+                                            <span className="text-[10px] font-black text-slate-600 font-mono mt-1 whitespace-nowrap">
+                                                {stop.estimated_arrival ? stop.estimated_arrival.slice(11, 16) : '--:--'} HS
                                             </span>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{address}</p>
+                                        <p className="text-xs text-slate-500 mt-1 font-medium truncate">{address}</p>
                                         
                                         {isCurrent && (
-                                            <div className="flex flex-col gap-3 mt-5">
+                                            <div className="flex flex-col gap-4 mt-6 animate-in slide-in-from-top-4 duration-500">
                                                 <button 
                                                   onClick={() => openNavigation(address)}
-                                                  className="w-full py-4 bg-[#2563eb] text-white rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-blue-500/20 active:scale-95 transition-all text-sm border-b-4 border-blue-800"
+                                                  className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl shadow-blue-600/20 active:scale-95 transition-all text-sm border-b-4 border-blue-800 group"
                                                 >
-                                                    <Navigation size={18} className="animate-pulse" /> 
-                                                    NAVEGAR AL DESTINO
+                                                    <Navigation size={20} className="group-hover:animate-bounce" /> 
+                                                    NAVEGAR GPS
                                                 </button>
-                                                <button 
-                                                  onClick={() => handleUpdateStop(stop.id, 'COMPLETED')}
-                                                  className="w-full py-4 bg-[#10b981] text-white rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 active:scale-95 transition-all text-sm border-b-4 border-emerald-800"
-                                                >
-                                                    <CheckCircle2 size={18} /> 
-                                                    {stop.action_type === 'PICKUP' ? 'YA RETIRÉ TODO EL PEDIDO' : 'CONFIRMAR ENTREGA'}
-                                                </button>
+                                                
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {stop.action_type === 'DELIVERY' && stop.status === 'PENDING' && (
+                                                        <button 
+                                                          onClick={() => handleUpdateStop(stop.id, 'ARRIVED')}
+                                                          className="w-full py-5 bg-amber-500 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-xl shadow-amber-500/10 active:scale-95 transition-all text-sm border-b-4 border-amber-700"
+                                                        >
+                                                            <BellRing size={20} /> 
+                                                            AVISAR LLEGADA 📱
+                                                        </button>
+                                                    )}
+                                                    
+                                                    {stop.status === 'ARRIVED' && (
+                                                        <div className="w-full py-4 bg-amber-500/10 text-amber-500 rounded-3xl font-black flex items-center justify-center gap-2 text-xs border border-amber-500/20 mb-2">
+                                                            <CheckCircle2 size={16} />
+                                                            CLIENTE NOTIFICADO
+                                                        </div>
+                                                    )}
+
+                                                    <button 
+                                                      onClick={() => handleUpdateStop(stop.id, 'COMPLETED')}
+                                                      className="w-full py-5 bg-emerald-500 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all text-sm border-b-4 border-emerald-700"
+                                                    >
+                                                        <CheckCircle2 size={20} /> 
+                                                        {stop.action_type === 'PICKUP' ? 'FINALIZAR RETIRO' : 'CONFIRMAR ENTREGA'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -545,13 +645,16 @@ export default function CadetePWA() {
         )}
       </main>
 
-      {/* Persistence / GPS Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 p-5 bg-white/80 backdrop-blur-md border-t border-gray-100 flex items-center justify-center gap-4 z-20">
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-extrabold tracking-wider border border-emerald-100">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+      {/* Glass Footer Persistence */}
+      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-slate-900/40 backdrop-blur-2xl border-t border-white/5 flex items-center justify-start gap-5 z-20">
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black tracking-widest border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]"></div>
               GPS ACTIVO
           </div>
-          <p className="text-[10px] font-bold text-gray-400">Último reporte: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+          <div className="flex flex-col">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Último Reporte</p>
+              <p className="text-[11px] font-bold text-slate-300">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} HS</p>
+          </div>
       </footer>
     </div>
   );

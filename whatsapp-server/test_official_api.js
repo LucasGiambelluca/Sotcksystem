@@ -1,12 +1,11 @@
 const axios = require('axios');
 require('dotenv').config();
 
-async function testSend() {
+async function testSend(to) {
     const token = process.env.WHATSAPP_CLOUD_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const to = '5492915093499'; // Lucas number from logs
+    const phoneId = '1029241326937914';
 
-    console.log('Testing with:');
+    console.log(`\n--- Testing with recipient: ${to} ---`);
     console.log('Phone ID:', phoneId);
     console.log('Token (first 10 chars):', token.substring(0, 10));
 
@@ -16,7 +15,7 @@ async function testSend() {
         recipient_type: 'individual',
         to: to,
         type: 'text',
-        text: { body: 'Test message from server' }
+        text: { body: `Test message to ${to}` }
     };
 
     try {
@@ -26,10 +25,10 @@ async function testSend() {
                 'Content-Type': 'application/json'
             }
         });
-        console.log('✅ Success!');
+        console.log(`✅ Success for ${to}!`);
         console.log(JSON.stringify(response.data, null, 2));
     } catch (error) {
-        console.error('❌ Error!');
+        console.error(`❌ Error for ${to}!`);
         if (error.response) {
             console.error(JSON.stringify(error.response.data, null, 2));
         } else {
@@ -38,4 +37,9 @@ async function testSend() {
     }
 }
 
-testSend();
+async function runTests() {
+    await testSend('5492915093499'); // With 9
+    await testSend('542915093499');  // Without 9
+}
+
+runTests();
