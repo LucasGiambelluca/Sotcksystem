@@ -54,6 +54,8 @@ services:
       - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
       - WHATSAPP_CLOUD_TOKEN=${WHATSAPP_CLOUD_TOKEN:-}
       - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
+      # AI Integration
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
     volumes:
       - baileys_sessions:/app/sessions
       - backend_logs:/app/logs

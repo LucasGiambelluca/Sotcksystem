@@ -101,12 +101,16 @@ export class ConversationRouter {
                 }
             }
 
-            // --- 2.5 QUICK PATH: Active Flow Sessions (Priority) ---
+            // --- AI Analysis (Always analyze to allow interception) ---
+            const aiResult = await AIExtractor.analyze(text);
+            const isOrder = aiResult && aiResult.confidence > 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
+
+            // --- 2.5 QUICK PATH: Active Flow Sessions (Priority for non-orders) ---
             const isWaitingInput = session && session.status === 'waiting_input';
             const globalTriggers = ['menu', 'menú', 'cancelar', 'inicio', 'salir', 'reset', 'reiniciar', 'hola'];
             const isGlobalCommand = globalTriggers.includes(cleanText);
 
-            if (isWaitingInput && !isGlobalCommand) {
+            if (isWaitingInput && !isGlobalCommand && !isOrder) {
                 logger.info(`[Router] Session is waiting input. Bypassing AI/NLU to prioritize FlowEngine.`, { sessionId });
                 const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
                 return this.extractMessages(engineResponse);
@@ -130,7 +134,7 @@ export class ConversationRouter {
             }
 
             // AI Interceptor (Inquiries/Support)
-            const earlyAI = await AIExtractor.analyze(text);
+            const earlyAI = aiResult;
             const isInquiryOrSupport = earlyAI && earlyAI.confidence > 0.7 && (earlyAI.intent === 'inquiry' || earlyAI.intent === 'support');
             const isAiContextualResponse = earlyAI && earlyAI.confidence > 0.8 && 
                                            (earlyAI.intent === 'confirmation' || earlyAI.intent === 'rejection') && 
@@ -176,7 +180,7 @@ export class ConversationRouter {
                 if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context, sessionId);
             }
 
-            const aiResult = earlyAI;
+            // aiResult already available
             if (aiResult && aiResult.confidence > 0.6) {
                 logger.info(`[AI Router] AI understood message`, { intent: aiResult.intent });
                 
