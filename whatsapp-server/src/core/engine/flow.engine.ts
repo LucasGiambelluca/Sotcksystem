@@ -125,10 +125,10 @@ export class FlowEngine {
                     const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
                     
                     if (!fetchedFlow) {
-                        logger.warn(`[FlowEngine] Flow ID ${flowId} not found. Attempting fallback by name...`);
+                        logger.warn(`[FlowEngine] Flow ID ${flowId} not found. Attempting fallback by known names ('pedido', 'Tomar Pedido')...`);
                         const { data: fallbackFlow } = await this.db.from('flows')
                             .select('id, name')
-                            .ilike('name', '%Tomar Pedido%')
+                            .or(`name.ilike.%pedido%,name.ilike.%Tomar Pedido%`)
                             .limit(1)
                             .maybeSingle();
                         flow = fallbackFlow;
