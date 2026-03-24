@@ -103,7 +103,10 @@ export class ConversationRouter {
 
             // --- AI Analysis (Always analyze to allow interception) ---
             const aiResult = await AIExtractor.analyze(text);
-            const isOrder = aiResult && aiResult.confidence > 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
+            const aiConfidence = aiResult ? parseFloat(aiResult.confidence) : 0;
+            const isOrder = aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
+
+            logger.info(`[Router] AI Analysis: Intent=${aiResult?.intent}, Confidence=${aiConfidence.toString()}, IsOrder=${isOrder.toString()}`);
 
             // --- 2.5 QUICK PATH: Active Flow Sessions (Priority for non-orders) ---
             const isWaitingInput = session && session.status === 'waiting_input';
