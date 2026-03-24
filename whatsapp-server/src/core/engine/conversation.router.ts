@@ -485,12 +485,15 @@ export class ConversationRouter {
             const payload = this.prepareCatalogPayload(draft, meta);
             
             // Force reset session before checkout to ensure a fresh start of the checkout flow
+            logger.info(`[DEBUGLOG] Proceeding to checkout for ${phone}. Draft: ${draft.id}`);
             await this.sessionRepository.forceReset(phone.replace(/[^0-9]/g, ''));
             
+            logger.info(`[DEBUGLOG] Calling FlowEngine for 'checkout' with flowId override.`);
             const response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20", 
+                flowId: "pedido", // Use name as ID for smart resolution 
                 startNodeId: "n_ask_delivery" 
             });
+            logger.info(`[DEBUGLOG] FlowEngine response received`, { responseLength: response.currentStateDefinition?.message_template?.length });
             return ['Perfecto, seguimos con el pedido.', ...this.extractMessages(response)];
         }
 
