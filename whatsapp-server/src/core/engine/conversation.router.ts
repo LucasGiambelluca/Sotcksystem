@@ -63,10 +63,10 @@ export class ConversationRouter {
 
             // --- 0.5 AI-FIRST ANALYSIS (Priority Interception) ---
             const aiResult = await AIExtractor.analyze(text);
-            const aiConfidence = aiResult ? parseFloat(aiResult.confidence) : 0;
-            const isOrder = aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items.length > 0;
+            const aiConfidence = aiResult ? parseFloat(String(aiResult.confidence)) : 0;
+            const isOrder = !!(aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items && aiResult.items.length > 0);
 
-            logger.info(`[Router] AI-First Analysis: Intent=${aiResult?.intent}, Confidence=${aiConfidence.toString()}, IsOrder=${isOrder.toString()}`);
+            logger.info(`[Router] AI-First Analysis: Intent=${aiResult?.intent || 'none'}, Confidence=${aiConfidence.toFixed(2)}, IsOrder=${isOrder}`);
 
             if (isOrder) {
                 logger.info(`[Router] High confidence ORDER detected via AI. Archiving current session to process order.`, { sessionId });
