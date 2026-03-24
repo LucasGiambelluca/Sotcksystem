@@ -267,7 +267,6 @@ export const logisticsV2Service = {
 
     // 4. Update the order status to OUT_FOR_DELIVERY (actually it's better to wait for pickup, 
     // but for now let's use a transition status or just IN_TRANSIT)
-    if (orderError) throw orderError;
     
     // NEW: Also update assigned_to in the orders table directly for easier filtering
     await supabase
