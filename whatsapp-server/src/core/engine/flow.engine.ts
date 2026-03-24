@@ -123,8 +123,20 @@ export class FlowEngine {
                 if (flowId) {
                     logger.info(`[FlowEngine] Attempting to fetch flow by ID: "${flowId}"`);
                     const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
+                    
+                    if (!fetchedFlow) {
+                        logger.warn(`[FlowEngine] Flow ID ${flowId} not found. Attempting fallback by name...`);
+                        const { data: fallbackFlow } = await this.db.from('flows')
+                            .select('id, name')
+                            .ilike('name', '%Tomar Pedido%')
+                            .limit(1)
+                            .maybeSingle();
+                        flow = fallbackFlow;
+                    } else {
+                        flow = fetchedFlow;
+                    }
+                    
                     if (fetchError) logger.error(`[FlowEngine] Error fetching flow ${flowId}:`, fetchError);
-                    flow = fetchedFlow;
                 } else {
                    flow = await this.findFlowByTrigger(messageText);
                 }
