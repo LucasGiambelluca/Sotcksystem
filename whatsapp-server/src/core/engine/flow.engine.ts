@@ -121,24 +121,41 @@ export class FlowEngine {
                 let flow = null;
 
                 if (flowId) {
-                    logger.info(`[FlowEngine] Attempting to fetch flow by ID: "${flowId}"`);
-                    const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
-                    
-                    if (!fetchedFlow) {
-                        logger.warn(`[FlowEngine] Flow ID ${flowId} not found. Attempting fallback by known names ('pedido', 'Tomar Pedido')...`);
-                        const { data: fallbackFlow } = await this.db.from('flows')
-                            .select('id, name')
-                            .or(`name.ilike.%pedido%,name.ilike.%Tomar Pedido%`)
-                            .limit(1)
-                            .maybeSingle();
-                        flow = fallbackFlow;
-                    } else {
+                    // Check if flowId is a valid UUID before querying by ID
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    const isUuid = uuidRegex.test(flowId);
+
+                    if (isUuid) {
+                        logger.info(`[FlowEngine] Attempting to fetch flow by ID: "${flowId}"`);
+                        const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
+                        if (fetchError) logger.error(`[FlowEngine] Error fetching flow ${flowId}:`, fetchError);
                         flow = fetchedFlow;
                     }
-                    
-                    if (fetchError) logger.error(`[FlowEngine] Error fetching flow ${flowId}:`, fetchError);
+
+                    if (!flow) {
+                        logger.warn(`[FlowEngine] Flow ID "${flowId}" not found or invalid format. Searching by exact name 'pedido' and then fallback...`);
+                        
+                        // Try exact name match first to avoid 'Consulta de Pedido' matching too broadly
+                        const { data: exactFlow } = await this.db.from('flows')
+                            .select('id, name')
+                            .eq('name', 'pedido')
+                            .limit(1)
+                            .maybeSingle();
+                        
+                        if (exactFlow) {
+                            flow = exactFlow;
+                        } else {
+                            // Broad fallback if exact match fails
+                            const { data: fallbackFlow } = await this.db.from('flows')
+                                .select('id, name')
+                                .or(`name.ilike.%pedido%,name.ilike.%Tomar Pedido%`)
+                                .limit(1)
+                                .maybeSingle();
+                            flow = fallbackFlow;
+                        }
+                    }
                 } else {
-                   flow = await this.findFlowByTrigger(messageText);
+                    flow = await this.findFlowByTrigger(messageText);
                 }
 
                 if (!flow) {
