@@ -330,7 +330,13 @@ export class FlowEngine {
 
             const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
             if (!currentNode) {
-                logger.warn(`[FlowEngine] [END] Node not found: ${session.currentNodeId}`);
+                logger.warn(`[FlowEngine] [RECOVERY] Node "${session.currentNodeId}" not found in flow "${flow.name}". Resetting to start node.`);
+                const startNode = (flow.nodes || []).find((n: any) => n.type === 'start' || (n.data && n.data.type === 'start'));
+                if (startNode) {
+                    session.currentNodeId = startNode.id;
+                    continue; // Re-evaluate with the new start node
+                }
+                logger.error(`[FlowEngine] [CRITICAL] No start node found in flow "${flow.name}". Aborting.`);
                 break;
             }
 

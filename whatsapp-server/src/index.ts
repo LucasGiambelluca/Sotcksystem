@@ -41,6 +41,25 @@ async function bootstrap() {
     // 3. Start Background Jobs
     stockCronService.start();
     console.log('📅 Background cron jobs started.');
+
+    // 4. Diagnostic Pulse (Verify 'pedido' flow nodes)
+    setTimeout(async () => {
+        try {
+            const { supabase } = require('./config/database');
+            const { data: flows } = await supabase.from('flows').select('id, name, nodes').eq('name', 'pedido').limit(1);
+            if (flows && flows.length > 0) {
+                console.log(`\n🔍 [Startup Pulse] Flow "pedido" (${flows[0].id}) found with ${flows[0].nodes?.length || 0} nodes:`);
+                flows[0].nodes?.forEach((n: any) => {
+                    console.log(`   - ID: ${n.id} | Type: ${n.type} | Label: ${n.data?.label || n.data?.text || 'N/A'}`);
+                });
+                console.log('--- End of Pulse ---\n');
+            } else {
+                console.log('🔍 [Startup Pulse] Flow "pedido" not found for diagnostic.');
+            }
+        } catch (e) {
+            console.error('🔍 [Startup Pulse] Diagnostic failed:', e);
+        }
+    }, 5000);
 }
 
 // Global error handling to prevent Baileys connection drops from taking down the whole Express server
