@@ -132,10 +132,17 @@ export class FlowEngine {
                         flow = fetchedFlow;
                     }
 
+                    // Fallback to searching by name if ID didn't work or flowId is a name
                     if (!flow) {
-                        logger.warn(`[FlowEngine] Flow ID "${flowId}" not found or invalid format. Searching by exact name 'pedido' and then fallback...`);
+                        logger.info(`[FlowEngine] Attempting to fetch flow by name: "${flowId}"`);
+                        const { data: nameFlow } = await this.db.from('flows').select('id, name').eq('name', flowId).limit(1).maybeSingle();
+                        flow = nameFlow;
+                    }
+
+                    if (!flow) {
+                        logger.warn(`[FlowEngine] Flow "${flowId}" not found. Falling back to default 'pedido' search.`);
                         
-                        // Try exact name match first to avoid 'Consulta de Pedido' matching too broadly
+                        // Try exact name match for 'pedido' (Legacy fallback)
                         const { data: exactFlow } = await this.db.from('flows')
                             .select('id, name')
                             .eq('name', 'pedido')

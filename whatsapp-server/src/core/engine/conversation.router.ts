@@ -492,7 +492,7 @@ export class ConversationRouter {
             
             // Try starting at the delivery question node (real ID from Tomar Pedido)
             let response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20", // Tomar Pedido
+                flowId: "Tomar Pedido", 
                 startNodeId: "n_ask_delivery" 
             });
 
@@ -500,7 +500,7 @@ export class ConversationRouter {
             if (!response.currentStateId && !response.currentStateDefinition?.message_template) {
                 logger.warn(`[DEBUGLOG] Fallback: starting from beginning of Tomar Pedido flow.`);
                 response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                    flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20"
+                    flowId: "Tomar Pedido"
                 });
             }
 
