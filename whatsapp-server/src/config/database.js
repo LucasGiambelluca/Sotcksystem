@@ -18,6 +18,7 @@ let keyType;
 if (isValidKey(providedServiceKey)) {
     supabaseKey = providedServiceKey;
     keyType = 'SERVICE_ROLE (Admin)';
+    console.log('✅ [DATABASE] Inicializado con SERVICE_ROLE (Permisos de Admin)');
 } else {
     supabaseKey = process.env.SUPABASE_KEY;
     keyType = 'ANON (Public)';
