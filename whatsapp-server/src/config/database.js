@@ -37,7 +37,6 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
     },
     realtime: {
         timeout: 60000,
-        transport: 'longpolling', // FORZAMOS HTTP en lugar de WebSockets (Fix para Hostinger)
         params: {
             events_per_second: 20
         }
