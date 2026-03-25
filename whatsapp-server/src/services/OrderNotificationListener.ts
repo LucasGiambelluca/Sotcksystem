@@ -104,8 +104,12 @@ export class OrderNotificationListener {
   public start() {
     console.log('📡 [OrderNotificationListener] Starting Realtime listener...');
     
+    // Generamos un nombre único para evitar sesiones "trabadas"
+    const channelName = `order-status-notifications-${Date.now()}`;
+    console.log(`📡 [OrderNotificationListener] Intentando conectar al canal: ${channelName}`);
+
     this.channel = supabase
-      .channel('order-status-notifications')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -114,38 +118,16 @@ export class OrderNotificationListener {
           table: 'orders',
         },
         async (payload) => {
-          console.log(`\n========================================`);
-          console.log(`[OrderNotificationListener] Received Realtime UPDATE:`, JSON.stringify(payload));
-          const oldStatus = payload.old?.status;
-          const newStatus = payload.new?.status;
-
-          console.log(`[OrderNotificationListener] Parsed statuses -> old: ${oldStatus}, new: ${newStatus}`);
-
-          const lastProcessed = this.processedChanges.get(payload.new?.id);
-          if (lastProcessed === newStatus) {
-            console.log(`[OrderNotificationListener] Skipping (Already processed status ${newStatus} for order ${payload.new?.id})`);
-            return;
-          }
-
-          if (oldStatus !== newStatus && newStatus && newStatus !== 'PENDING') {
-            console.log(`🔔 [OrderNotificationListener] Triggering handleStatusChange: ${oldStatus} -> ${newStatus} for order ${payload.new?.id}`);
-            this.processedChanges.set(payload.new?.id, newStatus);
-            
-            // Clean up cache to prevent memory leaks (keep last 500 orders)
-            if (this.processedChanges.size > 500) {
-              const firstKey = this.processedChanges.keys().next().value;
-              if (firstKey) this.processedChanges.delete(firstKey);
-            }
-
-            await this.handleStatusChange(payload.new?.id, newStatus);
-          } else {
-            console.log(`[OrderNotificationListener] Skipping handleStatusChange (No change, null status or PENDING).`);
-          }
-          console.log(`========================================\n`);
+          console.log(`[OrderNotificationListener] Evento detectado para pedido: ${payload.new?.id}`);
+          await this.handleStatusChange(payload.new?.id, payload.new?.status);
         }
       )
-      .subscribe((status) => {
-        console.log(`📡 [OrderNotificationListener] Subscription status: ${status}`);
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`📡 [OrderNotificationListener] Successfully subscribed to orders changes.`);
+        } else {
+          console.error(`📡 [OrderNotificationListener] Subscription status: ${status}`, err || '');
+        }
       });
   }
 

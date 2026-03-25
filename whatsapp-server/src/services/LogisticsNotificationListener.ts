@@ -18,8 +18,11 @@ export class LogisticsNotificationListener {
   public start() {
     console.log('📡 [LogisticsNotificationListener] Starting Realtime listener for courier arrivals...');
     
+    const channelName = `courier-arrival-notifications-${Date.now()}`;
+    console.log(`📡 [LogisticsNotificationListener] Intentando conectar al canal: ${channelName}`);
+
     this.channel = supabase
-      .channel('courier-arrival-notifications')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -49,8 +52,12 @@ export class LogisticsNotificationListener {
           }
         }
       )
-      .subscribe((status) => {
-        console.log(`📡 [LogisticsNotificationListener] Subscription status: ${status}`);
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`📡 [LogisticsNotificationListener] Successfully subscribed for courier arrivals.`);
+        } else {
+          console.error(`📡 [LogisticsNotificationListener] Subscription status: ${status}`, err || '');
+        }
       });
   }
 
