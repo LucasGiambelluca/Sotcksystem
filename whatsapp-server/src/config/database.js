@@ -35,11 +35,16 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
         persistSession: false,
         autoRefreshToken: true
     },
+    realtime: {
+        timeout: 60000, // Aumentamos a 60 segundos por la latencia del VPS
+        params: {
+            events_per_second: 20
+        }
+    },
     global: {
         headers: { 'x-application-name': 'whatsapp-bot' },
-        // Add a broad timeout to avoid hanging the entire flow engine
         fetch: (url, options) => {
-            return fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+            return fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
         }
     }
 });
