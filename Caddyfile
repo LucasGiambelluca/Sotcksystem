@@ -3,7 +3,7 @@
 # ============================================================
 
 # --- Aplicación Principal (Frontend + API) ---
-stocksystemspp.com {
+stocksystemspa.com {
     reverse_proxy app:3001 {
         transport http {
             dial_timeout 10s
