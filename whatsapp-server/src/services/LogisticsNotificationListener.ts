@@ -56,9 +56,35 @@ export class LogisticsNotificationListener {
         if (status === 'SUBSCRIBED') {
           console.log(`📡 [LogisticsNotificationListener] Successfully subscribed for courier arrivals.`);
         } else {
-          console.error(`📡 [LogisticsNotificationListener] Subscription status: ${status}`, err || '');
+          console.warn(`⚠️ [LogisticsNotificationListener] Subscription status: ${status}. Usando POLLING como respaldo.`);
         }
       });
+
+    // POLLING FALLBACK: Cada 30 segundos buscamos arribos recientes
+    setInterval(async () => {
+        try {
+            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            const { data: recentArrivals } = await supabase
+                .from('assignment_orders')
+                .select('id, order_id, status, action_type')
+                .eq('status', 'ARRIVED')
+                .eq('action_type', 'DELIVERY')
+                .gt('created_at', new Date(Date.now() - 86400000).toISOString()); // Solo de hoy
+
+            if (recentArrivals && recentArrivals.length > 0) {
+                for (const arrival of recentArrivals) {
+                    if (!this.processedArrivals.has(arrival.id)) {
+                        console.log(`[LogisticsPolling] Detectada llegada vía polling para ${arrival.id}`);
+                        this.processedArrivals.add(arrival.id);
+                        setTimeout(() => this.processedArrivals.delete(arrival.id), 1800000);
+                        await this.handleArrival(arrival.order_id);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[LogisticsPolling] Error:', e);
+        }
+    }, 30000);
   }
 
   private async handleArrival(orderId: string) {

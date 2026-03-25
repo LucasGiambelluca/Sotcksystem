@@ -126,9 +126,34 @@ export class OrderNotificationListener {
         if (status === 'SUBSCRIBED') {
           console.log(`📡 [OrderNotificationListener] Successfully subscribed to orders changes.`);
         } else {
-          console.error(`📡 [OrderNotificationListener] Subscription status: ${status}`, err || '');
+          console.warn(`⚠️ [OrderNotificationListener] Subscription status: ${status}. Usando POLLING como respaldo.`);
         }
       });
+
+    // POLLING FALLBACK: Cada 30 segundos buscamos pedidos actualizados recientemente
+    setInterval(async () => {
+        try {
+            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            const { data: recentOrders } = await supabase
+                .from('orders')
+                .select('id, status, updated_at')
+                .gt('updated_at', thirtySecondsAgo)
+                .not('status', 'eq', 'PENDING');
+
+            if (recentOrders && recentOrders.length > 0) {
+                for (const order of recentOrders) {
+                    const lastProcessed = this.processedChanges.get(order.id);
+                    if (lastProcessed !== order.status) {
+                        console.log(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
+                        this.processedChanges.set(order.id, order.status);
+                        await this.handleStatusChange(order.id, order.status);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[OrderPolling] Error:', e);
+        }
+    }, 30000);
   }
 
   private async handleStatusChange(orderId: string, newStatus: string) {
