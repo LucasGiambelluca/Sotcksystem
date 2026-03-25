@@ -116,7 +116,7 @@ export class ConversationRouter {
 
             // --- 2.5 QUICK PATH: Active Flow Sessions (Priority for non-orders) ---
             const isWaitingInput = session && session.status === 'waiting_input';
-            const globalTriggers = ['menu', 'menú', 'cancelar', 'inicio', 'salir', 'reset', 'reiniciar', 'hola'];
+            const globalTriggers = ['menu', 'menú', 'cancelar', 'inicio', 'salir', 'reset', 'reiniciar', 'hola', 'consultar', 'consulta'];
             const isGlobalCommand = globalTriggers.includes(cleanText);
 
             if (isWaitingInput && !isGlobalCommand && !isOrder) {
