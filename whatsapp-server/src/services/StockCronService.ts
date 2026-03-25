@@ -43,8 +43,7 @@ export class StockCronService {
             const { data: products, error: fetchErr } = await supabase
                 .from('products')
                 .select('id, name, auto_refill_qty')
-                .eq('auto_refill', true)
-                .eq('is_deleted', false);
+                .eq('auto_refill', true);
 
             if (fetchErr) {
                 console.error('[StockCron] Error fetching auto-refill products:', fetchErr.message);

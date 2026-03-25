@@ -490,17 +490,17 @@ export class ConversationRouter {
             
             logger.info(`[DEBUGLOG] Calling FlowEngine for 'checkout' with flowId override.`);
             
-            // Try starting at the order summary node (real ID from VPS)
+            // Try starting at the delivery question node (real ID from Tomar Pedido)
             let response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                flowId: "pedido", 
-                startNodeId: "node_1773500134116_ix1ywb04j" 
+                flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20", // Tomar Pedido
+                startNodeId: "n_ask_delivery" 
             });
 
-            // If the response is empty or had a warning (which we catch by checking if it advanced), try without startNodeId
-            if (!response.currentStateId) {
-                logger.warn(`[DEBUGLOG] Could not find node 'n_ask_delivery', starting from beginning of flow.`);
+            // If the response is empty or had a warning, starting from beginning of flow
+            if (!response.currentStateId && !response.currentStateDefinition?.message_template) {
+                logger.warn(`[DEBUGLOG] Fallback: starting from beginning of Tomar Pedido flow.`);
                 response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                    flowId: "pedido"
+                    flowId: "d7f26b46-2ac6-48bc-ad4e-6547dba77e20"
                 });
             }
 
@@ -829,27 +829,6 @@ export class ConversationRouter {
             }
 
             const mergedTotal = deduplicatedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            // The following code block seems to be misplaced here. It refers to `flow`, `session`, and `logger`
-            // which are not defined in this context (`ConversationRouter`'s `getOrCreateActiveDraft` method).
-            // It also attempts to use `continue` outside a loop and breaks the object literal for the `update` method.
-            // As per instructions to ensure syntactic correctness, this block cannot be inserted as is.
-            // If this logic is intended for `FlowEngine`, it should be placed there.
-            // For now, I'm omitting the block to maintain a syntactically correct file.
-            // If you intended this for a different location or have a corrected version, please provide it.
-            // const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
-            // if (!currentNode) {
-            //     logger.warn(`[FlowEngine] [RECOVERY] Node "${session.currentNodeId}" not found in flow "${flow.name}". Resetting to start node.`);
-            //     // Search by type 'start' OR ID 'start' (which exists in Lucas's VPS)
-            //     const startNode = (flow.nodes || []).find((n: any) => 
-            //         n.type === 'start' || 
-            //         (n.data && n.data.type === 'start') || 
-            //         n.id === 'start'
-            //     );
-            //     if (startNode) {
-            //         session.currentNodeId = startNode.id;
-            //         continue; // Re-evaluate with the new start node
-            //     }
-            // }
             const mergedMeta = { 
                 ...(existing.metadata || {}), 
                 ...metadata,
