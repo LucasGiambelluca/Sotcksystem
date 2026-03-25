@@ -36,11 +36,13 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
         autoRefreshToken: true
     },
     realtime: {
-        timeout: 60000, // Aumentamos a 60 segundos por la latencia del VPS
+        timeout: 60000,
         params: {
             events_per_second: 20
         }
     },
+    // Forzamos Long Polling si WebSockets falla por bloqueo del VPS
+    db: { schema: 'public' },
     global: {
         headers: { 'x-application-name': 'whatsapp-bot' },
         fetch: (url, options) => {
