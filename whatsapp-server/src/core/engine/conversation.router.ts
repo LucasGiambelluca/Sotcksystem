@@ -489,10 +489,21 @@ export class ConversationRouter {
             await this.sessionRepository.forceReset(phone.replace(/[^0-9]/g, ''));
             
             logger.info(`[DEBUGLOG] Calling FlowEngine for 'checkout' with flowId override.`);
-            const response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                flowId: "pedido", // Use name as ID for smart resolution 
+            
+            // Try starting at a specific delivery node, but fallback to start if node not found
+            let response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
+                flowId: "pedido", 
                 startNodeId: "n_ask_delivery" 
             });
+
+            // If the response is empty or had a warning (which we catch by checking if it advanced), try without startNodeId
+            if (!response.currentStateId) {
+                logger.warn(`[DEBUGLOG] Could not find node 'n_ask_delivery', starting from beginning of flow.`);
+                response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
+                    flowId: "pedido"
+                });
+            }
+
             logger.info(`[DEBUGLOG] FlowEngine response received`, { responseLength: response.currentStateDefinition?.message_template?.length });
             return ['Perfecto, seguimos con el pedido.', ...this.extractMessages(response)];
         }

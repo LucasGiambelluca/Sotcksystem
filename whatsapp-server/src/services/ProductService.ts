@@ -180,7 +180,10 @@ class ProductService {
             if (coverage <= 0.5) {
                 // Exemption for generic brands to allow partial matches to surface
                 if (termTokens.length === 1 && ['coca', 'sprite', 'pepsi', 'fanta', 'cerveza', 'agua', 'vino'].includes(termTokens[0])) {
-                    score *= 0.8;
+                    score *= 0.85;
+                } else if (termTokens.length === 1) {
+                    // Stricter penalty for single-word generic terms like 'pollo' matching 'milanesa de pollo'
+                    score *= 0.5; 
                 } else {
                     score *= (coverage * 1.5); 
                 }
