@@ -80,7 +80,9 @@ export class OfficialWhatsAppClient {
             
             // Save to DB
             const content = payload.text?.body || payload.image?.caption || payload.document?.caption || '[Media/Poll]';
-            await this.saveOutboundMessageDB(cleanTo, content, payload.type, response.data.messages[0].id);
+            // Save to DB asynchronously to avoid blocking the response
+            this.saveOutboundMessageDB(cleanTo, content, payload.type, response.data.messages[0].id)
+                .catch(err => logger.error(`[OfficialWA] Error saving outbound message to DB: ${err.message}`));
 
             return response.data;
         } catch (error: any) {

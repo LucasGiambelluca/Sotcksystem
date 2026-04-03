@@ -129,14 +129,14 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
                         if (text) {
                             logger.info(`[OfficialWA] Processing: ${phone} -> "${text}" (id: ${messageId})`);
                             const responses = await conversationRouter.processMessage(phone, text, pushName, context);
-                            logger.info(`[OfficialWA] Router generated ${responses.length} responses for ${phone}`);
-                            for (const response of responses) {
+                            // Send all generated responses in parallel to minimize latency
+                            await Promise.all(responses.map(async (response) => {
                                 try {
                                     await officialWhatsAppClient.sendMessage(phone, response);
-                                } catch (sendErr: any) {
-                                    logger.error(`[OfficialWA] Failed to send one of the responses to ${phone}`, { error: sendErr.message });
+                                } catch (err: any) {
+                                    logger.error(`[OfficialWA] Failed to send specific response: ${err.message}`);
                                 }
-                            }
+                            }));
                         }
                     }
                 }

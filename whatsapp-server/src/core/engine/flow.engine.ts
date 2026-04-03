@@ -123,9 +123,6 @@ export class FlowEngine {
                     logger.info(`[FlowEngine] Session found: ${session.id} | Node: ${session.currentNodeId} | Status: ${session.status}`);
                 } else {
                     logger.info(`[FlowEngine] No active session found for JID: ${sessionId}`);
-                    // Debug: Are there ANY sessions for this phone?
-                    const { data: allPhoneSessions } = await this.db.from('flow_executions').select('session_id, status').eq('phone', cleanPhone);
-                    logger.info(`[FlowEngine] DEBUG: All sessions for phone ${cleanPhone}`, { count: allPhoneSessions?.length, sessions: allPhoneSessions });
                 }
             } catch (err: any) {
                 logger.error(`[FlowEngine] Error matching session`, { error: err.message, sessionId });

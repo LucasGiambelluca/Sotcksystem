@@ -171,14 +171,16 @@ export class OrderNotificationListener {
         }
       });
 
-    // POLLING FALLBACK: Cada 30 segundos buscamos pedidos actualizados recientemente
+    // POLLING FALLBACK: Cada 5 segundos buscamos pedidos actualizados recientemente
     setInterval(async () => {
         try {
-            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            // Buffer ampliado: buscamos cambios en los últimos 2 minutos para evitar gaps
+            const windowMs = 120000; 
+            const lookback = new Date(Date.now() - windowMs).toISOString();
             const { data: recentOrders } = await supabase
                 .from('orders')
                 .select('id, status, updated_at')
-                .gt('updated_at', thirtySecondsAgo)
+                .gt('updated_at', lookback)
                 .not('status', 'eq', 'PENDING');
 
             if (recentOrders && recentOrders.length > 0) {
