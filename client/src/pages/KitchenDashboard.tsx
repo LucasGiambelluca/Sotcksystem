@@ -807,7 +807,10 @@ export default function KitchenDashboard() {
                                     {isCooking && (
                                         <div className="flex-1 flex flex-col gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
                                             {(() => {
-                                                const isDelivery = order.delivery_type === 'DELIVERY' || (order.delivery_type !== 'PICKUP' && order.delivery_address && !order.delivery_address.includes('Retiro en Local'));
+                                                // Robust pickup detection: handles both 'PICKUP' and legacy values like 'Retiro en local'
+                                                const dtLower = (order.delivery_type || '').toLowerCase();
+                                                const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || (order.delivery_address || '').includes('Retiro en Local');
+                                                const isDelivery = !isPickup;
                                                 if (logisticsEnabled && isDelivery) {
                                                     return (
                                                         <>
@@ -843,12 +846,16 @@ export default function KitchenDashboard() {
                                             })()}
                                         </div>
                                     )}
-                                    {isReady && (
-                                        <button onClick={() => updateStatus(order.id, 'delivered')}
-                                            className="flex-1 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 font-black py-4 rounded-xl transition-all text-base border border-gray-200">
-                                            {order.delivery_address ? '🚚 ENTREGADO' : '🛍️ RETIRADO'}
-                                        </button>
-                                    )}
+                                    {isReady && (() => {
+                                        const dtL = (order.delivery_type || '').toLowerCase();
+                                        const pickup = dtL === 'pickup' || dtL.includes('retiro') || dtL.includes('local');
+                                        return (
+                                            <button onClick={() => updateStatus(order.id, 'delivered')}
+                                                className="flex-1 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 font-black py-4 rounded-xl transition-all text-base border border-gray-200">
+                                                {pickup ? '🛍️ RETIRADO' : '🚚 ENTREGADO'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>

@@ -251,14 +251,17 @@ export class OrderNotificationListener {
           template = waConfig?.template_preparation || DEFAULT_TEMPLATES.IN_PREPARATION;
           break;
         case 'IN_TRANSIT':
-        case 'SHIPPED':
+        case 'SHIPPED': {
           // Treat transit/shipped as delivery notification, BUT check if it's a pickup
-          if (order.delivery_type === 'PICKUP' || order.delivery_address?.includes('Retiro en Local')) {
+          const dtLower = (order.delivery_type || '').toLowerCase();
+          const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || order.delivery_address?.includes('Retiro en Local');
+          if (isPickup) {
             template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           } else {
             template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
           }
           break;
+        }
         case 'OUT_FOR_DELIVERY':
           // Ensure delivery notification is always sent even if cadet system is offline
           template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
