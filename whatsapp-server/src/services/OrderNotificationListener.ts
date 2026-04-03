@@ -186,7 +186,8 @@ export class OrderNotificationListener {
                     const lastProcessed = this.processedChanges.get(order.id);
                     if (lastProcessed !== order.status) {
                         console.log(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
-                        this.processedChanges.set(order.id, order.status);
+                        // Removed this.processedChanges.set(order.id, order.status); here
+                        // to let handleStatusChange process it and avoid the early return check inside it.
                         await this.handleStatusChange(order.id, order.status);
                     }
                 }
@@ -248,7 +249,8 @@ export class OrderNotificationListener {
           template = waConfig?.template_preparation || DEFAULT_TEMPLATES.IN_PREPARATION;
           break;
         case 'IN_TRANSIT':
-          // Treat transit as delivery notification
+        case 'SHIPPED':
+          // Treat transit/shipped as delivery notification
           template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
           break;
         case 'OUT_FOR_DELIVERY':

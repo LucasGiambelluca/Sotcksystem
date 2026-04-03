@@ -1,0 +1,65 @@
+
+=========================================================
+GUÍA DE INTERCONEXIÓN DE NODOS - STOCKSYSTEM BOT 🤖🛡️
+=========================================================
+
+Este documento explica cómo el "Cerebro" (FlowEngine) del bot interpreta los diagramas que dibujas en el Dashboard y cómo toma decisiones en cada paso.
+
+1. CONCEPTOS BÁSICOS
+--------------------
+• NODO: Es una "estación" de trabajo. Cada nodo hace algo (enviar un mensaje, validar una ubicación, guardar un dato).
+• ENLACE (EDGE): Es el "cable" que conecta un nodo con otro. Define el camino a seguir.
+• MANIJA (HANDLE): Es el conector específico de donde sale el cable. Un nodo puede tener varias salidas (ej: Éxito o Error).
+
+2. EL CICLO DE EJECUCIÓN (¿Cómo se mueve el bot?)
+-----------------------------------------------
+Cuando llega un mensaje, el FlowEngine hace lo siguiente:
+1. Identifica el NODO ACTUAL en el que está el usuario.
+2. Ejecuta la lógica de ese nodo (Executor).
+3. SI el nodo genera una salida (resultado), el motor busca un CABLE que coincida con ese resultado.
+4. Salta al NODO DESTINO y repite el proceso hasta que encuentra un nodo que "espera respuesta" (Question/Poll).
+
+3. TIPOS DE NODOS Y SUS LÓGICAS
+-------------------------------
+• Nodos de Mensaje (MessageNode):
+  Envían un texto y pasan AUTOMÁTICAMENTE al siguiente nodo sin esperar al usuario.
+
+• Nodos de Pregunta (QuestionNode):
+  Envían un texto y se DETIENEN. El bot guarda lo que el usuario escriba en una VARIABLE y espera el próximo mensaje para avanzar.
+
+• Nodos de Encuesta (PollNode):
+  Muestran opciones numeradas (1, 2, 3...). 
+  MECANISMO: El motor traduce el número del usuario a un "ID de opción" (option-0, option-1, etc.). Tu cable debe salir de la opción correcta en el Dashboard.
+
+• Validador de Ubicación (LocationValidator):
+  Es un nodo de decisión inteligente.
+  RESULTADOS: Envía una señal "true" (si la zona es válida) o "false" (si es zona prohibida o fuera de radio).
+  RESILIENCIA: El motor ahora entiende sinónimos. Si el código dice "CENTRO", el motor sabe que equivale a "true".
+
+• Nodo de Condición (ConditionNode):
+  Compara una variable. Si coincide con tu regla, sale por "SI" (true), de lo contrario por "NO" (false).
+
+4. EL SISTEMA DE "MANIJAS" (HANDLES) - CLAVE DEL ÉXITO
+----------------------------------------------------
+Para que el bot no se "pierda", la salida del código debe coincidir EXACTAMENTE con el nombre del conector en el Dashboard.
+
+EJEMPLO: Validador de Ubicación
+- Código interno devuelve: "false"
+- Dashboard tiene un cable saliendo de: "false"
+- Resultado: El bot sigue ese camino.
+
+SI NO HAY COINCIDENCIA:
+El motor ahora tiene un "MODO ESTRICTO". Si no encuentra el camino exacto (o un sinónimo conocido), se detiene por seguridad en lugar de tomar cualquier camino al azar. Esto evita que el cliente reciba el catálogo si su dirección fue rechazada.
+
+5. VARIABLES Y MEMORIA
+----------------------
+El bot guarda todo lo que pasa en una "Memoria de Sesión":
+- {{direccion_cliente}}: Lo que el usuario escribió.
+- {{direccion_lat}} / {{direccion_lng}}: Coordenadas reales.
+- {{user_choice}}: La última opción elegida.
+
+Puedes usar estas variables en cualquier nodo de mensaje escribiéndolas entre llaves, ej: "Tu pedido irá a {{direccion_cliente}}".
+
+=========================================================
+SOPORTE TÉCNICO - STOCKSYSTEM ADM
+=========================================================

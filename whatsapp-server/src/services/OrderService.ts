@@ -127,6 +127,7 @@ export class OrderService {
 
         if (itemsError) {
             console.error('[OrderService] Error guardando items:', itemsError);
+            throw new Error(`Error al guardar los items del pedido: ${itemsError.message}`);
         }
 
         // 5. Descontar Stock de catalog_items (Atómico y Transaccional)

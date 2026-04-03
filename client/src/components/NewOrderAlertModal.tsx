@@ -56,7 +56,7 @@ export default function NewOrderAlertModal() {
         .select(`
           id, order_number, total_amount, delivery_address, delivery_type, phone, channel, chat_context, 
           client:clients(name),
-          order_items(quantity, catalog_item:catalog_items(name))
+          order_items(quantity, catalog_items(name))
         `)
         .eq('status', 'PENDING');
 
@@ -88,7 +88,7 @@ export default function NewOrderAlertModal() {
           || null;
 
         const items: IncomingOrderItem[] = (raw as any).order_items?.map((oi: any) => ({
-          name: oi.catalog_item?.name || 'Desconocido',
+          name: oi.catalog_items?.name || 'Desconocido',
           quantity: oi.quantity
         })) || [];
 

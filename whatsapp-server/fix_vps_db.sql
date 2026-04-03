@@ -1,0 +1,21 @@
+-- 1. Reparar Esquema (Agregar column is_deleted)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+
+-- 2. Asegurar que el flujo "Tomar Pedido" exista con el ID correcto
+INSERT INTO flows (id, name, description, nodes, edges, is_active, created_at, updated_at)
+VALUES (
+    'd7f26b46-2ac6-48bc-ad4e-6547dba77e20',
+    'Tomar Pedido',
+    'Flujo de checkout automático',
+    '[{"id":"start","data":{"label":"Inicio (Palabra Clave: pedido)"},"type":"input","position":{"x":100,"y":100}},{"id":"n_welcome_pedido","data":{"text":"¡Hola! 🍗\n\nPodés armar tu pedido súper rápido desde nuestro menú online:\n👉 *https://localhost:5173/elpollocomilon/pedir*\n\nO si preferís, podés escribirme por acá qué te gustaría pedir (ej: *\"quiero 1 pollo y 2 ensaladas\"*). ¡Te leo!"},"type":"messageNode","position":{"x":100,"y":250}},{"id":"n_ask_delivery","data":{"options":["🏠 Delivery","📦 Retiro en el local"],"question":"¿Cómo lo querés?","variable":"envio_opcion"},"type":"pollNode","position":{"x":400,"y":100}},{"id":"n_cond_delivery","data":{"operator":"equals","variable":"envio_opcion","expectedValue":"1"},"type":"conditionNode","position":{"x":400,"y":250}},{"id":"n_ask_address","data":{"question":"¿A qué dirección te lo mandamos? 📍","variable":"direccion_cliente"},"type":"questionNode","position":{"x":250,"y":400}},{"id":"n_ask_payment","data":{"options":["💵 Efectivo","🏦 Transferencia / MercadoPago"],"question":"¿Cómo preferís abonar? 💳","variable":"metodo_pago"},"type":"pollNode","position":{"x":400,"y":550}},{"id":"n_final","data":{"label":"Crear Pedido"},"type":"createOrderNode","position":{"x":400,"y":700}}]'::jsonb,
+    '[{"id":"e1","source":"start","target":"n_welcome_pedido","sourceHandle":"default","targetHandle":"default"},{"id":"e2","source":"n_ask_delivery","target":"n_cond_delivery","sourceHandle":"default","targetHandle":"default"},{"id":"e3","source":"n_cond_delivery","target":"n_ask_address","sourceHandle":"yes","targetHandle":"default"},{"id":"e4","source":"n_cond_delivery","target":"n_ask_payment","sourceHandle":"no","targetHandle":"default"},{"id":"e5","source":"n_ask_address","target":"n_ask_payment","sourceHandle":"default","targetHandle":"default"},{"id":"e6","source":"n_ask_payment","target":"n_final","sourceHandle":"default","targetHandle":"default"}]'::jsonb,
+    true,
+    now(),
+    now()
+)
+ON CONFLICT (id) DO UPDATE SET 
+    nodes = EXCLUDED.nodes,
+    edges = EXCLUDED.edges,
+    is_active = true,
+    updated_at = now();

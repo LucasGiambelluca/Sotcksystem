@@ -58,7 +58,7 @@ export class OrderValidatorExecutor implements NodeExecutor {
         // 3. Build a dynamic numbered menu based on available categories
         const { supabase: sb } = require('../../config/database');
         const { data: categories } = await sb
-            .from('products')
+            .from('catalog_items')
             .select('category')
             .eq('is_active', true);
         
@@ -94,7 +94,7 @@ export class OrderValidatorExecutor implements NodeExecutor {
         // Rebuild the same dynamic options list to get correct number -> id mapping
         const { supabase: sb } = require('../../config/database');
         const { data: categories } = await sb
-            .from('products')
+            .from('catalog_items')
             .select('category')
             .eq('is_active', true);
         
