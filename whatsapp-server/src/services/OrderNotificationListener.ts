@@ -197,7 +197,7 @@ export class OrderNotificationListener {
         } catch (e) {
             console.error('[OrderPolling] Error:', e);
         }
-    }, 30000);
+    }, 2000); // 2 seconds for near-realtime feedback
   }
 
   private async handleStatusChange(orderId: string, newStatus: string) {
@@ -254,7 +254,13 @@ export class OrderNotificationListener {
         case 'SHIPPED': {
           // Treat transit/shipped as delivery notification, BUT check if it's a pickup
           const dtLower = (order.delivery_type || '').toLowerCase();
-          const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || order.delivery_address?.includes('Retiro en Local');
+          const adLower = (order.delivery_address || '').toLowerCase();
+          const isPickup = dtLower === 'pickup' || 
+                         dtLower.includes('retiro') || 
+                         dtLower.includes('local') || 
+                         adLower.includes('retiro') || 
+                         adLower.includes('local');
+          
           if (isPickup) {
             template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           } else {

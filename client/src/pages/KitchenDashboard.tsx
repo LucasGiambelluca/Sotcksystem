@@ -807,9 +807,14 @@ export default function KitchenDashboard() {
                                     {isCooking && (
                                         <div className="flex-1 flex flex-col gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
                                             {(() => {
-                                                // Robust pickup detection: handles both 'PICKUP' and legacy values like 'Retiro en local'
+                                                // Super robust pickup detection: handles 'PICKUP', 'Retiro en local', '📍 Retiro en Local', etc.
                                                 const dtLower = (order.delivery_type || '').toLowerCase();
-                                                const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || (order.delivery_address || '').includes('Retiro en Local');
+                                                const adLower = (order.delivery_address || '').toLowerCase();
+                                                const isPickup = dtLower === 'pickup' || 
+                                                               dtLower.includes('retiro') || 
+                                                               dtLower.includes('local') || 
+                                                               adLower.includes('retiro') || 
+                                                               adLower.includes('local');
                                                 const isDelivery = !isPickup;
                                                 if (logisticsEnabled && isDelivery) {
                                                     return (
