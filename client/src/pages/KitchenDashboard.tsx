@@ -593,8 +593,8 @@ export default function KitchenDashboard() {
                         <Utensils size={22} />
                     </div>
                     <div>
-                        <h1 className="text-base font-bold text-[#1e293b] leading-tight">
-                            {currentStation ? currentStation.name : 'Monitor Principal'}
+                        <h1 className="text-base font-bold text-[#1e293b] stroke-orange-500 leading-tight">
+                            {currentStation ? currentStation.name : 'Monitor Principal'} <span className="text-[8px] bg-yellow-200 px-1 rounded">V-ROBUST-1</span>
                         </h1>
                         <p className="text-xs text-gray-400">
                             {currentShift
@@ -816,6 +816,9 @@ export default function KitchenDashboard() {
                                                                adLower.includes('retiro') || 
                                                                adLower.includes('local');
                                                 const isDelivery = !isPickup;
+
+                                                console.log(`[Order ${order.order_number || order.id.slice(0,5)}] isPickup: ${isPickup}, Type: "${order.delivery_type}", Addr: "${order.delivery_address}"`);
+
                                                 if (logisticsEnabled && isDelivery) {
                                                     return (
                                                         <>

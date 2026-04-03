@@ -268,10 +268,23 @@ export class OrderNotificationListener {
           }
           break;
         }
-        case 'OUT_FOR_DELIVERY':
+        case 'OUT_FOR_DELIVERY': {
           // Ensure delivery notification is always sent even if cadet system is offline
-          template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+          const dtLower = (order.delivery_type || '').toLowerCase();
+          const adLower = (order.delivery_address || '').toLowerCase();
+          const isPickup = dtLower === 'pickup' || 
+                         dtLower.includes('retiro') || 
+                         dtLower.includes('local') || 
+                         adLower.includes('retiro') || 
+                         adLower.includes('local');
+
+          if (isPickup) {
+            template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
+          } else {
+            template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+          }
           break;
+        }
         case 'PICKED_UP':
           template = waConfig?.template_picked_up || DEFAULT_TEMPLATES.PICKED_UP;
           console.log(`🛵 [OrderNotificationListener] Order #${order.id.slice(0,8)} marked as PICKED_UP.`);
