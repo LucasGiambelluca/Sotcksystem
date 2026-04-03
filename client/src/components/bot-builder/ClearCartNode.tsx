@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import { Trash2, ShoppingCart } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 export default memo(({ data, isConnectable }: any) => {
   return (

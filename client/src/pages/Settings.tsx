@@ -187,17 +187,6 @@ export default function Settings() {
   };
 
   // --- Logic for Zones ---
-  const addZone = async () => {
-    const { data, error } = await supabase.from('shipping_zones').insert({ 
-      name: 'Nueva Zona', 
-      cost: 0, 
-      zone_type: 'radius', 
-      max_radius_km: 1,
-      allow_delivery: true 
-    }).select().single();
-    if (error) return toast.error('Error al crear zona');
-    setZones([...zones, data]);
-  };
 
 
   const updateZone = async (id: string, updates: Partial<ShippingZone>) => {

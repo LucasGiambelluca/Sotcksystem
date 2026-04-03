@@ -248,7 +248,7 @@ export default function TabletOrdering() {
         {/* Dynamic Product Grid */}
         <main className="flex-1 overflow-y-auto p-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max pb-32">
-              {filteredItems.map((item, index) => {
+              {filteredItems.map((item, _index) => {
                 // Determine if this is a "Chef Special" style card (e.g., every 5th item just to showcase design variety, or if it matches a keyword)
                 const isSpecial = item.name.toLowerCase().includes('temporada') || item.name.toLowerCase().includes('degustación');
 
