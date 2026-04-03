@@ -103,7 +103,7 @@ export class OrderNotificationListener {
   }
 
   public start() {
-    console.log('📡 [OrderNotificationListener] Starting Realtime listener...');
+    console.log('📡 [OrderNotificationListener] Starting Realtime listener... (V-ROBUST-1)');
     
     // Generamos un nombre único para evitar sesiones "trabadas"
     const channelName = `order-status-notifications-${Date.now()}`;
@@ -201,6 +201,7 @@ export class OrderNotificationListener {
   }
 
   private async handleStatusChange(orderId: string, newStatus: string) {
+    console.log(`🔔 [OrderNotificationListener] Received status change for #${orderId.slice(0,8)}: ${newStatus}`);
     try {
       // Evitar duplicados (Realtime vs Polling)
       if (this.processedChanges.get(orderId) === newStatus) {

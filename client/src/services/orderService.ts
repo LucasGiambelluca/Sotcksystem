@@ -146,6 +146,7 @@ export async function getOrderById(orderId: string) {
 }
 
 export async function updateOrderStatus(orderId: string, status: Order['status']) {
+  console.log(`[orderService] Updating Order ${orderId} status to: ${status}`);
   try {
     const { data, error } = await supabase
       .from('orders')
