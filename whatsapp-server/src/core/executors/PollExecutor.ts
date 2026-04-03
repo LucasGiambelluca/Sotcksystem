@@ -4,9 +4,9 @@ export class PollExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
         const varName = data.variable || data.contextKey || 'poll_response';
 
-        // Si la variable de la encuesta ya vino pre-cargada en el contexto (ej: desde el catálogo web)
-        if (context[varName]) {
-            console.log(`[PollExecutor] Saltando encuesta '${data.name}' porque ${varName} ya tiene valor: ${context[varName]}`);
+        // Solo salteamos si explícitamente se permite en el nodo Y ya tiene valor
+        if (data.allow_skip && context[varName]) {
+            console.log(`[PollExecutor] Saltando encuesta '${data.name}' porque allow_skip es true y ${varName} ya tiene valor.`);
             return { messages: [], wait_for_input: false };
         }
 

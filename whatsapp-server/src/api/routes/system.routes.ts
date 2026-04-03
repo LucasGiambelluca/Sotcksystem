@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import deliverySlotService from '../../services/DeliverySlotService';
 import { whatsappClient } from '../../infrastructure/whatsapp/WhatsAppClient';
+import { GeocodingService } from '../../services/GeocodingService';
+
 
 const router = Router();
 
@@ -13,6 +15,20 @@ router.post('/slots/generate', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate slots' });
     }
 });
+
+router.post('/geocode', async (req, res) => {
+    const { address } = req.body;
+    if (!address) return res.status(400).json({ error: 'Address is required' });
+
+    try {
+        const result = await GeocodingService.geocode(address);
+        res.json(result);
+    } catch (error: any) {
+        console.error('Geocoding error:', error.message);
+        res.status(400).json({ error: error.message });
+    }
+});
+
 
 router.get('/health', (_req, res) => {
     const status = whatsappClient.getStatus();

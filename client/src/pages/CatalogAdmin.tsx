@@ -1,13 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, Search, X, ShoppingBag, Filter, ArrowUpDown, Image, EyeOff, Eye, Layers, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Plus, Pencil, Trash2, Search, X, ShoppingBag, Filter, ArrowUpDown, Image, EyeOff, Eye, Layers, ChevronUp, ChevronDown, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../supabaseClient';
-import type { CatalogItem, Station, RecipeComponent } from '../types';
+import type { CatalogItem, Station, RecipeComponent, CatalogCategory } from '../types';
 import { stationService } from '../services/stationService';
 import { recipeComponentService } from '../services/recipeComponentService';
-import { catalogItemService } from '../services/productService';
+import { catalogItemService, catalogCategoryService } from '../services/productService';
 import ExportButtons from '../components/ExportButtons';
 import Pagination from '../components/common/Pagination';
+import CategoryManagementModal from '../components/catalog/CategoryManagementModal';
+import PromotionManagementModal from '../components/catalog/PromotionManagementModal';
 
 export default function CatalogAdmin() {
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -16,8 +18,11 @@ export default function CatalogAdmin() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
-  const [uploadingImg, setUploadingImg] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
+  const [dbCategories, setDbCategories] = useState<CatalogCategory[]>([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
 
   // Recipe components state
   const [components, setComponents] = useState<RecipeComponent[]>([]);
@@ -35,6 +40,7 @@ export default function CatalogAdmin() {
     price: 0,
     stock: 0,
     category: '',
+    category_id: '' as string | null,
     image_url_1: '' as string | null,
     image_url_2: '' as string | null,
     station_id: '' as string,
@@ -50,7 +56,7 @@ export default function CatalogAdmin() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
 
-  useEffect(() => { loadItems(); loadStations(); }, []);
+  useEffect(() => { loadItems(); loadStations(); loadCategories(); }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -58,18 +64,50 @@ export default function CatalogAdmin() {
 
   const loadItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('catalog_items')
-      .select('*, station:stations(id, name, color)')
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
-    if (error) {
-      toast.error('Error al cargar el catálogo');
-      console.error(error);
-    } else {
-      setItems(data as CatalogItem[]);
+    try {
+      // 1. THE MOST BASIC SELECT POSSIBLE (No joins)
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('catalog_items')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (itemsError) throw itemsError;
+
+      // 2. Fetch all categories
+      const categoriesData = await catalogCategoryService.getAll();
+      setDbCategories(categoriesData);
+
+      // 3. Manual Join for categories (using the name string as bridge)
+      const enrichedItems = (itemsData as any[]).map(item => {
+        const catObj = categoriesData.find(c => 
+          (item.category_id && c.id === item.category_id) ||
+          (item.category && c.name.trim().toLowerCase() === item.category.trim().toLowerCase())
+        );
+        return { 
+          ...item, 
+          catalog_category: catObj || null 
+        };
+      });
+
+      setItems(processAndSortItems(enrichedItems));
+    } catch (err) {
+      console.error('Critical LoadItems Error:', err);
+      toast.error('Error al sincronizar con categorías');
+      // Final fallback
+      const { data } = await supabase.from('catalog_items').select('*').eq('is_active', true);
+      if (data) setItems(data as CatalogItem[]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  const processAndSortItems = (data: any[]) => {
+    return data.sort((a, b) => {
+      const catA = a.catalog_category?.sort_order ?? 999;
+      const catB = b.catalog_category?.sort_order ?? 999;
+      if (catA !== catB) return catA - catB;
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
   };
 
   const loadStations = async () => {
@@ -81,6 +119,15 @@ export default function CatalogAdmin() {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const cats = await catalogCategoryService.getAll();
+      setDbCategories(cats);
+    } catch (err) {
+      console.error('Error loading categories', err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -89,6 +136,7 @@ export default function CatalogAdmin() {
       price: Number(formData.price),
       stock: Number(formData.stock),
       category: formData.category || 'General',
+      category_id: formData.category_id || null,
       image_url_1: formData.image_url_1 || null,
       image_url_2: formData.image_url_2 || null,
       station_id: formData.station_id || null,
@@ -153,6 +201,7 @@ export default function CatalogAdmin() {
         price: item.price,
         stock: item.stock,
         category: item.category || '',
+        category_id: item.category_id || '',
         image_url_1: item.image_url_1 || '',
         image_url_2: item.image_url_2 || '',
         station_id: item.station_id || '',
@@ -165,7 +214,7 @@ export default function CatalogAdmin() {
       recipeComponentService.getByItem(item.id).then(comps => setComponents(comps)).catch(console.error);
     } else {
       setEditingItem(null);
-      setFormData({ name: '', description: '', price: 0, stock: 0, category: '', image_url_1: '', image_url_2: '', station_id: '', is_active: true, is_special: false, special_price: undefined, offer_label: '' });
+      setFormData({ name: '', description: '', price: 0, stock: 0, category: '', category_id: '', image_url_1: '', image_url_2: '', station_id: '', is_active: true, is_special: false, special_price: undefined, offer_label: '' });
       setComponents([]);
     }
     setIsModalOpen(true);
@@ -180,6 +229,7 @@ export default function CatalogAdmin() {
       price: 0, 
       stock: 0, 
       category: '', 
+      category_id: '',
       image_url_1: '', 
       image_url_2: '', 
       station_id: '', 
@@ -256,34 +306,44 @@ export default function CatalogAdmin() {
   };
 
   const handleMove = async (item: CatalogItem, direction: 'up' | 'down') => {
-    const currentIndex = items.findIndex(i => i.id === item.id);
+    // Only move within the same category
+    const sameCategoryItems = items.filter(i => 
+      (i.category_id === item.category_id) || 
+      (!i.category_id && !item.category_id && i.category === item.category)
+    );
+    
+    const currentIndex = sameCategoryItems.findIndex(i => i.id === item.id);
     if (currentIndex === -1) return;
 
     const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= items.length) return;
+    if (newIndex < 0 || newIndex >= sameCategoryItems.length) return;
 
-    // Create a new version of the full list with the item moved
-    const newItems = [...items];
-    const [movedItem] = newItems.splice(currentIndex, 1);
-    newItems.splice(newIndex, 0, movedItem);
+    // Create a new version of the partial list
+    const reorderedSubList = [...sameCategoryItems];
+    const [movedItem] = reorderedSubList.splice(currentIndex, 1);
+    reorderedSubList.splice(newIndex, 0, movedItem);
 
-    // Re-assign sort_order to EVERYONE sequentially (10, 20, 30...)
-    // This ensures that even if they all had 0, they now have distinct values.
-    const updates = newItems.map((it, idx) => ({
+    // Map back to the full items list
+    const newFullItems = items.map(it => {
+        const subIdx = reorderedSubList.findIndex(si => si.id === it.id);
+        if (subIdx !== -1) {
+            return { ...it, sort_order: (subIdx + 1) * 10 };
+        }
+        return it;
+    });
+
+    const updates = reorderedSubList.map((it, idx) => ({
       id: it.id,
       sort_order: (idx + 1) * 10
     }));
 
     try {
-      // Optimistic update
-      setItems(newItems.map((it, idx) => ({ ...it, sort_order: (idx + 1) * 10 })));
-      
+      setItems(newFullItems);
       await catalogItemService.updateAllOrders(updates);
       toast.success('Orden actualizado');
     } catch (err) {
       console.error('Error swapping order', err);
       toast.error('Error al cambiar el orden');
-      // Revert on error
       loadItems();
     }
   };
@@ -306,120 +366,203 @@ export default function CatalogAdmin() {
   }
 
   const filtered = items.filter(item =>
-    (categoryFilter === '' || item.category === categoryFilter) &&
+    (categoryFilter === '' || (item.catalog_category?.name || item.category) === categoryFilter) &&
     (searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const categories = Array.from(new Set(items.map(i => i.category).filter(Boolean))) as string[];
+  const availableCategories = Array.from(new Set(items.map(i => i.catalog_category?.name || i.category).filter(Boolean))) as string[];
 
   if (loading) return <div className="p-8 flex justify-center text-primary-600">Cargando catálogo de ventas...</div>;
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+    <div className="p-4 md:p-10 max-w-7xl mx-auto min-h-screen bg-white">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingBag className="text-emerald-600" size={28} />
+          <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+            <ShoppingBag className="text-primary-600" size={32} />
             Catálogo de Ventas
           </h1>
-          <p className="text-gray-500 mt-1 text-sm md:text-base">
-            Productos elaborados que el cliente puede pedir (pizza, pollo a la parrilla, etc.)
+          <p className="text-gray-500 mt-2 text-base md:text-lg max-w-2xl font-light">
+            Gestioná tus productos, precios y stock con un diseño profesional y minimalista.
           </p>
-          <p className="text-xs text-amber-600 mt-1 font-medium bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg inline-block">
-            ⚡ Separado del Inventario de Insumos · El bot de WhatsApp usa este catálogo
-          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-100">
+              ⚡ Sincronizado con WhatsApp
+            </span>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+              ✓ Inventario Dinámico
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 w-full md:w-auto">
-          <ExportButtons
-            data={filtered}
-            filename="catalogo-ventas"
-            columns={[
-              { header: 'Nombre', key: 'name' },
-              { header: 'Categoría', key: 'category' },
-              { header: 'Precio', key: 'price' },
-              { header: 'Stock', key: 'stock' },
-              { header: 'Activo', key: 'is_active' },
-              { header: 'Descripción', key: 'description' }
-            ]}
-          />
-          <a
-            href="/elpollocomilon/catalog"
-            target="_blank"
-            rel="noreferrer"
-            className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center space-x-2 hover:bg-emerald-700 shadow transition w-full sm:w-auto"
-          >
-            <ShoppingBag size={18} />
-            <span className="font-medium">Ver Catálogo Público</span>
-          </a>
+
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
           <button
             onClick={() => openModal()}
-            className="bg-primary-600 text-white px-5 py-2.5 rounded-xl flex items-center justify-center space-x-2 hover:bg-primary-700 shadow-lg shadow-primary-900/20 transition-all w-full sm:w-auto"
+            className="flex-1 md:flex-none bg-primary-600 text-white px-6 py-3 rounded-2xl flex items-center justify-center space-x-2 hover:bg-primary-700 shadow-lg shadow-primary-900/10 transition-all font-semibold"
           >
             <Plus size={20} />
-            <span className="font-medium">Nuevo Ítem</span>
+            <span>Nuevo Ítem</span>
           </button>
-          <button
-            onClick={() => setIsMassUpdateModalOpen(true)}
-            className="bg-amber-100 text-amber-700 px-5 py-2.5 rounded-xl flex items-center justify-center space-x-2 hover:bg-amber-200 border border-amber-200 transition-all w-full sm:w-auto"
-            title="Actualización masiva de precios"
-          >
-            <ArrowUpDown size={20} />
-            <span className="font-medium">Actualizar Precios %</span>
-          </button>
+          
+          <div className="flex gap-2 w-full md:w-auto">
+             <button
+              onClick={() => setIsMassUpdateModalOpen(true)}
+              className="flex-1 bg-white text-gray-700 px-4 py-3 rounded-2xl flex items-center justify-center space-x-2 hover:bg-gray-50 border border-gray-200 transition-all font-medium text-sm"
+              title="Actualización masiva de precios"
+            >
+              <ArrowUpDown size={18} className="text-amber-500" />
+              <span className="hidden sm:inline">Precios</span>
+            </button>
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="flex-1 bg-white text-gray-700 px-4 py-3 rounded-2xl flex items-center justify-center space-x-2 hover:bg-gray-50 border border-gray-200 transition-all font-medium text-sm"
+              title="Gestionar categorías"
+            >
+              <Layers size={18} className="text-indigo-500" />
+              <span className="hidden sm:inline">Categorías</span>
+            </button>
+            <button
+              onClick={() => setIsPromotionModalOpen(true)}
+              className="flex-1 bg-white text-gray-700 px-4 py-3 rounded-2xl flex items-center justify-center space-x-2 hover:bg-gray-50 border border-gray-200 transition-all font-medium text-sm"
+              title="Gestionar banners destacados"
+            >
+              <Smartphone size={18} className="text-emerald-500" />
+              <span className="hidden sm:inline">Promos</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+      {/* Main Content Card */}
+      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-xl shadow-gray-200/40 overflow-hidden">
+        {/* Search & Filter Bar */}
+        <div className="p-6 md:p-8 bg-gray-50/30 border-b border-gray-50 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" size={20} />
             <input
               type="text"
-              placeholder="Buscar ítem..."
+              placeholder="Buscar por nombre de producto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white shadow-sm"
+              className="w-full pl-14 pr-6 py-4 border-none rounded-2xl focus:ring-2 focus:ring-primary-500/20 bg-white shadow-sm text-gray-600 placeholder:text-gray-400 font-medium"
             />
           </div>
-          <div className="relative min-w-[200px] w-full md:w-auto">
-            <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <div className="relative min-w-[240px]">
+            <Filter className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white shadow-sm appearance-none"
+              className="w-full pl-14 pr-10 py-4 border-none rounded-2xl focus:ring-2 focus:ring-primary-500/20 bg-white shadow-sm appearance-none text-gray-600 font-medium cursor-pointer"
             >
               <option value="">Todas las Categorías</option>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-              <ArrowUpDown size={16} className="text-gray-400" />
+            <div className="absolute right-5 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <ChevronDown size={18} className="text-gray-400" />
             </div>
+          </div>
+          
+          <div className="flex gap-2 w-full md:w-auto">
+            <ExportButtons
+              data={filtered}
+              filename="catalogo-ventas"
+              columns={[
+                { header: 'Nombre', key: 'name' },
+                { header: 'Categoría', key: 'category' },
+                { header: 'Precio', key: 'price' },
+                { header: 'Stock', key: 'stock' },
+                { header: 'Descripción', key: 'description' }
+              ]}
+            />
+            <a
+              href="/elpollocomilon/catalog"
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 md:w-auto bg-emerald-50 text-emerald-700 px-6 py-4 rounded-2xl flex items-center justify-center space-x-2 hover:bg-emerald-100 transition-all font-bold border border-emerald-100"
+            >
+              <Eye size={18} />
+              <span className="whitespace-nowrap">Ver Público</span>
+            </a>
           </div>
         </div>
 
         {/* Mobile View: Cards Grouped by Category */}
         <div className="md:hidden divide-y divide-gray-100">
           {(() => {
-            const categoriesInOrder: string[] = [];
             const grouped: Record<string, CatalogItem[]> = {};
-            paginated.forEach(item => {
-              const cat = item.category || 'General';
-              if (!grouped[cat]) {
-                grouped[cat] = [];
-                categoriesInOrder.push(cat);
-              }
-              grouped[cat].push(item);
+            paginated.forEach((item: CatalogItem) => {
+              const catName = item.catalog_category?.name || item.category || 'General';
+              if (!grouped[catName]) grouped[catName] = [];
+              grouped[catName].push(item);
             });
 
-            return categoriesInOrder.map(cat => (
+            // Sort category names based on dbCategories order
+            const catNames = dbCategories
+              .map(c => c.name)
+              .filter(name => grouped[name]);
+            
+            // Add 'General' or others not in dbCategories at the end
+            Object.keys(grouped).forEach(name => {
+              if (!catNames.includes(name)) catNames.push(name);
+            });
+
+            return catNames.map((cat: string) => (
               <div key={cat} className="bg-white">
-                <div className="bg-gray-50 px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-y border-gray-100">
-                  {cat}
+                <div className="bg-gray-50 px-3 py-1 border-y border-gray-100 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    {cat}
+                  </span>
+                  {(() => {
+                    const catObj = dbCategories.find(c => c.name.trim().toLowerCase() === cat.trim().toLowerCase());
+                    if (!catObj) return null;
+                    const idx = dbCategories.indexOf(catObj);
+                    return (
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={async () => {
+                            const newIndex = idx - 1;
+                            if (newIndex < 0) return;
+                            const reordered = [...dbCategories];
+                            const [moved] = reordered.splice(idx, 1);
+                            reordered.splice(newIndex, 0, moved);
+                            const updates = reordered.map((c, i) => catalogCategoryService.update(c.id, { sort_order: (i+1)*10 }));
+                            await Promise.all(updates);
+                            loadCategories();
+                            loadItems();
+                            toast.success(`Subida: ${cat}`);
+                          }}
+                          disabled={idx === 0}
+                          className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-20"
+                        >
+                          <ChevronUp size={12} />
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const newIndex = idx + 1;
+                            if (newIndex >= dbCategories.length) return;
+                            const reordered = [...dbCategories];
+                            const [moved] = reordered.splice(idx, 1);
+                            reordered.splice(newIndex, 0, moved);
+                            const updates = reordered.map((c, i) => catalogCategoryService.update(c.id, { sort_order: (i+1)*10 }));
+                            await Promise.all(updates);
+                            loadCategories();
+                            loadItems();
+                            toast.success(`Bajada: ${cat}`);
+                          }}
+                          disabled={idx === dbCategories.length - 1}
+                          className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-20"
+                        >
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {grouped[cat].map((item) => (
+                  {grouped[cat].map((item: CatalogItem) => (
                     <div key={item.id} className="p-2 flex items-center space-x-3">
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 shrink-0">
                         {item.image_url_1
@@ -501,25 +644,85 @@ export default function CatalogAdmin() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {(() => {
-                const categoriesInOrder: string[] = [];
                 const grouped: Record<string, CatalogItem[]> = {};
-                paginated.forEach(item => {
-                  const cat = item.category || 'General';
-                  if (!grouped[cat]) {
-                    grouped[cat] = [];
-                    categoriesInOrder.push(cat);
-                  }
-                  grouped[cat].push(item);
+                paginated.forEach((item: CatalogItem) => {
+                  const catName = item.catalog_category?.name || item.category || 'General';
+                  if (!grouped[catName]) grouped[catName] = [];
+                  grouped[catName].push(item);
                 });
 
-                return categoriesInOrder.map(cat => (
-                  <>
+                // Sort category names based on dbCategories order
+                const catNames = dbCategories
+                  .map(c => c.name)
+                  .filter(name => grouped[name]);
+                
+                // Add 'General' or others not in dbCategories at the end
+                Object.keys(grouped).forEach(name => {
+                  if (!catNames.includes(name)) catNames.push(name);
+                });
+
+                return catNames.map((cat: string) => (
+                  <React.Fragment key={cat}>
                     <tr key={`header-${cat}`} className="bg-gray-50 select-none">
-                      <td colSpan={6} className="px-6 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-y border-gray-100">
-                        {cat}
+                      <td colSpan={6} className="px-6 py-2 border-y border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            {cat}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const catObj = dbCategories.find(c => c.name.trim().toLowerCase() === cat.trim().toLowerCase());
+                              if (!catObj) return null;
+                              const idx = dbCategories.indexOf(catObj);
+                              return (
+                                <div className="flex bg-white rounded-md border border-gray-200 shadow-sm overflow-hidden">
+                                  <button 
+                                    onClick={async () => {
+                                      const newIndex = idx - 1;
+                                      if (newIndex < 0) return;
+                                      const reordered = [...dbCategories];
+                                      const [moved] = reordered.splice(idx, 1);
+                                      reordered.splice(newIndex, 0, moved);
+                                      const updates = reordered.map((c, i) => catalogCategoryService.update(c.id, { sort_order: (i+1)*10 }));
+                                      await Promise.all(updates);
+                                      loadCategories();
+                                      loadItems();
+                                      toast.success(`Sección ${cat} subida`);
+                                    }}
+                                    disabled={idx === 0}
+                                    className="p-1 px-2 text-gray-400 hover:text-primary-600 hover:bg-gray-50 disabled:opacity-20"
+                                    title="Mover categoría arriba"
+                                  >
+                                    <ChevronUp size={14} />
+                                  </button>
+                                  <div className="w-[1px] bg-gray-100" />
+                                  <button 
+                                    onClick={async () => {
+                                      const newIndex = idx + 1;
+                                      if (newIndex >= dbCategories.length) return;
+                                      const reordered = [...dbCategories];
+                                      const [moved] = reordered.splice(idx, 1);
+                                      reordered.splice(newIndex, 0, moved);
+                                      const updates = reordered.map((c, i) => catalogCategoryService.update(c.id, { sort_order: (i+1)*10 }));
+                                      await Promise.all(updates);
+                                      loadCategories();
+                                      loadItems();
+                                      toast.success(`Sección ${cat} bajada`);
+                                    }}
+                                    disabled={idx === dbCategories.length - 1}
+                                    className="p-1 px-2 text-gray-400 hover:text-primary-600 hover:bg-gray-50 disabled:opacity-20"
+                                    title="Mover categoría abajo"
+                                  >
+                                    <ChevronDown size={14} />
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </td>
                     </tr>
-                    {grouped[cat].map((item) => (
+                    {grouped[cat].map((item: CatalogItem) => (
                       <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group border-b border-gray-50">
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-4">
@@ -623,7 +826,7 @@ export default function CatalogAdmin() {
                         </td>
                       </tr>
                     ))}
-                  </>
+                  </React.Fragment>
                 ));
               })()}
               {filtered.length === 0 && (
@@ -678,14 +881,35 @@ export default function CatalogAdmin() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
-                <input
-                  type="text"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Ej: Pizzas, Carnes, Entradas, Bebidas"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Categoría *</label>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.category_id || ''}
+                    onChange={(e) => {
+                      const cat = dbCategories.find(c => c.id === e.target.value);
+                      setFormData({ 
+                        ...formData, 
+                        category_id: e.target.value,
+                        category: cat?.name || '' 
+                      });
+                    }}
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                    required
+                  >
+                    <option value="">Seleccionar categoría...</option>
+                    {dbCategories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <button 
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200"
+                    title="Nueva categoría"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">🔥 Estación de Cocina</label>
@@ -1026,7 +1250,7 @@ export default function CatalogAdmin() {
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                 >
                   <option value="">Todo el Catálogo</option>
-                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
 
@@ -1055,6 +1279,17 @@ export default function CatalogAdmin() {
           </div>
         </div>
       )}
+      <CategoryManagementModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={dbCategories}
+        onUpdate={() => { loadCategories(); loadItems(); }}
+      />
+      <PromotionManagementModal 
+        isOpen={isPromotionModalOpen}
+        onClose={() => setIsPromotionModalOpen(false)}
+        catalogItems={items}
+      />
     </div>
   );
 }

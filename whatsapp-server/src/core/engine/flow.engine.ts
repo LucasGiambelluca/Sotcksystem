@@ -7,6 +7,8 @@ import { SessionQueue } from './session.queue';
 import { SessionRepository } from '../../infrastructure/repositories/SessionRepository';
 import { nodeExecutorFactory } from '../executors/NodeExecutorFactory';
 import { Session } from '../domain/Session';
+import { redisPersistence } from '../../infrastructure/persistence/RedisPersistenceService';
+import { ConfigurationService } from '../../services/ConfigurationService';
 
 export class FlowEngine {
     private db: any;
@@ -51,11 +53,31 @@ export class FlowEngine {
         logger.info(`[FlowEngine] Processing message in queue`, { sessionId, text: messageText.substring(0, 50) });
 
         // 0. GLOBAL INTERRUPTS (Reset logic)
-        const globalTriggers = ['hola', 'menu', 'menú', 'cancelar', 'inicio', 'salir'];
-        const isGlobalTrigger = globalTriggers.includes(messageText.trim().toLowerCase());
+        const globalTriggers = ['hola', 'menu', 'menú', 'cancelar', 'inicio', 'salir', 'testai'];
+        const normalizedMsg = messageText.trim()
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[^\w\sáéíóúüñ]/gi, '')
+            .toLowerCase();
+        
+        let isGlobalTrigger = globalTriggers.includes(normalizedMsg);
+
+        // EXTRA: If not a hardcoded global trigger, check if it's an EXACT trigger for ANY other flow.
+        // This allows 'testai' or any new flow to "break" an old stuck session.
+        if (!isGlobalTrigger) {
+            const { data: matchedFlow } = await this.db.from('flows')
+                .select('id')
+                .eq('is_active', true)
+                .or(`trigger_word.ilike.${normalizedMsg},trigger_word.ilike.%${normalizedMsg}%`)
+                .maybeSingle();
+            
+            if (matchedFlow) {
+                isGlobalTrigger = true;
+                logger.info(`[FlowEngine] Dynamic global trigger detected: "${normalizedMsg}" matches flow ${matchedFlow.id}`);
+            }
+        }
 
         if (isGlobalTrigger) {
-            logger.info(`[FlowEngine] Global trigger detected`, { phone, trigger: messageText });
+            logger.info(`[FlowEngine] Resetting session for ${phone} due to trigger: ${messageText}`);
             await this.sessionRepository.forceReset(cleanPhone);
             
             // Clear handover status if present to resume bot control
@@ -116,117 +138,98 @@ export class FlowEngine {
             const sessionId = `1to1:${cleanPhone}`;
             const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
 
+            const accumulatedMessages: any[] = [];
+            const previousNodeId = session?.currentNodeId || null;
+
             if (!session) {
                 let flowId = options.flowId;
                 let flow = null;
 
                 if (flowId) {
-                    // Check if flowId is a valid UUID before querying by ID
                     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     const isUuid = uuidRegex.test(flowId);
-
                     if (isUuid) {
-                        logger.info(`[FlowEngine] Attempting to fetch flow by ID: "${flowId}"`);
-                        const { data: fetchedFlow, error: fetchError } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
-                        if (fetchError) logger.error(`[FlowEngine] Error fetching flow ${flowId}:`, fetchError);
+                        const { data: fetchedFlow } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
                         flow = fetchedFlow;
                     }
-
-                    // Fallback to searching by name if ID didn't work or flowId is a name
                     if (!flow) {
-                        logger.info(`[FlowEngine] Attempting to fetch flow by name: "${flowId}"`);
                         const { data: nameFlow } = await this.db.from('flows').select('id, name').eq('name', flowId).limit(1).maybeSingle();
                         flow = nameFlow;
-                    }
-
-                    if (!flow) {
-                        logger.warn(`[FlowEngine] Flow "${flowId}" not found. Falling back to default 'pedido' search.`);
-                        
-                        // Try exact name match for 'pedido' (Legacy fallback)
-                        const { data: exactFlow } = await this.db.from('flows')
-                            .select('id, name')
-                            .eq('name', 'pedido')
-                            .limit(1)
-                            .maybeSingle();
-                        
-                        if (exactFlow) {
-                            flow = exactFlow;
-                        } else {
-                            // Broad fallback if exact match fails
-                            const { data: fallbackFlow } = await this.db.from('flows')
-                                .select('id, name')
-                                .or(`name.ilike.%pedido%,name.ilike.%Tomar Pedido%`)
-                                .limit(1)
-                                .maybeSingle();
-                            flow = fallbackFlow;
-                        }
                     }
                 } else {
                     flow = await this.findFlowByTrigger(messageText);
                 }
 
                 if (!flow) {
-                    logger.info(`[FlowEngine] No flow matched for: "${messageText}" (FlowId: ${flowId || 'none'})`);
-                    const fallbackMessage = '❌ No entendí. Escríbí "hola" o "menú" para ver las opciones.';
-                    return { currentStateDefinition: { message_template: fallbackMessage } };
+                    return { currentStateDefinition: { message_template: '❌ No entendí. Escríbí "hola" para ver las opciones.' } };
                 }
                 
                 flowId = flow.id;
-                logger.info(`[FlowEngine] Using flow "${flow.name}" (${flowId}). Forcing session reset.`);
                 await this.sessionRepository.forceReset(cleanPhone);
 
+                let businessContext: Record<string, any> = {};
+                try {
+                    const appConfig = await ConfigurationService.getFullConfig();
+                    const { data: products } = await this.db.from('products').select('id, name, price').eq('available', true).limit(50);
+                    
+                    businessContext = {
+                        catalog_business_name: appConfig.business_name || 'Tu Negocio',
+                        direccion: appConfig.store_address || '',
+                        horario_negocio: 'Consultar', // Se podría expandir en ConfigurationService si es necesario
+                        zona_delivery: appConfig.shipping_policy || 'Consultar zona de cobertura',
+                        catalog_summary: products?.map((p: any) => `${p.name} ($${p.price})`).join(', ') || 'Sin productos disponibles'
+                    };
+                } catch (e) {
+                    logger.error(`[FlowEngine] Error building business context: ${e.message}`);
+                }
+
                 session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId, {
-                    variables: { 
-                        global: { 
-                            ...context, // Merge ALL external context
-                            pushName: context.pushName || 'Cliente',
-                            phoneNumber: phone,
-                            chatJid: remoteJid,
-                            phone: phone, // redundante pero seguro
-                            startedAt: new Date().toISOString()
-                        } 
-                    },
+                    variables: { global: { ...context, ...businessContext, pushName: context.pushName || 'Cliente', phoneNumber: phone, chatJid: remoteJid, phone: phone, startedAt: new Date().toISOString() } },
                     metadata: { flowId: flowId, flowVersion: 1, entryPoint: flowId === options.flowId ? 'manual' : 'trigger' }
                 }, options.startNodeId || 'start');
                 
-                const TTL_HOURS = 2;
                 const expirationDate = new Date();
-                expirationDate.setHours(expirationDate.getHours() + TTL_HOURS);
+                expirationDate.setHours(expirationDate.getHours() + 2);
                 session.getContext().metadata.expiresAt = expirationDate;
                 
-                if (options.startNodeId && options.startNodeId !== 'start') {
-                    logger.info(`[FlowEngine] Programmatic start at ${options.startNodeId}. Skipping initial trigger input handling.`);
-                } else {
-                    await this.handleInput(session, this.normalizeInput(messageText));
+                if (!(options.startNodeId && options.startNodeId !== 'start')) {
+                    const { data: startFlow } = await this.db.from('flows').select('nodes').eq('id', flowId).single();
+                    const startNode = startFlow?.nodes?.find((n: any) => n.id === session.currentNodeId);
+                    if (!(startNode && ['intentResolverNode', 'groqNode', 'questionNode'].includes(startNode.type))) {
+                        await this.handleInput(session, this.normalizeInput(messageText));
+                    }
                 }
             } else {
-                // EXISTING SESSION: Always handle input if it was waiting
                 if (session.status === 'waiting_input') {
                     await this.handleInput(session, this.normalizeInput(messageText));
+                    if ((session as any)._pendingMessages) {
+                        accumulatedMessages.push(...(session as any)._pendingMessages);
+                        delete (session as any)._pendingMessages;
+                    }
                 }
             }
 
-            // 2. Execute Node Chain
-            const resultMessages = await this.executeNodeChain(session);
+            if (!session) throw new Error('Session initialization failed');
 
-            // 3. Save Session
+            // 2. Execute Node Chain (Only if moved or now active)
+            if (session.currentNodeId !== previousNodeId || session.status === 'active') {
+                const chainMessages = await this.executeNodeChain(session);
+                accumulatedMessages.push(...chainMessages);
+            }
+
             await this.sessionRepository.update(session);
+            await redisPersistence.setCheckpoint(cleanPhone, {
+                currentNodeId: session.currentNodeId,
+                status: session.status,
+                variables: session.getAllVariablesForCurrentFlow(),
+                flowId: session.getContext().metadata.flowId
+            });
 
-            return {
-                currentStateDefinition: {
-                    message_template: resultMessages 
-                }
-            };
+            return { currentStateDefinition: { message_template: accumulatedMessages } };
 
         } catch (err: any) {
-            logger.error(`[FlowEngine] Critical error during execution`, { error: err.message, sessionId });
-            sessionAuditor.log({
-                session_id: sessionId,
-                user_phone: phone,
-                event_type: 'node_execution',
-                details: { status: 'error', error: err.message, stack: err.stack }
-            });
-            return { currentStateDefinition: { message_template: '⚠️ Ocurrió un error. Escribí "hola" para reiniciar.' } };
+            logger.error(`[FlowEngine] Critical error`, { error: err.message });
+            return { currentStateDefinition: { message_template: '⚠️ Ocurrió un error. Reintentá en un momento.' } };
         }
     }
 
@@ -258,10 +261,12 @@ export class FlowEngine {
             // or we might need to handle how they are sent. 
             // For now, let's assume session variables are the source of truth for the NEXT node.
             if (result.messages && result.messages.length > 0) {
-                // These messages usually want to be seen immediately.
-                // We'll return them in handleInput so executeMessage can prepend them?
-                // Actually, let's just use the messages in the next execution cycle.
                 (session as any)._pendingMessages = result.messages;
+            }
+            if (result.isValidInput === false) {
+                session.status = 'waiting_input';
+                session.logInteraction(session.currentNodeId, input);
+                return; // Exit handleInput early to keep waiting_input
             }
         } else {
             // Default behavior: just store the raw input
@@ -294,7 +299,22 @@ export class FlowEngine {
                 if (index >= 0 && index < options.length) {
                     processedInput = options[index];
                     session.setVariable(`${varName}_index`, (index + 1).toString());
-                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}" (Index: ${index + 1})`);
+                    // Set specific handle for routing (React Flow handle ID)
+                    session.setVariable(`_poll_selected_handle_${currentNode.id}`, `option-${index}`);
+                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}" (Index: ${index + 1}, Handle: option-${index})`);
+                } else {
+                    // INVALID INPUT: Re-prompt the user instead of advancing
+                    logger.info(`[FlowEngine] [INPUT] Invalid poll response: "${input}". Re-prompting user.`);
+                    const optionLines = options.map((opt: string, i: number) => {
+                        const cleanOpt = opt.replace(/^\d+[\s.)-]*\s*/, '');
+                        return `*${i + 1}.* ${cleanOpt}`;
+                    }).join('\n');
+                    const question = currentNode.data?.question || 'Elegí una opción:';
+                    (session as any)._pendingMessages = [`⚠️ No entendí tu respuesta. Por favor, elegí una opción válida:\n\n${question}\n\n${optionLines}\n\n_Respondé con el número de tu elección._`];
+                    // Do NOT advance — keep waiting_input status
+                    session.status = 'waiting_input';
+                    session.logInteraction(session.currentNodeId, input);
+                    return; // Exit handleInput early without advancing
                 }
             }
             session.setVariable(varName, processedInput);
@@ -304,10 +324,25 @@ export class FlowEngine {
         session.logInteraction(session.currentNodeId, input);
 
         // 2. Advance to next node (Universal advancement for nodes that wait for input)
-        const nextNodeId = this.findNextNodeId(flow, currentNode.id);
+        // For intentResolverNodes, use the classified intent as edge handle for routing
+        let advanceHandle: string | undefined;
+        if (currentNode.type === 'intentResolverNode') {
+            const outputVar = currentNode.data?.output_variable || 'intent_clasificado';
+            advanceHandle = session.getVariable(outputVar);
+            logger.info(`[FlowEngine] [INPUT] IntentResolver classified intent: "${advanceHandle}" (var: ${outputVar})`);
+        } else if (currentNode.type === 'orderValidatorNode') {
+            advanceHandle = session.getVariable('order_validation_result');
+            logger.info(`[FlowEngine] [INPUT] OrderValidator selected: "${advanceHandle}"`);
+        } else if (currentNode.type === 'pollNode') {
+            // Use the handle stored during input processing
+            advanceHandle = session.getVariable(`_poll_selected_handle_${currentNode.id}`);
+            logger.info(`[FlowEngine] [INPUT] Poll selected handle: "${advanceHandle}"`);
+        }
+
+        const nextNodeId = this.findNextNodeId(flow, currentNode.id, advanceHandle);
         if (nextNodeId) {
             session.currentNodeId = nextNodeId;
-            logger.info(`[FlowEngine] [INPUT] Advancing session from ${currentNode.id} to ${nextNodeId} (Type: ${currentNode.type})`);
+            logger.info(`[FlowEngine] [INPUT] Advancing session from ${currentNode.id} to ${nextNodeId} (Type: ${currentNode.type}, Handle: ${advanceHandle || 'default'})`);
         }
     }
 
@@ -329,7 +364,9 @@ export class FlowEngine {
             if (!flow || flow.id !== flowId) {
                 const { data: fetchedFlow } = await this.db.from('flows').select('*').eq('id', flowId).single();
                 if (!fetchedFlow) {
-                    logger.error(`[FlowEngine] Flow not found: ${flowId}`);
+                    logger.error(`[FlowEngine] Flow not found: ${flowId}. Forcing session reset.`);
+                    await this.sessionRepository.forceReset(session.userPhone);
+                    accumulatedMessages.push('⚠️ Tu sesión anterior expiró o el menú cambió. Por favor, escribí "hola" para empezar de nuevo.');
                     break;
                 }
                 flow = fetchedFlow;
@@ -370,6 +407,13 @@ export class FlowEngine {
             const result = await executor.execute(currentNode.data, context as any, this);
             const stepDuration = Date.now() - stepStartTime;
 
+            // Apply context updates from executor (Crucial for state persistence)
+            if (result.updatedContext) {
+                Object.entries(result.updatedContext).forEach(([k, v]) => {
+                    session.setVariable(k, v);
+                });
+            }
+
             // 2.4. Visual Debug Path (Phase 4)
             const debugEmoji = iterations === 1 ? '🚀' : '➡️';
             console.log(`\x1b[36m[DEBUG-PATH] ${debugEmoji} Node: ${currentNode.id} (${currentNode.type})${result.conditionResult !== undefined ? ` | Condition: ${result.conditionResult}` : ''}\x1b[0m`);
@@ -395,13 +439,17 @@ export class FlowEngine {
             // Audit Step to DB (Phase 4) - Non-blocking to prevent timeouts
             this.logStepToDB(session, currentNode, result, stepDuration);
 
-            // Audit End (Legacy)
-            sessionAuditor.log({
-                session_id: session.id,
-                user_phone: session.userPhone,
-                event_type: 'node_execution',
-                details: { status: 'completed', node_id: currentNode.id, messages: messages.length }
-            });
+            // SPECIAL CASE: AI Flow Control (Return to previous)
+            if (result.updatedContext?.last_ai_completed) {
+                const logs = session.getContext().interactionLog;
+                const prevNode = [...logs].reverse().find(l => l.nodeId !== currentNode.id);
+                if (prevNode) {
+                    logger.info(`[FlowEngine] [AI RETURN] Returning to previous node ${prevNode.nodeId}`);
+                    session.currentNodeId = prevNode.nodeId;
+                    // We let it continue to execute the previous node (which will likely wait for input)
+                    continue;
+                }
+            }
 
             if (result.wait_for_input) {
                 console.log(`\x1b[33m[DEBUG-PATH] ⏸️ Waiting for input at ${currentNode.id}\x1b[0m`);
@@ -428,23 +476,48 @@ export class FlowEngine {
 
     private findNextNodeId(flow: FlowDefinition, currentNodeId: string, handle?: string): string | null {
         const edges = flow.edges || [];
-        const normalizedHandle = handle ? handle.toLowerCase() : undefined;
+        const normalizedHandle = handle ? String(handle).toLowerCase().trim() : undefined;
         
         let edge;
         if (normalizedHandle) {
             edge = edges.find((e: any) => {
                 if (e.source !== currentNodeId) return false;
-                const srcHandle = String(e.sourceHandle || '').toLowerCase();
-                if (normalizedHandle === 'true' && (srcHandle === 'true' || srcHandle === 'yes')) return true;
-                if (normalizedHandle === 'false' && (srcHandle === 'false' || srcHandle === 'no')) return true;
-                return srcHandle === normalizedHandle;
+                const srcHandle = String(e.sourceHandle || '').toLowerCase().trim();
+                
+                // 1. Direct match
+                if (srcHandle === normalizedHandle) return true;
+
+                // 2. Boolean synonyms (SUCCESS/TRUE/OK/CENTRO)
+                const isPositive = ['true', 'yes', 'ok', 'success', 'centro', '1'].includes(normalizedHandle);
+                const srcPositive = ['true', 'yes', 'ok', 'success', 'centro', '1'].includes(srcHandle);
+                if (isPositive && srcPositive) return true;
+
+                // 3. Negative synonyms (FAIL/FALSE/ERROR/FUERA DE ZONA)
+                const isNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0'].includes(normalizedHandle);
+                const srcNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0'].includes(srcHandle);
+                if (isNegative && srcNegative) return true;
+
+                return false;
             });
+
+            if (!edge) {
+                logger.warn(`[FlowEngine] [MEMORY-LOSS-WARNING] Node "${currentNodeId}" returned handle "${handle}", but NO matching edge found. Synonyms check also failed.`);
+            }
         }
         
-        // Fallback to the first connection from this source if no handle-specific edge was found
-        // or if there's no handle required.
+        // 4. Defaulting logic:
+        // If we found an edge via handle, use it.
+        // If NOT, only default to the first connection if the handle was undefined (linear path)
+        // OR if the node is NOT a branching node.
         if (!edge) {
-            edge = edges.find((e: any) => e.source === currentNodeId);
+            const node = (flow.nodes || []).find((n: any) => n.id === currentNodeId);
+            const isBranchingNode = ['pollNode', 'conditionNode', 'locationValidatorNode', 'orderValidatorNode'].includes(node?.type || '');
+            
+            if (!handle || !isBranchingNode) {
+                edge = edges.find((e: any) => e.source === currentNodeId);
+            } else {
+                logger.error(`[FlowEngine] [STRICT-MODE] Branching node "${currentNodeId}" produced unhandled result "${handle}". Aborting branch to prevent wrong path execution.`);
+            }
         }
             
         return edge ? edge.target : null;

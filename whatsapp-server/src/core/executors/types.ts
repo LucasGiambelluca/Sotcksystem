@@ -13,8 +13,8 @@ export interface NodeExecutionResult {
     wait_for_input: boolean;
     // Datos temporales para actualizar el contexto (merge)
     updatedContext?: Partial<ExecutionContext>;
-    // Resultado para condiciones (true/false)
-    conditionResult?: boolean;
+    // Resultado para condiciones (true/false) o intents (string: "pedido", "consulta", etc.)
+    conditionResult?: boolean | string;
 }
 
 export interface NodeExecutor {
@@ -30,7 +30,8 @@ export interface NodeExecutor {
         data: any,
         context: ExecutionContext
     ): Promise<{
-        updatedContext: Partial<ExecutionContext>;
-        messages: string[];
+        updatedContext?: Partial<ExecutionContext>;
+        messages?: string[];
+        isValidInput?: boolean;
     }>;
 }

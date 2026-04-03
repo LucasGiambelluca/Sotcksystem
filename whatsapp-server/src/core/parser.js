@@ -107,17 +107,37 @@ class Parser {
         };
 
         // Extraction more robust: search in the whole text (first part before items)
-        const nameMatch = text.match(/Nombre:\s*([^|*\n]+)/i);
-        if (nameMatch) metadata.pushName = nameMatch[1].trim();
-        
-        const deliveryMatch = text.match(/Delivery:\s*([^|*\n]+)/i);
-        if (deliveryMatch) metadata.delivery_method = deliveryMatch[1].trim();
+        // Extraction logic (Support multiple formats: Key-Value and Pipe-Separated)
+        if (text.includes('|')) {
+            // New pipe-separated format: "Name | Delivery | Dir: Address | $: Payment"
+            const headerLine = text.split('\n')[0];
+            const parts = headerLine.split('|').map(p => p.replace(/[*_]/g, '').trim());
+            
+            if (parts.length >= 1) metadata.pushName = parts[0];
+            if (parts.length >= 2) metadata.delivery_method = parts[1];
+            
+            // Search for "Dir:" and "$:" tags in the parts
+            parts.forEach(part => {
+                if (part.toLowerCase().startsWith('dir:')) {
+                    metadata.delivery_address = part.substring(4).trim();
+                } else if (part.toLowerCase().startsWith('$:')) {
+                    metadata.payment_method = part.substring(2).trim();
+                }
+            });
+        } else {
+            // Legacy Key-Value format: "Nombre: Lucas | Delivery: Envío"
+            const nameMatch = text.match(/Nombre:\s*([^|*\n]+)/i);
+            if (nameMatch) metadata.pushName = nameMatch[1].trim();
+            
+            const deliveryMatch = text.match(/Delivery:\s*([^|*\n]+)/i);
+            if (deliveryMatch) metadata.delivery_method = deliveryMatch[1].trim();
 
-        const addressMatch = text.match(/Dirección:\s*([^|*\n]+)/i);
-        if (addressMatch) metadata.delivery_address = addressMatch[1].trim();
+            const addressMatch = text.match(/Dirección:\s*([^|*\n]+)/i);
+            if (addressMatch) metadata.delivery_address = addressMatch[1].trim();
 
-        const paymentMatch = text.match(/Pago:\s*([^|*\n]+)/i);
-        if (paymentMatch) metadata.payment_method = paymentMatch[1].trim();
+            const paymentMatch = text.match(/Pago:\s*([^|*\n]+)/i);
+            if (paymentMatch) metadata.payment_method = paymentMatch[1].trim();
+        }
 
         // Return object with items and metadata if at least one metadata field was found
         if (metadata.pushName || metadata.delivery_method || metadata.payment_method) {

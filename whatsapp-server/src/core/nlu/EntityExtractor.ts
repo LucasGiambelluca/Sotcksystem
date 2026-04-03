@@ -218,7 +218,7 @@ export class EntityExtractor {
                 if (isQuantityPos(phraseStart, phraseEnd) && n <= 2) continue;
                 
                 // Skip noise words (quantities, articles, verbs)
-                if (n === 1 && (phrase.length < 3 || ['y', 'con', 'para', 'una', 'un', 'uno', 'del', 'los', 'las', 'quiero', 'mandame', 'dame', 'docena', 'docenas', 'media', 'medio'].includes(phrase))) continue;
+                if (n === 1 && (phrase.length < 3 || ['y', 'con', 'para', 'una', 'un', 'uno', 'del', 'los', 'las', 'quiero', 'mandame', 'dame', 'docena', 'docenas', 'media', 'medio', 'poneme', 'sumame', 'anotame', 'traeme', 'agregame', 'porfa'].includes(phrase))) continue;
 
                 // 1. Prioritize EXACT Category match (e.g. "empanadas")
                 const localMatch = this.productCatalog.get(phrase.toLowerCase());

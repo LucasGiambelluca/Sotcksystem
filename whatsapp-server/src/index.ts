@@ -42,19 +42,24 @@ async function bootstrap() {
     stockCronService.start();
     console.log('📅 Background cron jobs started.');
 
-    // 4. Diagnostic Pulse (Verify 'pedido' flow nodes)
+    // 4. Diagnostic Pulse (Verify 'Tomar Pedido' flow)
     setTimeout(async () => {
         try {
             const { supabase } = require('./config/database');
-            const { data: flows } = await supabase.from('flows').select('id, name, nodes').eq('name', 'pedido').limit(1);
+            const { data: flows } = await supabase.from('flows')
+                .select('id, name, nodes')
+                .or('name.eq.Tomar Pedido,trigger_word.eq.pedido')
+                .limit(1);
+
             if (flows && flows.length > 0) {
-                console.log(`\n🔍 [Startup Pulse] Flow "pedido" (${flows[0].id}) found with ${flows[0].nodes?.length || 0} nodes:`);
+                console.log(`\n🔍 [Startup Pulse] Flow "${flows[0].name}" (${flows[0].id}) found with ${flows[0].nodes?.length || 0} nodes:`);
                 flows[0].nodes?.forEach((n: any) => {
-                    console.log(`   - ID: ${n.id} | Type: ${n.type} | Label: ${n.data?.label || n.data?.text || 'N/A'}`);
+                    const label = n.data?.label || n.data?.text || n.data?.question || 'N/A';
+                    console.log(`   - ID: ${n.id} | Type: ${n.type} | Info: ${label.substring(0, 30)}...`);
                 });
                 console.log('--- End of Pulse ---\n');
             } else {
-                console.log('🔍 [Startup Pulse] Flow "pedido" not found for diagnostic.');
+                console.log('🔍 [Startup Pulse] Flow "Tomar Pedido" not found for diagnostic.');
             }
         } catch (e) {
             console.error('🔍 [Startup Pulse] Diagnostic failed:', e);

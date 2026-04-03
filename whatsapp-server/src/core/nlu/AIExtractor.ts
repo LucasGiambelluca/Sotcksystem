@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger';
  * Result of AI-powered message understanding.
  */
 export interface AIExtractionResult {
-    intent: 'order' | 'inquiry' | 'greeting' | 'confirmation' | 'rejection' | 'support' | 'menu_request' | 'unknown';
+    intent: 'order' | 'inquiry' | 'promotion_inquiry' | 'greeting' | 'confirmation' | 'rejection' | 'support' | 'menu_request' | 'checkout' | 'unknown';
     items: AIExtractedItem[];
     /** Free-text delivery address if mentioned */
     address?: string;
@@ -35,46 +35,38 @@ export interface AIExtractedItem {
     matchConfidence: number;
 }
 
-const SYSTEM_PROMPT = `Sos un asistente de pedidos para un restaurante/rotisería argentino. Tu trabajo es analizar mensajes de clientes de WhatsApp y extraer información estructurada.
+const SYSTEM_PROMPT = `Sos un asistente de pedidos para un restaurante/rotisería argentino. Tu trabajo es analizar mensajes de clientes de WhatsApp y extraer información estructurada en formato JSON estricto.
 
-REGLAS:
-1. Detectá la INTENCIÓN del mensaje:
-   - "order": El cliente quiere pedir, agregar o comprar productos. OJO: Si el cliente menciona productos específicos con sus atributos (ej: "una de carne frita", "dos muzza") o simplemente el nombre de un producto del catálogo de forma directa, asumí "order" aunque no diga "quiero".
-   - "inquiry": Preguntas generales sobre disponibilidad, precios o qué cosas tienen (ej: "¿qué tenés?", "¿cuánto sale...?", "¿tenés empanadas?").
-   - "greeting": Saludo simple (ej: "hola").
-   - "confirmation": "sí", "dale", "anotame eso".
-   - "rejection": "no", "nada mas", "cancelar".
-   - "support": ayuda humana.
-   - "menu_request": "ver el menú", "qué hay para comer?".
-   - "unknown": No se puede determinar
+REGLAS DE INTENCIÓN:
+- "order": El cliente quiere pedir, agregar o comprar productos. OJO: Si dice "una pizza", "dos muzza", "pollo", "papas", es "order" aunque no diga "quiero". Verbos: "poneme", "sumame", "anotame", "traeme", "mandame", "quiero", "dame".
+- "inquiry": Preguntas (ej: "¿qué tenés?", "¿cuánto sale...?", "¿tenés empanadas?").
+- "checkout": El cliente quiere terminar, pagar o confirmar (ej: "listo", "pagar", "finalizar").
 
-2. Extraé PRODUCTOS con cantidades. Usá lenguaje natural argentino:
-   - "un" / "una" = 1
-   - "dos" = 2, "media docena" = 6, "docena" = 12
-   - Si no dice cantidad, asumí 1
-   - Separá productos compuestos: "pollo con papas" puede ser un solo producto o dos
+REGLAS DE EXTRACCIÓN DE ITEMS (¡CRÍTICO!):
+1. Si la intención es "order", DEBES incluir los productos en el array "items". No lo dejes vacío.
+2. Extraé cantidades ("un/una"=1, "dos"=2, "docena"=12). Si no hay cantidad explícita, asumí 1.
+3. Separá productos compuestos (ej: "pollo a la parrilla con papas fritas" -> [{"name": "pollo a la parrilla", "qty": 1}, {"name": "papas fritas", "qty": 1}]).
+4. Corregí modismos: "napo"->napolitana, "muzza"->muzzarella, "mila"->milanesa, "papas"->papas fritas.
 
-3. Extraé DIRECCIÓN si la mencionan (ej: "para enviar a San Martín 123")
-4. Extraé MÉTODO DE PAGO si lo dicen (ej: "pago en efectivo", "transferencia")
-5. Extraé MÉTODO DE ENTREGA si lo dicen (ej: "delivery", "retiro en el local")
-6. RESOLUCIÓN DE MODISMOS: Traducí abreviaciones comunes a su nombre completo en el JSON:
-   - "napo" -> "napolitana"
-   - "muzza" -> "muzzarella"
-   - "fugaz" -> "fugazzetta"
-   - "mila" -> "milanesa"
-   - "roque" -> "roquefort"
-   - "jyq" / "j y q" -> "jamon y queso"
-   - "papas" -> "papas fritas" (si no especifica otro tipo)
+EJEMPLOS DE EXTRACCIÓN:
+Mensaje: "quiero 1 pizza napoletana"
+{ "intent": "order", "items": [{"name": "pizza napolitana", "qty": 1}], "address": null, "payment_method": null, "delivery_method": null }
 
-Respondé SIEMPRE en JSON con esta estructura exacta:
+Mensaje: "mandame un medio pollo con fritas a chiclana 245 pago con mercadopago"
+{ "intent": "order", "items": [{"name": "medio pollo", "qty": 1}, {"name": "papas fritas", "qty": 1}], "address": "chiclana 245", "payment_method": "transferencia", "delivery_method": "delivery" }
+
+Mensaje: "hola que sale la docena de empanadas"
+{ "intent": "inquiry", "items": [], "address": null, "payment_method": null, "delivery_method": null }
+
+Respondé SIEMPRE en JSON con esta estructura exacta y nada más:
 {
-  "intent": "order|inquiry|greeting|confirmation|rejection|support|menu_request|unknown",
-  "items": [{"name": "nombre del producto", "qty": 1}],
+  "intent": "order|inquiry|promotion_inquiry|greeting|confirmation|rejection|support|menu_request|checkout|unknown",
+  "items": [{"name": "nombre del producto CORREGIDO", "qty": 1}],
   "address": "dirección si la mencionaron o null",
   "payment_method": "efectivo|transferencia|null",
   "delivery_method": "delivery|retiro|null",
   "customer_name": "nombre del cliente si lo dice o null",
-  "reasoning": "breve explicación de tu análisis"
+  "reasoning": "breve explicación"
 }`;
 
 export class AIExtractor {
@@ -191,11 +183,20 @@ export class AIExtractor {
         const products = await productService.getProducts();
         const catalogStr = products.map(p => `- ${p.name}: $${productService.getEffectivePrice(p)}${p.category ? ` (${p.category})` : ''}`).join('\n');
 
+        let promoStr = '';
+        if (result.intent === 'promotion_inquiry') {
+            const promos = await (productService as any).getPromotions();
+            promoStr = promos.length > 0 
+                ? '\nPROMOCIONES VIGENTES:\n' + promos.map((p: any) => `- ${p.title}: ${p.description} ${p.catalog_item ? `(Precio: $${p.catalog_item.price})` : ''}`).join('\n')
+                : '\n(No hay promociones especiales cargadas en este momento, respondé en base al resto del catálogo)';
+        }
+
         const prompt = `Sos el asistente inteligente de una rotisería argentina. Tu objetivo es responderle al cliente de forma amable, clara y simpática, con un trato cercano.
 Usa el CATALOGO REAL de abajo para responder. Si lo que pide no está, decilo educadamente pero ofrecé una alternativa del menú.
 
 CATALOGO:
 ${catalogStr}
+${promoStr}
 
 CONTEXTO DEL MENSAJE:
 - Intención: ${result.intent}

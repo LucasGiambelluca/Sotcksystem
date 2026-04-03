@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ConfigurationService } from './ConfigurationService';
 
 export interface SileoNotificationOptions {
     title: string;
@@ -19,19 +20,16 @@ export class SileoNotificationService {
      * Sends a push notification or alert to the admins/staff via Sileo
      */
     async sendNotification(options: SileoNotificationOptions): Promise<boolean> {
-        // Fetch API key dynamically from DB to support in-app changes
-        const { supabase } = require('../config/database');
-        
         let apiKey = process.env.SILEO_API_KEY || '';
         
         try {
-             // Look up whatsapp config for dynamic sileo key
-             const { data: config } = await supabase.from('whatsapp_config').select('sileo_api_key').single();
-             if (config && config.sileo_api_key) {
-                 apiKey = config.sileo_api_key;
+             // Look up centralized config for dynamic sileo key
+             const appConfig = await ConfigurationService.getFullConfig();
+             if (appConfig.sileo_api_key) {
+                 apiKey = appConfig.sileo_api_key;
              }
         } catch (dbErr) {
-             console.warn('⚠️ Could not fetch Sileo API key from DB, using fallback.', dbErr);
+             console.warn('⚠️ Could not fetch Sileo API key from ConfigurationService, using fallback.', dbErr);
         }
 
         if (!apiKey) {

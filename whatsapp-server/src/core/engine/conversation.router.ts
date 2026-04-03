@@ -11,6 +11,13 @@ import { OrderInterpreter } from '../nlu/OrderInterpreter';
 import { AIExtractor } from '../nlu/AIExtractor';
 import { inventoryManager } from '../inventory/InventoryManager';
 import { productService } from '../../services/ProductService';
+import { IntentEngine } from '../nlu/IntentEngine';
+import { aiCircuitBreaker } from '../resilience/CircuitBreaker';
+import { redisPersistence } from '../../infrastructure/persistence/RedisPersistenceService';
+import { ConversationManager } from './ConversationManager';
+import { GeocodingService } from '../../services/GeocodingService';
+import { LocationService } from '../../services/LocationService';
+import { ConfigurationService } from '../../services/ConfigurationService';
 
 export class ConversationRouter {
     private intentClassifier: IntentClassifier;
@@ -42,14 +49,34 @@ export class ConversationRouter {
         return remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
     }
 
+    private normalizeText(text: string): string {
+        return text.trim()
+            .replace(/[\u200B-\u200D\uFEFF]/g, '') // Invisible chars
+            .replace(/[^\w\sáéíóúüñ]/gi, '') // Keep letters/numbers/spaces
+            .toLowerCase();
+    }
+
+    private async isDynamicFlowTrigger(text: string): Promise<boolean> {
+        const { data: flows } = await supabase.from('flows').select('trigger_word').eq('is_active', true);
+        if (!flows) return false;
+        
+        for (const f of flows) {
+            if (f.trigger_word) {
+                const words = f.trigger_word.toLowerCase().split(',').map((w: string) => this.normalizeText(w));
+                if (words.includes(text)) return true;
+            }
+        }
+        return false;
+    }
+
     async processMessage(phone: string, text: string, pushName: string, initialContext: any = {}): Promise<any[]> {
-        const cleanText = text.trim().toLowerCase();
+        const cleanText = this.normalizeText(text);
         const cleanPhone = phone.replace(/[^0-9]/g, '');
         
         try {
             // --- 0. LOADS SESSION DATA ---
             const sessionId = this.getSessionId(phone, initialContext);
-            const session = await this.sessionRepository.getOrCreate(sessionId, cleanPhone, '304c5d15-ffbb-4b2a-a4de-f81aaa938fdf', initialContext);
+            const session = await this.sessionRepository.getOrCreate(sessionId, cleanPhone, 'd7f26b46-2ac6-48bc-ad4e-6547dba77e20', initialContext);
             const context = { ...session.getAllVariablesForCurrentFlow(), ...initialContext };
             const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${cleanPhone}@s.whatsapp.net`);
             
@@ -61,20 +88,37 @@ export class ConversationRouter {
                 contextKeys: Object.keys(context)
             });
 
-            // --- 0.5 AI-FIRST ANALYSIS (Priority Interception) ---
-            const aiResult = await AIExtractor.analyze(text);
-            const aiConfidence = aiResult ? parseFloat(String(aiResult.confidence)) : 0;
-            const isOrder = !!(aiResult && aiConfidence >= 0.7 && aiResult.intent === 'order' && aiResult.items && aiResult.items.length > 0);
-
-            logger.info(`[Router] AI-First Analysis: Intent=${aiResult?.intent || 'none'}, Confidence=${aiConfidence.toFixed(2)}, IsOrder=${isOrder}`);
-
-            if (isOrder) {
-                logger.info(`[Router] High confidence ORDER detected via AI. Archiving current session to process order.`, { sessionId });
-                await this.sessionRepository.archive(sessionId, 'ai_order_interception');
-                return await this.handleAIOrder(phone, aiResult, context, pushName, sessionId);
+            // =====================================================================
+            // PRIORITY 0: EXPLICIT CANCEL (only exact words, never intercept 'no')
+            // =====================================================================
+            const cancelWords = ['cancelar', 'salir', 'chau', 'reset', 'reiniciar'];
+            if (cancelWords.includes(cleanText)) {
+                logger.info(`[Router] Explicit cancel command: "${cleanText}". Killing session.`);
+                await this.sessionRepository.forceReset(cleanPhone);
+                await redisPersistence.deleteCheckpoint(cleanPhone);
+                await supabase.from('draft_orders')
+                    .update({ status: 'cancelled' })
+                    .eq('phone', cleanPhone)
+                    .in('status', ['pending_suggestion', 'pending_override']);
+                return ['✅ ¡Pedido cancelado! Escribí *hola* o *menu* cuando quieras empezar de nuevo. 😊'];
             }
 
-            // --- 1. PRE-CHECK: Handover Status (Human Support) ---
+            // =====================================================================
+            // NEW PRIORITY 1.1: CATALOG CHECKOUT (Directly from Catalog Web)
+            // Catalog messages are highly specific and should ignore other intents.
+            // =====================================================================
+            const catalogDataRaw = Parser.parseCatalogCheckout(text) || { items: Parser.parseCatalogOrder(text), metadata: null };
+            const catalogItems = catalogDataRaw?.items;
+            const metadata = (catalogDataRaw as any)?.metadata || {};
+
+            if (catalogItems && catalogItems.length > 0) {
+                logger.info(`[Router] Catalog message detected early (Priority 1.1)`);
+                return await this.handleCatalogOrder(phone, catalogItems, metadata, pushName, context);
+            }
+
+            // =====================================================================
+            // PRIORITY 1: HANDOVER CHECK
+            // =====================================================================
             const { data: convo } = await supabase
                 .from('whatsapp_conversations')
                 .select('status')
@@ -93,7 +137,34 @@ export class ConversationRouter {
                 }
             }
 
-            // --- 2. TOP PRIORITY: Active Cart (pending_suggestion or pending_override) ---
+            // =====================================================================
+            // PRIORITY 2: ACTIVE FLOW SESSION (waiting_input — polls, questions)
+            // If the bot just asked something, the answer goes here FIRST.
+            // =====================================================================
+            const isWaitingInput = session && session.status === 'waiting_input';
+            const isDynamicTrigger = await this.isDynamicFlowTrigger(cleanText);
+            
+            if (isWaitingInput) {
+                // Only break out of the flow for explicit global triggers
+                const globalBreakers = ['hola', 'menu', 'menú', 'cancelar', 'salir', 'reset', 'reiniciar'];
+                const isBreaker = globalBreakers.includes(cleanText) || isDynamicTrigger;
+                
+                if (!isBreaker) {
+                    logger.info(`[Router] Flow is waiting input. Forwarding to FlowEngine.`, { sessionId });
+                    const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+                    return this.extractMessages(engineResponse);
+                } else {
+                    logger.info(`[Router] Global breaker "${cleanText}" while in flow. Resetting session.`);
+                    await this.sessionRepository.forceReset(cleanPhone);
+                    // Si es 'cancelar', el PRIORITY 0 la captura.
+                    // Si es 'hola' o 'menu', debemos continuar para que el Intent Engine inicie el nuevo flujo.
+                }
+            }
+
+            // =====================================================================
+            // PRIORITY 3: ACTIVE CART (pending_suggestion or pending_override)
+            // If user has an unconfirmed order, their response goes here.
+            // =====================================================================
             const { data: activeDraft } = await supabase.from('draft_orders')
                 .select('*')
                 .eq('phone', cleanPhone)
@@ -104,35 +175,73 @@ export class ConversationRouter {
                 .maybeSingle();
 
             if (activeDraft) {
-                if (activeDraft.status === 'pending_override') {
-                    logger.info(`[Router] Active override draft found for ${cleanPhone}, routing to override handler`);
+                if (isDynamicTrigger || ['hola', 'menu', 'menú'].includes(cleanText)) {
+                    logger.info(`[Router] Trigger keyword intercepted during active cart, abandoning cart and proceeding.`);
+                    await supabase.from('draft_orders').update({status: 'abandoned'}).eq('id', activeDraft.id);
+                } else if (activeDraft.status === 'pending_override') {
+                    logger.info(`[Router] Active override draft found, routing to override handler`);
                     const overrideResponse = await this.handleOverrideResponse(phone, cleanText, context, pushName, sessionId);
                     if (overrideResponse) return overrideResponse;
                 } else {
-                    logger.info(`[Router] Active cart found for ${cleanPhone}, routing to suggestion handler`, { draftId: activeDraft.id });
+                    logger.info(`[Router] Active cart found, routing to suggestion handler`, { draftId: activeDraft.id });
                     return await this.handleSuggestionResponse(phone, cleanText, activeDraft, context, pushName, sessionId);
                 }
             }
 
-            // --- 2.5 QUICK PATH: Active Flow Sessions (Priority for non-orders) ---
-            const isWaitingInput = session && session.status === 'waiting_input';
-            const globalTriggers = ['menu', 'menú', 'cancelar', 'inicio', 'salir', 'reset', 'reiniciar', 'hola', 'consultar', 'consulta'];
-            const isGlobalCommand = globalTriggers.includes(cleanText);
+            // =====================================================================
+            // PRIORITY 4: INTENT ENGINE (Hybrid: Regex → AI with Circuit Breaker)
+            // Only runs when NO flow or draft is active.
+            // =====================================================================
+            let aiResult: any = null;
+            let isOrder = false;
 
-            if (isWaitingInput && !isGlobalCommand && !isOrder) {
-                logger.info(`[Router] Session is waiting input. Bypassing AI/NLU to prioritize FlowEngine.`, { sessionId });
-                const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+            // Layer A: Fast Regex Check (<20ms)
+            let classification = IntentEngine.classify(text);
+            
+            // Layer B: AI Fallback with Circuit Breaker (ONLY if regex is unknown)
+            if (classification.intent === 'UNKNOWN') {
+                aiResult = await aiCircuitBreaker.execute(
+                    () => AIExtractor.analyze(text),
+                    () => ({ intent: 'unknown' as any, confidence: 0, items: [], reasoning: 'Fallback' })
+                );
+
+                if (aiResult && (aiResult.confidence as number) >= 0.7) {
+                    classification = {
+                        intent: String(aiResult.intent).toUpperCase(),
+                        confidence: aiResult.confidence as number,
+                        entities: aiResult
+                    };
+                    isOrder = classification.intent === 'ORDER';
+                }
+            } else if (classification.intent === 'ORDER') {
+                isOrder = true;
+            }
+
+            const { intent, entities } = classification;
+            logger.info(`[Router] Intent Classification: ${intent} (Conf: ${classification.confidence})`);
+
+            // --- HELP / MENU ---
+            if (intent === 'HELP') {
+                logger.info(`[Router] Help/Menu request.`);
+                const engineResponse = await this.flowEngine.processMessage(phone, 'hola', { ...context, pushName, remoteJid });
                 return this.extractMessages(engineResponse);
             }
 
-            // --- 3. CORE LOGIC: Catalog, NLU and AI ---
-            const catalogDataRaw = Parser.parseCatalogCheckout(text) || { items: Parser.parseCatalogOrder(text), metadata: null };
-            const catalogItems = catalogDataRaw?.items;
-            const metadata = (catalogDataRaw as any)?.metadata || {};
-
-            if (catalogItems && catalogItems.length > 0) {
-                return this.handleCatalogOrder(phone, catalogItems, metadata, pushName, context);
+            // --- ORDER PROCESSING ---
+            if (intent === 'ORDER' && classification.confidence >= 0.9) {
+                logger.info(`[Router] High confidence ORDER detected.`);
+                await this.sessionRepository.archive(sessionId, 'intent_engine_interception');
+                const aiFormatItems = await this.resolveRegexItems(entities.items || []);
+                const syntheticAI = {
+                    intent: 'order' as any,
+                    items: aiFormatItems,
+                    confidence: classification.confidence,
+                    reasoning: 'Regex Fast-Path'
+                };
+                return await this.handleAIOrder(phone, syntheticAI, context, pushName, sessionId);
             }
+
+
 
             // NLU Priority
             const nluResult = await this.nluInterpreter.interpret(text);
@@ -142,29 +251,28 @@ export class ConversationRouter {
                 if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context, sessionId);
             }
 
-            // AI Interceptor (Inquiries/Support)
-            const earlyAI = aiResult;
-            const isInquiryOrSupport = earlyAI && earlyAI.confidence > 0.7 && (earlyAI.intent === 'inquiry' || earlyAI.intent === 'support');
-            const isAiContextualResponse = earlyAI && earlyAI.confidence > 0.8 && 
-                                           (earlyAI.intent === 'confirmation' || earlyAI.intent === 'rejection') && 
+            // AI Interceptor (Inquiries/Support/Promotions)
+            const isInquiryOrSupport = classification.confidence > 0.7 && ['INQUIRY', 'SUPPORT', 'PROMOTION_INQUIRY'].includes(classification.intent);
+            const isAiContextualResponse = classification.confidence > 0.8 && 
+                                           (classification.intent === 'CONFIRMATION' || classification.intent === 'REJECTION') && 
                                            context.last_inquiry;
 
             if (isInquiryOrSupport) {
-                if (isWaitingInput && earlyAI.intent === 'support') {
-                    logger.info(`[AI Interceptor] Deferring 'support' to FlowEngine because session is waiting input`);
+                if (isWaitingInput && classification.intent === 'SUPPORT') {
+                    logger.info(`[AI Interceptor] Deferring 'SUPPORT' to FlowEngine because session is waiting input`);
                 } else {
-                    logger.info(`[AI Interceptor] Answering question`, { intent: earlyAI.intent });
+                    logger.info(`[AI Interceptor] Answering question`, { intent: classification.intent });
                     if (!isWaitingInput) await this.sessionRepository.archive(sessionId, 'ai_inquiry_interception');
-                    return await this.handleAIInquiry(phone, earlyAI, text, sessionId);
+                    return await this.handleAIInquiry(phone, entities, text, sessionId);
                 }
             }
 
             if (isAiContextualResponse) {
-                logger.info(`[AI Interceptor] Handling ${earlyAI.intent} for last inquiry`, { product: context.last_inquiry.name });
+                logger.info(`[AI Interceptor] Handling ${classification.intent} for last inquiry`, { product: context.last_inquiry.name });
                 await this.sessionRepository.archive(sessionId, 'ai_confirmation_interception');
-                if (earlyAI.intent === 'confirmation') {
+                if (classification.intent === 'CONFIRMATION') {
                     const syntheticResult = {
-                        intent: 'order' as const,
+                        intent: 'order' as any,
                         items: [{
                             name: context.last_inquiry.name,
                             quantity: 1,
@@ -189,15 +297,20 @@ export class ConversationRouter {
                 if (nluResult.type === 'category_inquiry') return await this.handleNluCategoryInquiry(phone, nluResult, context, sessionId);
             }
 
-            // aiResult already available
-            if (aiResult && aiResult.confidence > 0.6) {
-                logger.info(`[AI Router] AI understood message`, { intent: aiResult.intent });
+            // aiResult fallback for complex logic
+            if (classification.confidence > 0.6) {
+                logger.info(`[AI Router] Final phase classification`, { intent: classification.intent });
                 
-                if (aiResult.intent === 'order' && aiResult.items.length > 0) {
+                if (classification.intent === 'ORDER' && entities.items?.length > 0) {
                     await this.sessionRepository.archive(sessionId, 'ai_order_fallback');
-                    return await this.handleAIOrder(phone, aiResult, context, pushName, sessionId);
+                    const aiFormatItems = await this.resolveRegexItems(entities.items || []);
+                    return await this.handleAIOrder(phone, { ...entities, items: aiFormatItems }, context, pushName, sessionId);
                 }
                 
+                if (classification.intent === 'CHECKOUT') {
+                    return await this.handleCheckout(phone, context, pushName);
+                }
+
                 if (aiResult.intent === 'menu_request') {
                     await this.sessionRepository.archive(sessionId, 'ai_menu_request');
                     const engineResponse = await this.flowEngine.processMessage(phone, 'menu', { ...context, pushName, remoteJid });
@@ -229,9 +342,8 @@ export class ConversationRouter {
     }
 
     private async handleCatalogOrder(phone: string, catalogItems: any[], metadata: any, pushName: string, context: any): Promise<any[]> {
-        logger.info(`[CATALOG] New order detected`, { phone, itemCount: catalogItems.length });
+        logger.info(`[CATALOG] Direct checkout pre-validation`, { phone, items: catalogItems.length, method: metadata.delivery_method });
         
-        const { productService } = require('../../services/ProductService');
         const verifiedItems = [];
         const notFound = [];
         let total = 0;
@@ -256,41 +368,77 @@ export class ConversationRouter {
             return [`⚠️ No encontramos los productos solicitados. Escribí *menú* para ver los disponibles.`];
         }
 
-        const sessionId = this.getSessionId(phone, context);
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
         
-        const { data: activeExec } = await supabase.from('flow_executions')
-            .select('id')
-            .eq('session_id', sessionId)
-            .in('status', ['active', 'waiting_input'])
-            .maybeSingle();
+        // 1. Reset any active session
+        await this.sessionRepository.forceReset(cleanPhone);
+        await redisPersistence.deleteCheckpoint(cleanPhone);
 
-        if (activeExec) {
-            console.log(`[Router] handleCatalogOrder: Archiving existing session ${activeExec.id} to prioritize new catalog order.`);
-            await this.sessionRepository.archive(sessionId, 'catalog_order_priority');
+        // 2. Pre-Validation Logic
+        const isRetiro = (metadata.delivery_method || '').toLowerCase().includes('retiro') || (metadata.delivery_method || '').toLowerCase().includes('local');
+        let startNodeId = 'node_1775152636301_order_val'; // Default Confirmation node
+        let flowContext: any = {
+            ...context,
+            pushName: metadata.pushName || pushName || 'Cliente',
+            customer_name: metadata.pushName,
+            delivery_method: isRetiro ? 'Retiro en local' : 'Delivery',
+            direccion_cliente: metadata.delivery_address,
+            payment_method: metadata.payment_method,
+            order_items: verifiedItems, // Match OrderValidatorExecutor name
+            cart_total: total
+        };
+
+        if (!isRetiro && metadata.delivery_address) {
+            try {
+                const appConfig = await ConfigurationService.getFullConfig();
+                const geo = await GeocodingService.geocode(metadata.delivery_address, appConfig.store_city || 'Bahia Blanca');
+                
+                if (geo) {
+                    const { data: zones } = await supabase.from('shipping_zones').select('*').eq('is_active', true);
+                    const storeLoc = (appConfig.store_lat && appConfig.store_lng) ? { lat: appConfig.store_lat, lng: appConfig.store_lng } : undefined;
+                    
+                    const validation = await LocationService.determineShippingZone(zones || [], geo, storeLoc);
+                    
+                    if (!validation.allowed) {
+                        logger.warn(`[CATALOG] Delivery BLOCKED during pre-validation`, { address: metadata.delivery_address });
+                        startNodeId = 'node_1775156234876_sf4j2faq9'; // Rejection question node
+                        flowContext.location_error = validation.error;
+                        // For the question node, we might need to send the rejection message manually or let the node do it.
+                        // However, jumping to the question node will trigger its message.
+                        // We'll inject the error into the context so the question node (or a prior message node) can use it.
+                    } else {
+                        flowContext.shipping_zone_id = validation.zone?.id;
+                        flowContext.shipping_cost = validation.zone?.cost || 0;
+                        flowContext.location_validated = true;
+                    }
+                }
+            } catch (err) {
+                logger.error(`[CATALOG] Pre-validation failed error`, err);
+            }
         }
+
+        logger.info(`[CATALOG] Triggering flow jump`, { startNodeId, isRetiro });
+
+        // 3. Execute Flow Engine
+        const engineResponse = await this.flowEngine.processMessage(phone, '_CATALOG_CHECKOUT_', flowContext, {
+            flowId: '0976f157-fc0f-4d3f-acf6-34b6786fec4c',
+            startNodeId: startNodeId
+        });
+
+        const messages = this.extractMessages(engineResponse);
         
-        const { data: draftOrder } = await supabase.from('draft_orders').insert({
-            phone,
-            items: verifiedItems,
-            total,
-            push_name: metadata.pushName || pushName || 'Cliente',
-            status: 'pending_suggestion',
-            metadata: metadata,
-            delivery_method: metadata.delivery_method,
-            payment_method: metadata.payment_method
-        }).select().single();
-
-        if (draftOrder) {
-            let msg = `✅ *¡Carrito recibido!*\n`;
-            if (notFound.length > 0) msg += `\n⚠️ No encontramos stock de: ${notFound.join(', ')}\n`;
-            
-            const itemsSummary = verifiedItems.map(i => `• ${i.qty}x ${i.name} ($${i.price * i.qty})`).join('\n');
-            msg += `\nResumen:\n${itemsSummary}\n*Total: $${total}*\n`;
-            
-            msg += `\n¿Te gustaría agregar algo para tomar o algún postre? 🥤🍰\n(Decime qué querés agregar o respondé *NO* para continuar con el pago/envío)`;
-            return [msg];
+        // If we jumped to the rejection node, we should prepend the error message if it's not already there
+        if (startNodeId === 'node_1775156234876_sf4j2faq9' && flowContext.location_error) {
+            if (!messages.some(m => String(m).includes(flowContext.location_error))) {
+                messages.unshift(flowContext.location_error);
+            }
         }
-        return [];
+
+        if (notFound.length > 0) {
+            messages.unshift(`⚠️ No encontramos stock de: ${notFound.join(', ')}. Procedemos con el resto.`);
+        }
+
+        return messages;
     }
 
     private async handleOverrideResponse(phone: string, cleanText: string, context: any, pushName: string, sessionId: string): Promise<any[] | null> {
@@ -472,40 +620,7 @@ export class ConversationRouter {
         }
 
         if ((isNo || isYes) && !isRemoval) {
-            // If the cart is completely empty and they say "no", they just rejected the options.
-            if ((!draft.items || draft.items.length === 0) && isNo) {
-                await supabase.from('draft_orders').update({ status: 'abandoned' }).eq('id', draft.id);
-                return ['¡Entendido! ¿Buscabas alguna otra cosa? Podés escribir *menú* para ver nuestras categorías.'];
-            }
-
-            // Clear pending options and proceed to checkout
-            const meta = draft.metadata || {};
-            delete meta.pending_options;
-            await supabase.from('draft_orders').update({ status: 'pending', metadata: meta }).eq('id', draft.id);
-            const payload = this.prepareCatalogPayload(draft, meta);
-            
-            // Force reset session before checkout to ensure a fresh start of the checkout flow
-            logger.info(`[DEBUGLOG] Proceeding to checkout for ${phone}. Draft: ${draft.id}`);
-            await this.sessionRepository.forceReset(phone.replace(/[^0-9]/g, ''));
-            
-            logger.info(`[DEBUGLOG] Calling FlowEngine for 'checkout' with flowId override.`);
-            
-            // Try starting at the delivery question node (real ID from Tomar Pedido)
-            let response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                flowId: "Tomar Pedido", 
-                startNodeId: "n_ask_delivery" 
-            });
-
-            // If the response is empty or had a warning, starting from beginning of flow
-            if (!response.currentStateId && !response.currentStateDefinition?.message_template) {
-                logger.warn(`[DEBUGLOG] Fallback: starting from beginning of Tomar Pedido flow.`);
-                response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
-                    flowId: "Tomar Pedido"
-                });
-            }
-
-            logger.info(`[DEBUGLOG] FlowEngine response received`, { responseLength: response.currentStateDefinition?.message_template?.length });
-            return ['Perfecto, seguimos con el pedido.', ...this.extractMessages(response)];
+            return await this.handleCheckout(phone, context, pushName);
         }
 
         // --- Check if there are pending options from a previous ambiguity question ---
@@ -596,12 +711,12 @@ export class ConversationRouter {
         try {
             const aiAnalysis = await AIExtractor.analyze(cleanText);
             
-            if (aiAnalysis.intent === 'greeting') {
+            if (aiAnalysis && aiAnalysis.intent === 'greeting') {
                 const itemsSummary = Array.isArray(draft.items) ? draft.items.map((i: any) => `• ${i.qty || i.quantity || 1}x ${i.name}`).join('\n') : '';
                 return [`¡Hola de nuevo! Recordá que estabas armando este pedido:\n${itemsSummary}\n\n¿Te gustaría agregar algo para tomar o algún postre? 🥤🍰\n(Decime qué querés o respondé *NO* para continuar)`];
             }
             
-            if (aiAnalysis.intent === 'menu_request') {
+            if (aiAnalysis && aiAnalysis.intent === 'menu_request') {
                 await this.sessionRepository.archive(sessionId, 'ai_menu_request_override');
                 // The bot will now answer with the menu, but the draft is technically still in the DB 
                 // However, they can start a new flow.
@@ -609,7 +724,7 @@ export class ConversationRouter {
                 return this.extractMessages(engineResponse);
             }
 
-            if (aiAnalysis.intent === 'inquiry' || aiAnalysis.intent === 'support') {
+            if (aiAnalysis && (aiAnalysis.intent === 'inquiry' || aiAnalysis.intent === 'support')) {
                 return await this.handleAIInquiry(phone, aiAnalysis, cleanText, sessionId);
             }
         } catch (error) {
@@ -715,6 +830,55 @@ export class ConversationRouter {
         return [];
     }
 
+    private async handleCheckout(phone: string, context: any, pushName: string): Promise<any[]> {
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const sessionId = this.getSessionId(phone, context);
+        
+        // 1. Obtener el carrito activo
+        const { data: draft } = await supabase.from('draft_orders')
+            .select('*')
+            .eq('phone', cleanPhone)
+            .in('status', ['pending', 'pending_suggestion', 'pending_override'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (!draft || !draft.items || draft.items.length === 0) {
+            return ['Tu carrito está vacío. 🛒 ¿Qué te gustaría pedir? Podés ver el *menú* para empezar.'];
+        }
+
+        // 2. Preparar payload para el FlowEngine
+        const payload = this.prepareCatalogPayload(draft, draft.metadata || {});
+        
+        // 3. Verificamos si ya tenemos una ubicación validada o si es retiro
+        // El context suele persistir variables como 'location_validated' si no se reseteó la sesión
+        const hasLocation = context.location_validated || context.direccion_cliente || draft.delivery_address;
+        const isPickup = draft.delivery_method?.toLowerCase().includes('retiro');
+
+        logger.info(`[Router] Checkout request`, { phone, hasLocation, isPickup, draftId: draft.id });
+
+        // 4. Forzamos reset para iniciar el flujo de checkout limpio
+        await this.sessionRepository.forceReset(cleanPhone);
+
+        if (hasLocation || isPickup) {
+            // Ya validó dirección antes (o eligió retiro), vamos directo al pago
+            logger.info(`[Router] Skipping location validation, jumping to payment node.`);
+            const response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
+                flowId: "Tomar Pedido", 
+                startNodeId: "n_ask_payment" 
+            });
+            return ['¡Perfecto! Vamos a finalizar tu pedido.', ...this.extractMessages(response)];
+        } else {
+            // No tiene ubicación, iniciamos el flujo desde la pregunta de Envío/Retiro
+            logger.info(`[Router] No location found, starting checkout from the beginning.`);
+            const response = await this.flowEngine.processMessage(phone, "checkout", { ...context, ...payload, pushName }, { 
+                flowId: "Tomar Pedido",
+                startNodeId: "n_ask_delivery"
+            });
+            return ['¡Dale! Antes de terminar, necesito unos datos para el envío.', ...this.extractMessages(response)];
+        }
+    }
+
     private async handleNluProductInquiry(phone: string, nlu: any, context: any, sessionId: string): Promise<any[]> {
         const productEntity = nlu.entities.find((e: any) => e.type === 'product');
         if (!productEntity) return ['¿De qué producto me preguntás? Podés decir "tenés tarta?" o consultarme por precios.'];
@@ -787,10 +951,10 @@ export class ConversationRouter {
 
         await this.getOrCreateActiveDraft(phone, [], 0, context, 'pending_suggestion', { pending_options: options });
 
-        const list = options.map((opt, i) => `${i + 1}. ${opt.name} ($${opt.price})`).join('\n');
+        const list = options.map((opt, i) => `${i + 1}️⃣ *${opt.name}* ($${opt.price})`).join('\n');
 
         return [
-            `De *${categoryName}* tenemos estas opciones:\n\n${list}\n\n¿Cuál te gustaría pedir?`
+            `✨ *¡Claro! De ${categoryName} tenemos estas delicias:* \n\n${list}\n\n*¿Cuál te gustaría pedir?* (Escribí el nombre o el número)`
         ];
     }
 
@@ -1034,6 +1198,31 @@ export class ConversationRouter {
         }
 
         return [naturalResponse];
+    }
+
+    private async resolveRegexItems(items: any[]): Promise<any[]> {
+        const resolved = [];
+        for (const item of items) {
+            let productMatch = await productService.findProduct(item.product);
+            let matchConfidence = productMatch ? 0.9 : 0.2;
+
+            if (!productMatch) {
+                const similar = await productService.searchSimilarProducts(item.product);
+                if (similar.length > 0) {
+                    productMatch = similar[0];
+                    matchConfidence = 0.7; // Lower confidence for fuzzy match
+                }
+            }
+
+            resolved.push({
+                name: item.product,
+                quantity: item.qty,
+                resolvedProduct: productMatch || null,
+                matchConfidence: matchConfidence,
+                modifiers: item.modifiers || []
+            });
+        }
+        return resolved;
     }
 }
 

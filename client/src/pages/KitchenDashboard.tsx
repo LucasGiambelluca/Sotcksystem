@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { VolumeX, Utensils, LogOut, Package, Minus, Layers, MapPin } from 'lucide-react';
+import { VolumeX, Utensils, LogOut, Package, Minus, Layers, MapPin, Printer } from 'lucide-react';
 import { useSound } from '../context/SoundContext';
 import { shiftService } from '../services/shiftService';
 import { stationService } from '../services/stationService';
@@ -443,6 +443,110 @@ export default function KitchenDashboard() {
         }
     };
 
+    const handlePrintOrder = async (orderId: string) => {
+        try {
+            // 1. Fetch order data and printer config
+            const [{ data: order, error: orderError }, { data: config }] = await Promise.all([
+                supabase
+                    .from('orders')
+                    .select(`*, client:clients(name), items:order_items(quantity, unit_price, catalog_item:catalog_items(name))`)
+                    .eq('id', orderId)
+                    .single(),
+                supabase
+                    .from('printer_config')
+                    .select('*')
+                    .limit(1)
+                    .maybeSingle()
+            ]);
+
+            if (orderError || !order) {
+                toast.error('No se encontró el pedido');
+                return;
+            }
+
+            // 2. Settings
+            const storeName = config?.store_name || 'EL POLLO COMILON';
+            const footerMsg = config?.footer_message || '¡Gracias por tu compra! 🍗';
+            const marginTop = config?.margin_top || 0;
+            const marginBottom = config?.margin_bottom || 3;
+
+            // 3. Generate ESC/POS commands
+            const ESC = 0x1B, GS = 0x1D, LF = 0x0A;
+            const strToBytes = (s: string) => Array.from(new TextEncoder().encode(s));
+            const W = 42;
+            const fmtRow = (c1: string, c2: string, c3: string) => {
+                const p1 = c1.padEnd(6);
+                const c2w = W - 6 - 12;
+                const p2 = c2.length > c2w ? c2.substring(0, c2w - 1) + ' ' : c2.padEnd(c2w);
+                const p3 = c3.padStart(12);
+                return p1 + p2 + p3 + '\n';
+            };
+
+            let cmds: number[] = [
+                ESC,0x40, ESC,0x74,0x10
+            ];
+
+            // Margins Top
+            for (let i = 0; i < marginTop; i++) cmds.push(LF);
+
+            cmds.push(
+                ESC,0x61,0x01, GS,0x21,0x11,
+                ...strToBytes(`${storeName}\n`),
+                GS,0x21,0x00, ...strToBytes('------------------------------------------\n'),
+                GS,0x21,0x01, ...strToBytes(`ORDEN #${order.order_number}\n`),
+                GS,0x21,0x00,
+                ...strToBytes(`${new Date(order.created_at).toLocaleString('es-AR')}\n`),
+                ...strToBytes(`${order.client?.name || order.chat_context?.pushName || 'Cliente'}\n`),
+                ...strToBytes(`${order.delivery_type === 'PICKUP' ? 'RETIRO EN LOCAL' : order.delivery_type === 'DELIVERY' ? 'DELIVERY' : 'MOSTRADOR'}\n`),
+            );
+
+            // Address if delivery
+            if (order.delivery_type !== 'PICKUP' && order.delivery_address) {
+                cmds.push(...strToBytes(`DIR: ${order.delivery_address}\n`));
+            }
+
+            cmds.push(
+                ESC,0x61,0x00, ...strToBytes('------------------------------------------\n'),
+                ...strToBytes(fmtRow('CANT', 'PRODUCTO', 'SUBTOTAL')),
+                ...strToBytes('------------------------------------------\n'),
+            );
+
+            for (const item of (order.items || [])) {
+                const name = item.catalog_item?.name || 'Producto';
+                cmds.push(...strToBytes(fmtRow(`${item.quantity}x`, name, `$${(item.quantity * item.unit_price).toLocaleString('es-AR')}`)));
+            }
+
+            cmds.push(
+                ...strToBytes('------------------------------------------\n'),
+                ESC,0x61,0x02, GS,0x21,0x11,
+                ...strToBytes(`TOTAL: $${order.total_amount?.toLocaleString('es-AR')}\n`),
+                GS,0x21,0x00, ESC,0x61,0x01, LF,
+                ...strToBytes(`${footerMsg}\n`)
+            );
+
+            // Margins Bottom
+            for (let i = 0; i < marginBottom; i++) cmds.push(LF);
+            cmds.push(GS,0x56,0x00);
+
+            // 3. Encode to base64 and insert into print_queue (cloud)
+            const raw = btoa(String.fromCharCode(...new Uint8Array(cmds)));
+            const { error: queueError } = await supabase
+                .from('print_queue')
+                .insert({ 
+                    order_id: orderId, 
+                    raw_content: raw, 
+                    status: 'pending',
+                    logo_url: config?.logo_url 
+                });
+
+            if (queueError) throw queueError;
+            toast.success('Ticket enviado a la cola de impresión');
+        } catch (err) {
+            console.error('Print error:', err);
+            toast.error('Error al enviar ticket a la cola');
+        }
+    };
+
     // TAB STATE - Active tab for main view
     const [activeTab, setActiveTab] = useState<'pending' | 'cooking' | 'ready'>('pending');
 
@@ -624,9 +728,19 @@ export default function KitchenDashboard() {
                                             <span className="text-gray-400 text-[10px] font-mono font-bold tracking-tighter">ORD# {order.order_number || order.id.slice(0,5)}</span>
                                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${bgBadge}`}>{statusLabel}</span>
                                         </div>
-                                        <h3 className="text-[#0f172a] text-xl font-black leading-tight">
-                                            {order.client_name || order.phone || 'Cliente'}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-[#0f172a] text-xl font-black leading-tight">
+                                                {order.client_name || order.phone || 'Cliente'}
+                                            </h3>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handlePrintOrder(order.id); }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all border border-blue-100 shadow-sm group"
+                                                title="Imprimir Comanda"
+                                            >
+                                                <Printer size={15} className="group-hover:scale-110 transition-transform" />
+                                                <span className="text-[10px] font-bold">IMP. COMANDA</span>
+                                            </button>
+                                        </div>
                                         {(order.delivery_address || order.delivery_type) && (
                                             <p className="text-gray-500 text-xs font-medium mt-0.5 flex items-center gap-1">
                                                 <MapPin size={12} className="text-blue-500" />

@@ -11,6 +11,7 @@ export class CreateOrderExecutor implements NodeExecutor {
         let pushName = context.pushName;
         const { supabase } = require('../../config/database');
         const { LocationService } = require('../../services/LocationService');
+        const { PrinterService } = require('../../services/PrinterService');
         
         // V2: Process Draft Orders automatically
         if (context.draft_order_id) {
@@ -94,7 +95,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                     }
                     
                     // Encontrar Zona
-                    const locResult = LocationService.determineShippingZone(zones, clientLoc, storeLoc, address);
+                    const locResult = await LocationService.determineShippingZone(zones, clientLoc, storeLoc, address);
                     
                     if (locResult.zone) {
                         shippingCost = locResult.zone.cost;
@@ -130,15 +131,24 @@ export class CreateOrderExecutor implements NodeExecutor {
                 throw new Error("Internal Service Error: OrderService not initialized in Engine.");
             }
 
+            const finalDeliveryType = (deliveryType?.toLowerCase().includes('retiro') || deliveryType?.toLowerCase().includes('local')) ? 'PICKUP' : (deliveryType || 'DELIVERY');
+            
+            // SECURITY: If it's PICKUP, ignore ANY address from session and force 'Retiro en Local'
+            let validatedAddress = address;
+            if (finalDeliveryType === 'PICKUP') {
+                validatedAddress = null;
+                finalAddressString = '📍 Retiro en Local';
+            }
+
             const order = await engine.orderService.createOrder({
                 phone: context.phone,
                 items: items,
                 total: total,
                 deliverySlotId: context.selected_slot_id,
-                address: address,
+                address: validatedAddress,
                 deliveryDate: deliveryDate,
                 paymentMethod: paymentMethod,
-                deliveryType: (deliveryType?.toLowerCase().includes('retiro') || deliveryType?.toLowerCase().includes('local')) ? 'PICKUP' : (deliveryType || 'DELIVERY'),
+                deliveryType: finalDeliveryType,
                 status: 'PENDING',
                 pushName: pushName,
                 chatContext: { 
@@ -165,6 +175,18 @@ export class CreateOrderExecutor implements NodeExecutor {
                 }).eq('id', order.id);
             } else if (finalAddressString !== address) {
                 await supabase.from('orders').update({ delivery_address: finalAddressString }).eq('id', order.id);
+            }
+
+            // --- 4. AUTO-PRINT INTEGRATION (Kitchen Comanda) ---
+            try {
+                const { data: pCfg } = await supabase.from('printer_config').select('auto_print_enabled').limit(1).maybeSingle();
+                const { data: wCfg } = await supabase.from('whatsapp_config').select('auto_print').limit(1).maybeSingle();
+                
+                if (pCfg?.auto_print_enabled || wCfg?.auto_print) {
+                    await PrinterService.queueOrderTicket(order.id);
+                }
+            } catch (printErr) {
+                console.error('[CreateOrderExecutor] Auto-print error:', printErr);
             }
 
             // Auto-asignación desactivada para permitir confirmación manual vía Modal de Alerta

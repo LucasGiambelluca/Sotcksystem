@@ -9,9 +9,17 @@ import driverRoutes from './routes/driver.routes';
 import groupsRoutes from './routes/groups.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import systemRoutes from './routes/system.routes';
+import printerRoutes from './routes/printer.routes';
 import { whatsappClient } from '../infrastructure/whatsapp/WhatsAppClient';
+import { LocationController } from '../controllers/LocationController';
 
 const app = express();
+
+// --- Debug Logger ---
+app.use((req, _res, next) => {
+    console.log(`[HTTP] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    next();
+});
 
 // --- Rate Limiting: Protección contra DDoS y abuso de API ---
 /*
@@ -54,11 +62,14 @@ app.use(cors({
     origin: function (origin, callback) {
         // Permitir requests sin origin (e.g. Postman, curl, mobile apps, mismo servidor)
         if (!origin) return callback(null, true);
-        if (!allowedOrigins.includes(origin)) {
-            console.error('CORS Error: Origin not allowed:', origin);
-            return callback(new Error(`CORS: origin "${origin}" not allowed`), false);
+        
+        // Permitir localhost y dominios de ngrok de forma dinámica
+        if (allowedOrigins.includes(origin) || origin.endsWith('.ngrok-free.app')) {
+            return callback(null, true);
         }
-        return callback(null, true);
+        
+        console.error('CORS Error: Origin not allowed:', origin);
+        return callback(new Error(`CORS: origin "${origin}" not allowed`), false);
     },
     credentials: true
 }));
@@ -97,6 +108,8 @@ app.use('/api/flows', requireAuth, flowRoutes);
 app.use('/api/logistics', requireAuth, logisticsRoutes);
 app.use('/api/claims', requireAuth, claimsRoutes);
 app.use('/api/driver', driverRoutes); // Public endpoint for drivers
+app.use('/api/printer', requireAuth, printerRoutes);
+app.post('/api/public/validate-location', LocationController.validateLocation);
 
 import path from 'path';
 
@@ -111,9 +124,14 @@ app.use('/api', systemRoutes);
 // --- STATIC FRONTEND SERVING (Unified Container) ---
 // Serve static client files under /elpollocomilon
 const clientBuildPath = path.join(__dirname, '../../../client/dist');
-app.use('/elpollocomilon', express.static(clientBuildPath));
+app.use('/elpollocomilon', (req, res, next) => {
+    console.log(`[DEBUG-STATIC] Requesting: ${req.url}`);
+    next();
+}, express.static(clientBuildPath));
 
 // Catch-all route to serve index.html for React Router handling
+app.get('/elpollocomilon/ping', (req, res) => res.send('Static Hosting OK!'));
+
 app.get('/elpollocomilon/*', (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });

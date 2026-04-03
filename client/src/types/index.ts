@@ -75,6 +75,10 @@ export interface PublicCatalogItem {
   description: string | null;
   price: number;
   category?: string;
+  category_id?: string | null;
+  category_name?: string | null;
+  category_sort_order?: number;
+  item_sort_order?: number;
   image_url_1?: string | null;
   image_url_2?: string | null;
   in_stock: boolean;
@@ -138,7 +142,8 @@ export interface CatalogItem {
   description: string | null;
   price: number;
   stock: number;
-  category: string;
+  category: string; // Keep for backward compatibility
+  category_id?: string | null; // NEW: Relation to catalog_categories
   image_url_1?: string | null;
   image_url_2?: string | null;
   station_id?: string | null;
@@ -151,6 +156,29 @@ export interface CatalogItem {
   updated_at: string;
   // Joined
   station?: Station | null;
+  catalog_category?: CatalogCategory | null;
+}
+
+export interface CatalogCategory {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogPromotion {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string;
+  button_text: string;
+  target_id: string | null; // Product ID
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 // RecipeComponent: A sub-item of a catalog item assigned to a specific station
@@ -213,13 +241,15 @@ export interface DeliverySlot {
 }
 
 export interface ShippingZone {
-  id: number;
+  id: string | number;
   name: string;
   cost: number;
   is_active: boolean;
-  zone_type?: 'radius' | 'text_match';
+  zone_type?: 'radius' | 'text_match' | 'polygon';
   max_radius_km?: number;
   match_keywords?: string[];
+  polygon?: any;
+  allow_delivery?: boolean;
 }
 
 // Extended types with relations for UI
@@ -307,4 +337,9 @@ export interface WhatsAppConfig {
   shipping_policy?: 'flex' | 'smart' | 'secure';
   store_lat?: number;
   store_lng?: number;
+  store_address?: string;
+  store_city?: string;
+  store_province?: string;
+  store_country?: string;
+  auto_print?: boolean;
 }

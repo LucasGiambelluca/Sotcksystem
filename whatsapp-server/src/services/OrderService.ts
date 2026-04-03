@@ -2,6 +2,7 @@ import { supabase } from '../config/database';
 import deliverySlotService from './DeliverySlotService';
 
 export interface OrderItem {
+    id?: string;               // Generic ID from Flow Builders
     product_id?: string;       // Legacy: raw material stock ID (nullable going forward)
     catalog_item_id?: string;  // Primary: catalog item ID for finished products
     qty: number;
@@ -96,10 +97,14 @@ export class OrderService {
                 quantity: item.qty,
                 unit_price: item.price
             };
-            // Primary key: catalog_item_id (used by station trigger)
-            if (item.catalog_item_id) row.catalog_item_id = item.catalog_item_id;
-            // Legacy fallback: product_id (will be removed once column is fully nullable)
-            if (item.product_id) row.product_id = item.product_id;
+            
+            // Map IDs correctly (prefer catalog_item_id, fallback to id for new executors)
+            const cId = item.catalog_item_id || item.id;
+            const pId = item.product_id;
+
+            if (cId) row.catalog_item_id = cId;
+            if (pId) row.product_id = pId;
+            
             return row;
         });
 
@@ -127,7 +132,7 @@ export class OrderService {
         // 5. Descontar Stock de catalog_items (Atómico y Transaccional)
         // NOTE: We decrement stock from catalog_items (finished products), NOT from products (raw materials)
         const stockItemsPayload = items
-            .map(item => ({ id: item.catalog_item_id || item.product_id, qty: item.qty }))
+            .map(item => ({ id: item.catalog_item_id || item.id || item.product_id, qty: item.qty }))
             .filter(item => item.id != null);
 
         if (stockItemsPayload.length > 0) {

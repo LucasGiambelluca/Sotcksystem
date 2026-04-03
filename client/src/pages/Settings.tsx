@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
-import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store } from 'lucide-react';
+import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store, Globe, Shield, ShieldOff, MapPin, Search, Loader2, Printer } from 'lucide-react';
+import ShippingMap from '../components/ShippingMap';
+import type { ShippingZone } from '../types';
+
+
+
 import type { WhatsAppConfig } from '../types';
+
 
 interface DeliverySlot {
   id: string;
@@ -14,45 +20,37 @@ interface DeliverySlot {
   is_available: boolean;
 }
 
-interface ShippingZone {
-  id: number;
-  name: string;
-  cost: number;
-  is_active: boolean;
-  zone_type?: 'radius' | 'text_match';
-  max_radius_km?: number;
-  match_keywords?: string[];
-}
+// Interface imported from ShippingMap
+
+
+
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'logistics' | 'whatsapp' | 'catalog'>('logistics');
+  const [activeTab, setActiveTab] = useState<'logistics' | 'whatsapp' | 'catalog' | 'printer'>('logistics');
   const [slots, setSlots] = useState<DeliverySlot[]>([]);
   const [zones, setZones] = useState<ShippingZone[]>([]);
   const [waConfig, setWaConfig] = useState<WhatsAppConfig | null>(null);
   
-  // Logistics Config
-  const [defaultOrigin, setDefaultOrigin] = useState('');
-  const [country, setCountry] = useState('');
-  const [province, setProvince] = useState('');
-  const [city, setCity] = useState('');
+  const [printerConfig, setPrinterConfig] = useState<{
+    id: string;
+    auto_print_enabled: boolean;
+    margin_top: number;
+    margin_bottom: number;
+    store_name: string;
+    footer_message: string;
+    print_logo: boolean;
+    logo_url: string | null;
+  } | null>(null);
+
   
   const [loading, setLoading] = useState(true);
+  const [geocodingLoading, setGeocodingLoading] = useState(false);
+
 
   useEffect(() => {
     loadSettings();
-    
-    const savedOrigin = localStorage.getItem('stock_app_default_origin');
-    if (savedOrigin) setDefaultOrigin(savedOrigin);
-
-    const savedCountry = localStorage.getItem('stock_app_country');
-    if (savedCountry) setCountry(savedCountry);
-
-    const savedProvince = localStorage.getItem('stock_app_province');
-    if (savedProvince) setProvince(savedProvince);
-
-    const savedCity = localStorage.getItem('stock_app_city');
-    if (savedCity) setCity(savedCity);
   }, []);
+
 
   async function loadSettings() {
     try {
@@ -89,6 +87,25 @@ export default function Settings() {
           console.error('Error loading WA config:', waRes.error);
       }
 
+      // Load Printer Config
+      const { data: pConfig, error: pError } = await supabase
+        .from('printer_config')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      
+      if (pConfig) {
+        setPrinterConfig(pConfig);
+      } else if (!pConfig && !pError) {
+        // Create default if missing
+        const { data: newP } = await supabase
+          .from('printer_config')
+          .insert({ store_name: '@ElPolloComilon' })
+          .select()
+          .single();
+        if (newP) setPrinterConfig(newP);
+      }
+
     } catch (error) {
       console.error('Error loading settings:', error);
       toast.error('Error al cargar configuraciones');
@@ -96,6 +113,45 @@ export default function Settings() {
       setLoading(false);
     }
   }
+
+  async function handleGeocodeOrigin() {
+    if (!waConfig?.store_address) return toast.error('Ingrese una dirección primero');
+    
+    setGeocodingLoading(true);
+    try {
+        const cleanStoreCity = waConfig.store_city?.split(',')[0].trim() || 'Bahía Blanca';
+        const cleanStoreProv = waConfig.store_province?.split(',')[0].trim() || 'Buenos Aires';
+        const cleanStoreCountry = waConfig.store_country?.split(',')[0].trim() || 'Argentina';
+
+        const fullAddress = `${waConfig.store_address}, ${cleanStoreCity}, ${cleanStoreProv}, ${cleanStoreCountry}`;
+        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001/api/geocode' : '/api/geocode';
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: fullAddress })
+        });
+
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Error al geocodificar');
+        }
+
+        const { lat, lng } = await response.json();
+        
+        if (waConfig) {
+            setWaConfig({ ...waConfig, store_lat: lat, store_lng: lng });
+            toast.success('Coordenadas actualizadas con éxito');
+        }
+    } catch (error: any) {
+        console.error('Geocode error:', error);
+        toast.error(`Error: ${error.message}`);
+    } finally {
+        setGeocodingLoading(false);
+    }
+  }
+
 
   // --- Logic for Slots ---
   // --- Logic for Slots ---
@@ -132,29 +188,48 @@ export default function Settings() {
 
   // --- Logic for Zones ---
   const addZone = async () => {
-    const { data, error } = await supabase.from('shipping_zones').insert({ name: 'Nueva Zona', cost: 0, zone_type: 'radius', max_radius_km: 1 }).select().single();
+    const { data, error } = await supabase.from('shipping_zones').insert({ 
+      name: 'Nueva Zona', 
+      cost: 0, 
+      zone_type: 'radius', 
+      max_radius_km: 1,
+      allow_delivery: true 
+    }).select().single();
     if (error) return toast.error('Error al crear zona');
     setZones([...zones, data]);
   };
 
-  const updateZone = async (id: number, updates: Partial<ShippingZone>) => {
+
+  const updateZone = async (id: string, updates: Partial<ShippingZone>) => {
     const { error } = await supabase.from('shipping_zones').update(updates).eq('id', id);
     if (error) return toast.error('Error al actualizar');
     setZones(zones.map(z => z.id === id ? { ...z, ...updates } : z));
   };
 
-  const deleteZone = async (id: number) => {
+  const deleteZone = async (id: string) => {
     const { error } = await supabase.from('shipping_zones').delete().eq('id', id);
     if (error) return toast.error('Error al eliminar');
     setZones(zones.filter(z => z.id !== id));
   };
 
+  const handleAddZone = async (zone: Partial<ShippingZone>) => {
+    const { data, error } = await supabase.from('shipping_zones').insert({
+        ...zone,
+        is_active: true
+    }).select().single();
+    
+    if (error) return toast.error('Error al crear zona');
+    setZones([...zones, data]);
+    toast.success('Zona añadida al mapa');
+  };
+
+
   // --- Logic for WhatsApp ---
   async function saveWaConfig() {
     if (!waConfig) return;
-
     try {
-      const { error } = await supabase
+      // 1. Update master config
+      const { error: err1 } = await supabase
         .from('whatsapp_config')
         .update({
           is_active: waConfig.is_active,
@@ -174,29 +249,112 @@ export default function Settings() {
           whatsapp_phone: waConfig.whatsapp_phone,
           shipping_policy: waConfig.shipping_policy,
           store_lat: waConfig.store_lat,
-          store_lng: waConfig.store_lng
+          store_lng: waConfig.store_lng,
+          store_address: waConfig.store_address,
+          store_city: waConfig.store_city,
+          store_province: waConfig.store_province,
+          store_country: waConfig.store_country
         })
         .eq('id', waConfig.id);
 
-      if (error) throw error;
-      toast.success('Configuración de WhatsApp guardada');
+      if (err1) throw err1;
+
+      // 2. Synchronize with Public Branding (for the Catalog)
+      const publicPayload = {
+        whatsapp_phone: waConfig.whatsapp_phone,
+        catalog_business_name: waConfig.catalog_business_name,
+        catalog_logo_url: waConfig.catalog_logo_url,
+        catalog_banner_url: waConfig.catalog_banner_url,
+        catalog_accent_color: waConfig.catalog_accent_color,
+      };
+
+      const { data: currentPublic } = await supabase.from('public_branding').select('id').maybeSingle();
+      if (currentPublic) {
+        await supabase.from('public_branding').update(publicPayload).eq('id', currentPublic.id);
+      } else {
+        await supabase.from('public_branding').insert(publicPayload);
+      }
+
+      toast.success('Configuración guardada correctamente');
     } catch (error) {
-      console.error('Error saving WA config:', error);
+      console.error('Error saving config:', error);
       toast.error('Error al guardar configuración');
     }
-  }const saveDefaultRegion = () => {
-    localStorage.setItem('stock_app_default_origin', defaultOrigin);
-    localStorage.setItem('stock_app_country', country);
-    localStorage.setItem('stock_app_province', province);
-    localStorage.setItem('stock_app_city', city);
-    
-    // Legacy support: construct default region string for map compatibility if needed, 
-    // or we update RouteMap to use these new fields.
-    // For now, let's also save the composite region to keep RouteMap working as is, 
-    // but better to update RouteMap.
-    const compositeRegion = [city, province, country].filter(Boolean).join(', ');
-    localStorage.setItem('stock_app_default_region', compositeRegion);
+  }
 
+  async function savePrinterConfig() {
+    if (!printerConfig) return;
+    try {
+      const { error } = await supabase
+        .from('printer_config')
+        .update({
+          auto_print_enabled: printerConfig.auto_print_enabled,
+          margin_top: printerConfig.margin_top,
+          margin_bottom: printerConfig.margin_bottom,
+          store_name: printerConfig.store_name,
+          footer_message: printerConfig.footer_message,
+          print_logo: printerConfig.print_logo,
+          logo_url: printerConfig.logo_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', printerConfig.id);
+      
+      if (error) throw error;
+      toast.success('Configuración de impresora guardada');
+    } catch (error) {
+      console.error('Error saving printer config:', error);
+    }
+  }
+
+  async function handleTestPrint() {
+    if (!printerConfig) return;
+    const toastId = toast.loading('Generando ticket de prueba...');
+    try {
+      const ESC = 0x1B, GS = 0x1D, LF = 0x0A;
+      const strToBytes = (s: string) => Array.from(new TextEncoder().encode(s));
+      
+      let cmds: number[] = [ESC, 0x40, ESC, 0x74, 0x10];
+      
+      // Margins Top
+      for (let i = 0; i < (printerConfig.margin_top || 0); i++) cmds.push(LF);
+
+      cmds.push(
+        ESC, 0x61, 0x01, GS, 0x21, 0x11,
+        ...strToBytes(`${printerConfig.store_name}\n`),
+        GS, 0x21, 0x00, ...strToBytes('------------------------------------------\n'),
+        GS, 0x21, 0x01, ...strToBytes('TICKET DE PRUEBA\n'),
+        GS, 0x21, 0x00,
+        ...strToBytes(`${new Date().toLocaleString('es-AR')}\n`),
+        ...strToBytes('------------------------------------------\n'),
+        ESC, 0x61, 0x01,
+        ...strToBytes('Si estás viendo esto,\ntu impresora está configurada correctamente.\n\n'),
+        ...strToBytes(`${printerConfig.footer_message}\n`)
+      );
+
+      // Margins Bottom
+      for (let i = 0; i < (printerConfig.margin_bottom || 3); i++) cmds.push(LF);
+      cmds.push(GS, 0x56, 0x00);
+
+      const raw = btoa(String.fromCharCode(...new Uint8Array(cmds)));
+      const { error } = await supabase
+        .from('print_queue')
+        .insert({ 
+            order_id: null,
+            raw_content: raw, 
+            status: 'pending',
+            logo_url: printerConfig.logo_url
+        });
+
+      if (error) throw error;
+      toast.success('Prueba enviada', { id: toastId });
+    } catch (err) {
+      console.error('Test print error:', err);
+      toast.error('Error al enviar prueba', { id: toastId });
+    }
+  }
+
+  const saveLogisticsConfig = async () => {
+    await saveWaConfig();
     toast.success('Configuración logística guardada');
   };
 
@@ -228,13 +386,22 @@ export default function Settings() {
           </div>
         </button>
         <button
-          className={`px-4 py-2 font-medium ${activeTab === 'catalog' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('catalog')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'catalog' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
         >
-          <div className="flex items-center gap-2">
-            <Store className="w-4 h-4" />
-            Catálogo Público
-          </div>
+          <Store size={18} />
+          Catálogo
+        </button>
+        <button
+          onClick={() => setActiveTab('printer')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'printer' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Printer size={18} />
+          Impresora
         </button>
       </div>
 
@@ -252,13 +419,24 @@ export default function Settings() {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Dirección de Origen / Depósito (Por Defecto)
                             </label>
-                            <input 
-                                type="text" 
-                                value={defaultOrigin}
-                                onChange={(e) => setDefaultOrigin(e.target.value)}
-                                placeholder="Ej: Av. San Martín 100"
-                                className="w-full px-3 py-2 border rounded-lg"
-                            />
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={waConfig?.store_address || ''}
+                                    onChange={(e) => setWaConfig(prev => prev ? {...prev, store_address: e.target.value} : null)}
+                                    placeholder="Ej: Av. San Martín 100"
+                                    className="flex-1 px-3 py-2 border rounded-lg"
+                                />
+                                <button 
+                                    onClick={handleGeocodeOrigin}
+                                    disabled={geocodingLoading}
+                                    className="bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition flex items-center gap-2 disabled:opacity-50"
+                                    title="Obtener coordenadas GPS automáticamente"
+                                >
+                                    {geocodingLoading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
+                                    <span className="hidden sm:inline">Auto-GPS</span>
+                                </button>
+                            </div>
                             <p className="text-xs text-gray-500 mt-1">
                                 Se usará automáticamente al crear nuevas rutas.
                             </p>
@@ -269,18 +447,18 @@ export default function Settings() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
                                 <input 
                                     type="text" 
-                                    value={country}
-                                    onChange={(e) => setCountry(e.target.value)}
+                                    value={waConfig?.store_country || ''}
+                                    onChange={(e) => setWaConfig(prev => prev ? {...prev, store_country: e.target.value} : null)}
                                     placeholder="Argentina"
                                     className="w-full px-3 py-2 border rounded-lg"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Provincia / Estado</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Provincia</label>
                                 <input 
                                     type="text" 
-                                    value={province}
-                                    onChange={(e) => setProvince(e.target.value)}
+                                    value={waConfig?.store_province || ''}
+                                    onChange={(e) => setWaConfig(prev => prev ? {...prev, store_province: e.target.value} : null)}
                                     placeholder="Buenos Aires"
                                     className="w-full px-3 py-2 border rounded-lg"
                                 />
@@ -289,19 +467,19 @@ export default function Settings() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
                                 <input 
                                     type="text" 
-                                    value={city}
-                                    onChange={(e) => setCity(e.target.value)}
+                                    value={waConfig?.store_city || ''}
+                                    onChange={(e) => setWaConfig(prev => prev ? {...prev, store_city: e.target.value} : null)}
                                     placeholder="Bahía Blanca"
                                     className="w-full px-3 py-2 border rounded-lg"
                                 />
                             </div>
                         </div>
                         <p className="text-xs text-gray-500">
-                             Se usará para mejorar la precisión del mapa ({[city, province, country].filter(Boolean).join(', ')}).
+                             Se usará para mejorar la precisión del mapa ({[waConfig?.store_city, waConfig?.store_province, waConfig?.store_country].filter(Boolean).join(', ')}).
                         </p>
                     </div>
                     <button 
-                        onClick={saveDefaultRegion}
+                        onClick={saveLogisticsConfig}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 h-[42px]"
                     >
                         <Save size={18} />
@@ -421,18 +599,48 @@ export default function Settings() {
                 </div>
             </div>
 
-            {/* Shipping Zones */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
+            {/* Interactive Shipping Map */}
+            <div className="md:col-span-2">
+                <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-gray-50/50">
+                        <div className="flex items-center gap-2">
+                            <Globe className="text-blue-600" size={20} />
+                            <h2 className="text-lg font-bold">Zonas de Entrega y Barrios</h2>
+                        </div>
+                    </div>
+                    <div className="p-4">
+                        {waConfig?.store_lat && waConfig?.store_lng ? (
+                            <div className="h-[600px]">
+                                <ShippingMap 
+                                    storeLoc={{ lat: waConfig.store_lat, lng: waConfig.store_lng }}
+                                    zones={zones}
+                                    onUpdateZone={updateZone}
+                                    onAddZone={handleAddZone}
+                                    onDeleteZone={deleteZone}
+                                />
+                            </div>
+                        ) : (
+                            <div className="p-12 text-center bg-gray-50 rounded-xl border-2 border-dashed">
+                                <MapPin className="mx-auto text-gray-300 mb-4" size={48} />
+                                <h3 className="text-lg font-medium text-gray-800 mb-2">Configure su Ubicación</h3>
+                                <p className="text-gray-500 max-w-sm mx-auto">
+                                    Para activar el mapa interactivo de envíos, primero ingrese las coordenadas GPS de su local arriba.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Legacy/Quick Zones List (Optional, can be hidden if map is enough) */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border opacity-80">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
                         <Map className="text-purple-600" />
-                        <h2 className="text-lg font-semibold">Zonas de Envío</h2>
+                        <h2 className="text-lg font-semibold">Listado de Zonas</h2>
                     </div>
-                    <button onClick={addZone} className="p-1 hover:bg-gray-100 rounded-full text-purple-600">
-                        <Plus size={20} />
-                    </button>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                     {zones.map(zone => (
                         <div key={zone.id} className="flex flex-col gap-3 p-3 bg-gray-50 rounded border">
                             <div className="flex items-center gap-3">
@@ -440,7 +648,7 @@ export default function Settings() {
                                     <input 
                                         type="text" 
                                         value={zone.name} 
-                                        onChange={(e) => updateZone(zone.id, { name: e.target.value })}
+                                        onChange={(e) => updateZone(String(zone.id), { name: e.target.value })}
                                         className="w-full px-2 py-1 bg-white border rounded font-medium text-sm"
                                         placeholder="Nombre zona"
                                     />
@@ -450,66 +658,23 @@ export default function Settings() {
                                     <input 
                                         type="number" 
                                         value={zone.cost} 
-                                        onChange={(e) => updateZone(zone.id, { cost: Number(e.target.value) })}
-                                        className="w-24 px-2 py-1 bg-white border rounded font-bold text-sm"
-                                        placeholder="Costo"
+                                        onChange={(e) => updateZone(String(zone.id), { cost: Number(e.target.value) })}
+                                        className="w-20 px-2 py-1 bg-white border rounded font-bold text-sm"
                                     />
                                 </div>
                                 <button 
-                                    onClick={() => updateZone(zone.id, { is_active: !zone.is_active })}
-                                    className={`p-1.5 rounded transition ${zone.is_active ? 'text-green-600 bg-green-50' : 'text-gray-400 bg-gray-100'}`}
-                                    title={zone.is_active ? "Activa" : "Inactiva"}
+                                    onClick={() => updateZone(String(zone.id), { allow_delivery: !zone.allow_delivery })}
+                                    className={`p-1.5 rounded transition ${zone.allow_delivery ? 'text-green-600 bg-green-50' : 'text-red-400 bg-red-100'}`}
+                                    title={zone.allow_delivery ? "Permitido" : "Bloqueado"}
                                 >
-                                    <Power size={18} />
+                                    {zone.allow_delivery ? <Shield size={18} /> : <ShieldOff size={18} />}
                                 </button>
-                                <button onClick={() => deleteZone(zone.id)} className="text-red-500 p-1.5 hover:bg-red-50 rounded transition">
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3 pl-1">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Cálculo de Distancia</label>
-                                    <select 
-                                        value={zone.zone_type || 'radius'}
-                                        onChange={(e) => updateZone(zone.id, { zone_type: e.target.value as any })}
-                                        className="w-full px-2 py-1 bg-white border rounded text-xs text-gray-700 font-medium"
-                                    >
-                                        <option value="radius">Radio KM (GPS)</option>
-                                        <option value="text_match">Texto (Manual)</option>
-                                    </select>
-                                </div>
-                                {(!zone.zone_type || zone.zone_type === 'radius') ? (
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Radio Máximo (KM)</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={zone.max_radius_km || 0}
-                                            onChange={(e) => updateZone(zone.id, { max_radius_km: parseFloat(e.target.value) })}
-                                            className="w-full px-2 py-1 bg-white border rounded text-xs"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Palabras Clave (Comas)</label>
-                                        <input 
-                                            type="text"
-                                            value={zone.match_keywords ? zone.match_keywords.join(', ') : ''}
-                                            onChange={(e) => {
-                                                const kws = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                                                updateZone(zone.id, { match_keywords: kws });
-                                            }}
-                                            className="w-full px-2 py-1 bg-white border rounded text-xs"
-                                            placeholder="Ej: macrocentro, centro"
-                                        />
-                                    </div>
-                                )}
                             </div>
                         </div>
                     ))}
-                    {zones.length === 0 && <p className="text-sm text-gray-500 text-center">No hay zonas configuradas.</p>}
                 </div>
             </div>
+
         </div>
       </div>
       )}
@@ -543,6 +708,25 @@ export default function Settings() {
                         className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 mb-4 font-mono text-sm"
                         disabled={!waConfig.is_active}
                     />
+
+                    <div className="pt-4 border-t border-gray-100 italic">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Printer className="text-blue-500" size={18} />
+                            <h3 className="font-semibold text-gray-800">Impresora Térmica</h3>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={waConfig.auto_print ?? false}
+                                onChange={(e) => setWaConfig({...waConfig, auto_print: e.target.checked})}
+                                className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            <span className="text-gray-700 text-sm">Impresión Automática (Comanda de Cocina)</span>
+                        </label>
+                        <p className="text-[10px] text-gray-500 mt-1 ml-6">
+                            Si se activa, cada vez que el bot confirme un pedido, se enviará automáticamente a la cola de impresión.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="mb-4">
@@ -913,6 +1097,236 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {activeTab === 'printer' && (
+        !printerConfig ? (
+          <div className="p-12 text-center bg-gray-50 rounded-2xl border-2 border-dashed">
+            <Loader2 className="mx-auto text-blue-400 mb-4 animate-spin" size={48} />
+            <h3 className="text-lg font-medium text-gray-800 mb-2">Cargando configuración...</h3>
+            <p className="text-gray-500 max-w-sm mx-auto mb-4">
+              Si el problema persiste, intente recargar la página.
+            </p>
+            <button 
+              onClick={() => loadSettings()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                <Printer className="text-blue-600" size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Ticket y Comandera</h2>
+                <p className="text-sm text-gray-500">Personaliza el formato de tus tickets térmicos</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm">Impresión Automática</h3>
+                      <p className="text-xs text-gray-500">Imprimir ticket apenas se confirma un pedido</p>
+                    </div>
+                    <button
+                      onClick={() => setPrinterConfig({...printerConfig, auto_print_enabled: !printerConfig.auto_print_enabled})}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        printerConfig.auto_print_enabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          printerConfig.auto_print_enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm">Logo del Negocio</h3>
+                      <p className="text-xs text-gray-500">Subir logo blanco y negro (PNG)</p>
+                    </div>
+                    <button
+                      onClick={() => setPrinterConfig({...printerConfig, print_logo: !printerConfig.print_logo})}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        printerConfig.print_logo ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          printerConfig.print_logo ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <button 
+                        onClick={() => document.getElementById('printer-logo-upload')?.click()}
+                        className="w-full py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition font-medium"
+                      >
+                        {printerConfig.logo_url ? 'Cambiar Logo' : 'Seleccionar Imagen'}
+                      </button>
+                      <input 
+                        id="printer-logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const toastId = toast.loading('Subiendo logo...');
+                          try {
+                            const path = `branding/printer_logo_${Date.now()}.${file.name.split('.').pop()}`;
+                            const { error } = await supabase.storage.from('product-images').upload(path, file);
+                            if (error) throw error;
+                            const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+                            setPrinterConfig({...printerConfig, logo_url: data.publicUrl});
+                            toast.success('Logo listo', { id: toastId });
+                          } catch (err) {
+                            toast.error('Error al subir logo', { id: toastId });
+                          }
+                        }}
+                      />
+                    </div>
+                    {printerConfig.logo_url && (
+                        <div className="w-12 h-12 rounded border bg-white overflow-hidden flex items-center justify-center p-1">
+                            <img src={printerConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain grayscale invert" />
+                        </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombre del Local (Encabezado)</label>
+                    <input 
+                      type="text"
+                      value={printerConfig.store_name}
+                      onChange={(e) => setPrinterConfig({...printerConfig, store_name: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                      placeholder="@MiLocal"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mensaje de Despedida (Pie)</label>
+                    <textarea 
+                      value={printerConfig.footer_message}
+                      onChange={(e) => setPrinterConfig({...printerConfig, footer_message: e.target.value})}
+                      rows={2}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                      placeholder="¡Gracias por su compra!"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Margen Superior (Líneas)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={printerConfig.margin_top}
+                        onChange={(e) => setPrinterConfig({...printerConfig, margin_top: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Margen Inferior (Corte)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        max="20"
+                        value={printerConfig.margin_bottom}
+                        onChange={(e) => setPrinterConfig({...printerConfig, margin_bottom: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-100 p-6 rounded-2xl border-2 border-dashed border-gray-300 relative overflow-hidden flex flex-col items-center">
+                <div className="absolute top-0 left-0 right-0 bg-gray-200 h-2" />
+                <div className="text-[10px] text-gray-400 font-mono mb-4">VISTA PREVIA DEL TICKET</div>
+                
+                <div className="w-full max-w-[240px] bg-white shadow-lg p-4 font-mono text-[11px] space-y-3 text-gray-800 border-b-2 border-gray-200">
+                  {/* Margen Top visual */}
+                  {Array.from({ length: Math.min(printerConfig.margin_top, 3) }).map((_, i) => (
+                    <div key={i} className="h-2" />
+                  ))}
+                  {printerConfig.print_logo && printerConfig.logo_url && (
+                    <div className="flex justify-center mb-2">
+                        <img src={printerConfig.logo_url} alt="Receipt Logo" className="w-16 h-16 object-contain grayscale invert" />
+                    </div>
+                  )}
+
+                  <div className="text-center font-bold text-sm mb-1">{printerConfig.store_name}</div>
+                  <div className="text-center border-b border-dashed border-gray-400 pb-1 mb-2">ORDEN #1234</div>
+                  
+                  <div className="mb-2">
+                    <div className="font-bold">CLIENTE: Juan Pérez</div>
+                    <div className="flex items-center gap-1 uppercase">🛵 DELIVERY</div>
+                    <div className="italic break-words">Dirección: Av. San Martín 123, Bahía Blanca</div>
+                  </div>
+                  
+                  <div className="border-t border-dashed border-gray-400 pt-1"></div>
+                  
+                  <div className="flex justify-between">
+                    <span>2x Hamburguesa Clásica</span>
+                    <span>$12000</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>1x Coca Cola 500ml</span>
+                    <span>$1500</span>
+                  </div>
+                  
+                  <div className="border-t border-dashed border-gray-400 pt-1 mt-2 font-bold flex justify-between text-xs">
+                    <span>TOTAL</span>
+                    <span>$13500</span>
+                  </div>
+
+                  <div className="text-center italic mt-4 px-2 whitespace-pre-wrap">{printerConfig.footer_message}</div>
+
+                   {/* Margen Bottom visual */}
+                   {Array.from({ length: Math.min(printerConfig.margin_bottom, 3) }).map((_, i) => (
+                    <div key={i} className="h-2" />
+                  ))}
+                </div>
+                <div className="mt-4 text-[10px] text-gray-400 italic">El tamaño real dependerá del papel (58mm/80mm)</div>
+                <button 
+                  onClick={handleTestPrint}
+                  className="mt-6 flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-all text-xs"
+                >
+                  <Printer size={14} />
+                  Realizar Impresión de Prueba
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-10 flex justify-end pt-6 border-t border-gray-100">
+              <button 
+                onClick={savePrinterConfig}
+                className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Save size={20} />
+                Guardar Configuración
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

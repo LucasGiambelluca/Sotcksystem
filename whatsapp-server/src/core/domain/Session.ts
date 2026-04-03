@@ -34,6 +34,7 @@ export interface SessionContext {
     entryPoint: 'trigger' | 'handover' | 'catalog' | 'manual';
     parentSessionId?: string;
     expiresAt?: Date;
+    conversationalState?: string;
   };
 }
 
@@ -160,5 +161,14 @@ export class Session {
       new Date(data.created_at || Date.now()),
       data.id // The UUID primary key
     );
+  }
+
+  getConversationalState(): string {
+    return this.context.metadata.conversationalState || 'IDLE';
+  }
+
+  setConversationalState(state: string): void {
+    this.context.metadata.conversationalState = state;
+    this.touch();
   }
 }

@@ -9,7 +9,7 @@ import { logger } from '../../utils/logger';
 export class GroqExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext): Promise<NodeExecutionResult> {
         let prompt = data.prompt || '';
-        const systemPrompt = data.systemPrompt || 'Sos un asistente virtual para una rotisería.';
+        let systemPrompt = data.systemPrompt || 'Sos un asistente virtual para una rotisería.';
         const targetVariable = data.variable || 'ai_response';
 
         if (!prompt) {
@@ -19,10 +19,13 @@ export class GroqExecutor implements NodeExecutor {
             };
         }
 
-        // 1. Interpolate variables: {{varName}}
-        prompt = prompt.replace(/\{\{(\w+)\}\}/g, (_: string, varName: string) => {
+        // 1. Interpolate variables: {{varName}} in BOTH prompts
+        const interpolate = (text: string) => text.replace(/\{\{([\w\.]+)\}\}/g, (_: string, varName: string) => {
             return (context as any)[varName] || '';
         });
+        
+        prompt = interpolate(prompt);
+        systemPrompt = interpolate(systemPrompt);
 
         try {
             logger.info(`[GroqExecutor] Calling Groq with prompt: "${prompt.substring(0, 50)}..."`);
@@ -34,12 +37,17 @@ export class GroqExecutor implements NodeExecutor {
                 maxTokens: data.maxTokens ?? 512
             });
 
-            // 2. Return result
+            // 2. Detect [VOLVER_FLUJO] tag
+            const hasVolverFlujo = response.includes('[VOLVER_FLUJO]');
+            const cleanResponse = response.replace('[VOLVER_FLUJO]', '').trim();
+
+            // 3. Return result
             return {
-                messages: data.silent ? [] : [response],
-                wait_for_input: false,
+                messages: data.silent ? [] : [cleanResponse],
+                wait_for_input: data.wait_for_input ?? false,
                 updatedContext: {
-                    [targetVariable]: response
+                    [targetVariable]: cleanResponse,
+                    last_ai_completed: hasVolverFlujo
                 }
             };
         } catch (err: any) {
@@ -49,5 +57,16 @@ export class GroqExecutor implements NodeExecutor {
                 wait_for_input: false
             };
         }
+    }
+
+    async handleInput(input: string, data: any, context: ExecutionContext): Promise<{ updatedContext?: Partial<ExecutionContext>; messages?: string[]; isValidInput?: boolean; }> {
+        // If we were waiting for input, it means we are in a chat loop.
+        // We return valid input so the engine advances (likely back to this same node if looped).
+        return {
+            isValidInput: true,
+            updatedContext: {
+                raw_user_message: input // Update the message for the next execution
+            }
+        };
     }
 }

@@ -6,7 +6,7 @@ export async function createOrder(orderData: {
   client_id: string;
   channel: Order['channel'];
   delivery_date?: string;
-  time_slot?: string;
+  delivery_type?: string;
   notes?: string;
   original_text?: string;
   items: Array<{ product_id?: string; catalog_item_id?: string; quantity: number; unit_price: number }>;
@@ -26,7 +26,7 @@ export async function createOrder(orderData: {
         channel: orderData.channel,
         total_amount,
         delivery_date: orderData.delivery_date || null,
-        time_slot: orderData.time_slot || null,
+        delivery_type: orderData.delivery_type || null,
         notes: orderData.notes || null,
         original_text: orderData.original_text || null,
       })

@@ -1,0 +1,1815 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>BarriosOficiales9-1-20.kml</name>
+	<StyleMap id="msn_ylw-pushpin0">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#sn_ylw-pushpin</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#sh_ylw-pushpin0</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="PolyStyle001">
+		<LabelStyle>
+			<color>00000000</color>
+			<scale>0</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00f0f0f0</color>
+		</PolyStyle>
+	</Style>
+	<StyleMap id="PolyStyle00">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#PolyStyle002</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#PolyStyle000</styleUrl>
+		</Pair>
+	</StyleMap>
+	<StyleMap id="msn_ylw-pushpin">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#sn_ylw-pushpin0</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#sh_ylw-pushpin</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="PolyStyle002">
+		<LabelStyle>
+			<color>00000000</color>
+			<scale>0</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00f0f0f0</color>
+		</PolyStyle>
+	</Style>
+	<Style id="sh_ylw-pushpin">
+		<IconStyle>
+			<scale>1.3</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00ffffff</color>
+		</PolyStyle>
+	</Style>
+	<Style id="sn_ylw-pushpin0">
+		<IconStyle>
+			<scale>1.1</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00ffffff</color>
+		</PolyStyle>
+	</Style>
+	<Style id="sn_ylw-pushpin">
+		<IconStyle>
+			<scale>1.1</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00ffffff</color>
+		</PolyStyle>
+	</Style>
+	<Style id="PolyStyle000">
+		<LabelStyle>
+			<color>00000000</color>
+			<scale>0</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00f0f0f0</color>
+		</PolyStyle>
+	</Style>
+	<Style id="sh_ylw-pushpin0">
+		<IconStyle>
+			<scale>1.3</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ffff7000</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>00ffffff</color>
+		</PolyStyle>
+	</Style>
+	<Folder id="FeatureLayer0">
+		<name>Barrios_Oficiales</name>
+		<open>1</open>
+		<Snippet maxLines="0"></Snippet>
+		<Placemark>
+			<name>B. MISIONES</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.26140399999999,-38.746224,0 -62.264936,-38.743542,0 -62.27023400000001,-38.739512,0 -62.27054700000001,-38.739263,0 -62.26664,-38.736153,0 -62.25977499999999,-38.741362,0 -62.257503,-38.743144,0 -62.26140399999999,-38.746224,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>GRUNBEIN</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.159575,-38.698271,0 -62.138137,-38.700752,0 -62.135909,-38.699073,0 -62.133266,-38.700813,0 -62.122629,-38.692325,0 -62.11095000000001,-38.701126,0 -62.099699,-38.692044,0 -62.084193,-38.70356,0 -62.075665,-38.696648,0 -62.070591,-38.712351,0 -62.080173,-38.715165,0 -62.080383,-38.727976,0 -62.074505,-38.732938,0 -62.162038,-38.802872,0 -62.225657,-38.752977,0 -62.223364,-38.751086,0 -62.215951,-38.744949,0 -62.212881,-38.74241,0 -62.207738,-38.738155,0 -62.18243,-38.717168,0 -62.159575,-38.698271,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>AUTODROMO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.18243,-38.717168,0 -62.183239,-38.716658,0 -62.183469,-38.715353,0 -62.18094,-38.711943,0 -62.191629,-38.704415,0 -62.204435,-38.695106,0 -62.197724,-38.689664,0 -62.202612,-38.686049,0 -62.203645,-38.686911,0 -62.217279,-38.676585,0 -62.212874,-38.676233,0 -62.210889,-38.676031,0 -62.208636,-38.675808,0 -62.207807,-38.675692,0 -62.20665399999999,-38.674198,0 -62.20587399999999,-38.67289,0 -62.204348,-38.672703,0 -62.201803,-38.672487,0 -62.200527,-38.674109,0 -62.200182,-38.675456,0 -62.195407,-38.675449,0 -62.19186299999999,-38.676188,0 -62.18791599999999,-38.677374,0 -62.187155,-38.678084,0 -62.159575,-38.698271,0 -62.18243,-38.717168,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>HARDING GREEN Y 17 DE AGOSTO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.207738,-38.738155,0 -62.21203799999999,-38.734936,0 -62.212353,-38.735196,0 -62.216404,-38.73201,0 -62.215103,-38.730935,0 -62.209875,-38.726609,0 -62.19643,-38.715483,0 -62.20083,-38.712178,0 -62.191629,-38.704415,0 -62.18094,-38.711943,0 -62.183469,-38.715353,0 -62.183239,-38.716658,0 -62.18243,-38.717168,0 -62.207738,-38.738155,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>MILLAMAPU</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.20083,-38.712178,0 -62.20180799999999,-38.712997,0 -62.205718,-38.710031,0 -62.20361000000001,-38.708325,0 -62.20803,-38.704972,0 -62.207869,-38.704848,0 -62.21376899999999,-38.700501,0 -62.205918,-38.694058,0 -62.204435,-38.695106,0 -62.191629,-38.704415,0 -62.20083,-38.712178,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>EL NACIONAL</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.205718,-38.710031,0 -62.207356,-38.711359,0 -62.208386,-38.710547,0 -62.213344,-38.714609,0 -62.213834,-38.714263,0 -62.21792799999999,-38.711192,0 -62.21797800000001,-38.711077,0 -62.222508,-38.707667,0 -62.21376899999999,-38.700501,0 -62.207869,-38.704848,0 -62.20803,-38.704972,0 -62.20361000000001,-38.708325,0 -62.205718,-38.710031,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA HIPODROMO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.213834,-38.714263,0 -62.213344,-38.714609,0 -62.208386,-38.710547,0 -62.207356,-38.711359,0 -62.205718,-38.710031,0 -62.20180799999999,-38.712997,0 -62.20083,-38.712178,0 -62.19643,-38.715483,0 -62.209875,-38.726609,0 -62.214183,-38.723336,0 -62.21488,-38.722832,0 -62.21853300000001,-38.720024,0 -62.21842,-38.719928,0 -62.21964,-38.718987,0 -62.213834,-38.714263,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>ALTOS DEL PINAR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.21964,-38.718987,0 -62.228169,-38.71245,0 -62.22491,-38.709677,0 -62.222508,-38.707667,0 -62.21797800000001,-38.711077,0 -62.21792799999999,-38.711192,0 -62.213834,-38.714263,0 -62.21964,-38.718987,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>ALTOS SANCHEZ</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.21853300000001,-38.720024,0 -62.22382100000001,-38.724264,0 -62.22802099999999,-38.720972,0 -62.233531,-38.716813,0 -62.232533,-38.716019,0 -62.228986,-38.713117,0 -62.228169,-38.71245,0 -62.21964,-38.718987,0 -62.21842,-38.719928,0 -62.21853300000001,-38.720024,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>STELLA MARIS</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.214183,-38.723336,0 -62.219481,-38.727589,0 -62.219542,-38.727543,0 -62.22382100000001,-38.724264,0 -62.21853300000001,-38.720024,0 -62.21488,-38.722832,0 -62.214183,-38.723336,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SAN JORGE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.215103,-38.730935,0 -62.219481,-38.727589,0 -62.214183,-38.723336,0 -62.209875,-38.726609,0 -62.215103,-38.730935,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>12 DE OCTUBRE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.212881,-38.74241,0 -62.217185,-38.739188,0 -62.21692,-38.738969,0 -62.212353,-38.735196,0 -62.21203799999999,-38.734936,0 -62.207738,-38.738155,0 -62.212881,-38.74241,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. CERRITO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.219542,-38.727543,0 -62.219481,-38.727589,0 -62.215103,-38.730935,0 -62.216404,-38.73201,0 -62.212353,-38.735196,0 -62.21692,-38.738969,0 -62.22060399999999,-38.736059,0 -62.220781,-38.734767,0 -62.224692,-38.731714,0 -62.219542,-38.727543,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. DON BOSCO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.22382100000001,-38.724264,0 -62.219542,-38.727543,0 -62.224692,-38.731714,0 -62.228997,-38.728442,0 -62.22382100000001,-38.724264,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. AMADUCCI</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.22802099999999,-38.720972,0 -62.22382100000001,-38.724264,0 -62.228997,-38.728442,0 -62.233237,-38.725187,0 -62.22802099999999,-38.720972,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SANCHEZ ELIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.233531,-38.716813,0 -62.22802099999999,-38.720972,0 -62.233237,-38.725187,0 -62.239064,-38.720688,0 -62.236561,-38.718751,0 -62.236271,-38.718974,0 -62.233531,-38.716813,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>ANCHORENA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.233237,-38.725187,0 -62.23848000000001,-38.729403,0 -62.24278,-38.726102,0 -62.242681,-38.725966,0 -62.245596,-38.723732,0 -62.24382300000001,-38.722309,0 -62.24269400000001,-38.72344,0 -62.239064,-38.720688,0 -62.233237,-38.725187,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA LIBRE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.228997,-38.728442,0 -62.234239,-38.732656,0 -62.23848000000001,-38.729403,0 -62.233237,-38.725187,0 -62.228997,-38.728442,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. LIBRE SUR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.224692,-38.731714,0 -62.227226,-38.733757,0 -62.22994200000001,-38.735898,0 -62.234239,-38.732656,0 -62.228997,-38.728442,0 -62.224692,-38.731714,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>B. BCA Y R. LOPEZ</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.227226,-38.733757,0 -62.222977,-38.73703,0 -62.224368,-38.738149,0 -62.226693,-38.740043,0 -62.230932,-38.736724,0 -62.22994200000001,-38.735898,0 -62.227226,-38.733757,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. BUENOS AIRES</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.215951,-38.744949,0 -62.21935899999999,-38.742485,0 -62.22006799999999,-38.74143,0 -62.224368,-38.738149,0 -62.222977,-38.73703,0 -62.227226,-38.733757,0 -62.224692,-38.731714,0 -62.220781,-38.734767,0 -62.22060399999999,-38.736059,0 -62.21692,-38.738969,0 -62.217185,-38.739188,0 -62.212881,-38.74241,0 -62.215951,-38.744949,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA MUÑIZ</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.223364,-38.751086,0 -62.229438,-38.749003,0 -62.231393,-38.747621,0 -62.233376,-38.74567,0 -62.226693,-38.740043,0 -62.224368,-38.738149,0 -62.22006799999999,-38.74143,0 -62.21935899999999,-38.742485,0 -62.215951,-38.744949,0 -62.223364,-38.751086,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA  ITALIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.233376,-38.74567,0 -62.23789099999999,-38.742273,0 -62.235164,-38.740065,0 -62.230932,-38.736724,0 -62.226693,-38.740043,0 -62.233376,-38.74567,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA  LORETO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.235164,-38.740065,0 -62.23941599999999,-38.736818,0 -62.234239,-38.732656,0 -62.22994200000001,-38.735898,0 -62.230932,-38.736724,0 -62.235164,-38.740065,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. NUEVA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.23789099999999,-38.742273,0 -62.242187,-38.739029,0 -62.23991599999999,-38.737221,0 -62.23941599999999,-38.736818,0 -62.235164,-38.740065,0 -62.23789099999999,-38.742273,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. SOLDATI</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.23991599999999,-38.737221,0 -62.244239,-38.733973,0 -62.23848000000001,-38.729403,0 -62.234239,-38.732656,0 -62.23941599999999,-38.736818,0 -62.23991599999999,-38.737221,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. ROSARIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.242187,-38.739029,0 -62.246454,-38.735737,0 -62.244239,-38.733973,0 -62.23991599999999,-38.737221,0 -62.242187,-38.739029,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA MITRE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.246454,-38.735737,0 -62.247321,-38.736427,0 -62.248973,-38.735258,0 -62.24895500000001,-38.734653,0 -62.249093,-38.734545,0 -62.249657,-38.734064,0 -62.25011900000001,-38.733764,0 -62.250654,-38.733347,0 -62.253677,-38.731001,0 -62.25314899999999,-38.730525,0 -62.253175,-38.72872,0 -62.251175,-38.728737,0 -62.251153,-38.728192,0 -62.245596,-38.723732,0 -62.242681,-38.725966,0 -62.24278,-38.726102,0 -62.23848000000001,-38.729402,0 -62.244239,-38.733973,0 -62.246454,-38.735737,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. ROSARIO SUR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.233376,-38.74567,0 -62.235979,-38.747668,0 -62.23766599999999,-38.74917,0 -62.23891,-38.74819,0 -62.23931999999999,-38.74661,0 -62.239845,-38.745245,0 -62.23995800000001,-38.745147,0 -62.24366,-38.741851,0 -62.244616,-38.741508,0 -62.245464,-38.741237,0 -62.245936,-38.741086,0 -62.246964,-38.740478,0 -62.247744,-38.739146,0 -62.24823,-38.737812,0 -62.248478,-38.736885,0 -62.248973,-38.735258,0 -62.247321,-38.736427,0 -62.246454,-38.735737,0 -62.242178,-38.739033,0 -62.23789099999999,-38.742273,0 -62.233376,-38.74567,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>ESTACION SUD</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.253677,-38.731001,0 -62.25455,-38.730409,0 -62.254647,-38.731968,0 -62.263876,-38.724924,0 -62.254683,-38.7176,0 -62.253228,-38.719418,0 -62.253175,-38.72872,0 -62.25314899999999,-38.730525,0 -62.253677,-38.731001,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>TIRO FEDERAL</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.24382300000001,-38.722309,0 -62.245596,-38.723732,0 -62.251153,-38.728192,0 -62.251175,-38.728737,0 -62.253175,-38.72872,0 -62.253228,-38.719418,0 -62.25298,-38.719727,0 -62.252642,-38.720149,0 -62.252268,-38.72036,0 -62.251308,-38.719873,0 -62.250963,-38.72004,0 -62.250823,-38.720059,0 -62.248853,-38.718497,0 -62.24382300000001,-38.722309,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>P. INDEPENDENCIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.232533,-38.716019,0 -62.233531,-38.716813,0 -62.236271,-38.718974,0 -62.236561,-38.718751,0 -62.239064,-38.720688,0 -62.24269400000001,-38.72344,0 -62.24382300000001,-38.722309,0 -62.248853,-38.718497,0 -62.246344,-38.716516,0 -62.245062,-38.716134,0 -62.243936,-38.715554,0 -62.240229,-38.715437,0 -62.239994,-38.715416,0 -62.238638,-38.714233,0 -62.236689,-38.712878,0 -62.232533,-38.716019,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BARRIO PATAGONIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.22491,-38.709677,0 -62.23321600000001,-38.703217,0 -62.22603000000001,-38.697425,0 -62.229901,-38.694623,0 -62.21650300000001,-38.683701,0 -62.204428,-38.692839,0 -62.205918,-38.694058,0 -62.21376899999999,-38.700501,0 -62.222508,-38.707667,0 -62.22491,-38.709677,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>ALDEA ROMANA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.23321600000001,-38.703217,0 -62.23547,-38.705012,0 -62.23133099999999,-38.708398,0 -62.23233399999999,-38.709184,0 -62.24512,-38.699336,0 -62.243092,-38.697611,0 -62.245975,-38.695334,0 -62.250294,-38.69866,0 -62.255196,-38.69489,0 -62.255136,-38.694845,0 -62.25756700000001,-38.692914,0 -62.255595,-38.692854,0 -62.251706,-38.691173,0 -62.249701,-38.691026,0 -62.245319,-38.690064,0 -62.242414,-38.688396,0 -62.239097,-38.685606,0 -62.23919899999999,-38.684242,0 -62.238563,-38.682634,0 -62.23719,-38.681302,0 -62.233432,-38.679763,0 -62.22935,-38.680008,0 -62.22738099999999,-38.679501,0 -62.224589,-38.677336,0 -62.22290100000001,-38.676659,0 -62.218385,-38.676674,0 -62.217279,-38.676585,0 -62.203645,-38.686911,0 -62.202612,-38.686049,0 -62.197724,-38.689664,0 -62.204435,-38.695106,0 -62.205918,-38.694058,0 -62.204428,-38.692839,0 -62.21650300000001,-38.683701,0 -62.229901,-38.694623,0 -62.22603000000001,-38.697425,0 -62.23321600000001,-38.703217,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CEMENTERIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.228986,-38.713117,0 -62.23317699999999,-38.709879,0 -62.23233399999999,-38.709184,0 -62.23133099999999,-38.708398,0 -62.23547,-38.705012,0 -62.23321600000001,-38.703217,0 -62.22491,-38.709677,0 -62.228169,-38.71245,0 -62.228986,-38.713117,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>P. CAMPAÑA AL DESIERTO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.238638,-38.714233,0 -62.241552,-38.712031,0 -62.239747,-38.710555,0 -62.23914200000001,-38.71098,0 -62.236637,-38.709046,0 -62.239109,-38.707141,0 -62.24145800000001,-38.708982,0 -62.243826,-38.707241,0 -62.244689,-38.707921,0 -62.250436,-38.703627,0 -62.24721199999999,-38.701009,0 -62.24512,-38.699336,0 -62.23233399999999,-38.709184,0 -62.23317699999999,-38.709879,0 -62.228986,-38.713117,0 -62.232533,-38.716019,0 -62.236689,-38.712878,0 -62.238638,-38.714233,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BARRIO MIRAMAR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.241552,-38.712031,0 -62.24173500000001,-38.712193,0 -62.242368,-38.711679,0 -62.24484999999999,-38.709795,0 -62.24578,-38.708781,0 -62.244689,-38.707921,0 -62.243826,-38.707241,0 -62.24145800000001,-38.708982,0 -62.239109,-38.707141,0 -62.236637,-38.709046,0 -62.23914200000001,-38.71098,0 -62.239747,-38.710555,0 -62.241552,-38.712031,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BELLA VISTA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.254683,-38.7176,0 -62.254443,-38.715986,0 -62.254587,-38.712058,0 -62.253983,-38.712169,0 -62.252491,-38.714346,0 -62.249865,-38.71224,0 -62.250079,-38.712129,0 -62.24578,-38.708781,0 -62.24484999999999,-38.709795,0 -62.242368,-38.711679,0 -62.24173500000001,-38.712193,0 -62.241552,-38.712031,0 -62.238638,-38.714233,0 -62.239994,-38.715416,0 -62.240229,-38.715437,0 -62.243936,-38.715554,0 -62.245062,-38.716134,0 -62.246344,-38.716516,0 -62.248853,-38.718497,0 -62.250823,-38.720059,0 -62.250963,-38.72004,0 -62.251308,-38.719873,0 -62.252268,-38.72036,0 -62.252642,-38.720149,0 -62.253228,-38.719418,0 -62.254683,-38.7176,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CENTRO SUDESTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.263876,-38.724924,0 -62.267378,-38.727702,0 -62.272844,-38.723517,0 -62.266342,-38.718313,0 -62.26532,-38.719093,0 -62.263694,-38.717746,0 -62.264834,-38.716881,0 -62.25907699999999,-38.712119,0 -62.2562,-38.709956,0 -62.25521499999999,-38.709218,0 -62.25475899999999,-38.710009,0 -62.254587,-38.712058,0 -62.254443,-38.715986,0 -62.254683,-38.7176,0 -62.263876,-38.724924,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>LA FALDA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.2562,-38.709956,0 -62.256475,-38.709708,0 -62.25692100000001,-38.709069,0 -62.257356,-38.708571,0 -62.257668,-38.707344,0 -62.25842,-38.707004,0 -62.257637,-38.706328,0 -62.254415,-38.703733,0 -62.252428,-38.705235,0 -62.250436,-38.703627,0 -62.244689,-38.707921,0 -62.24578,-38.708781,0 -62.250079,-38.712129,0 -62.249865,-38.71224,0 -62.252491,-38.714346,0 -62.253983,-38.712169,0 -62.254587,-38.712058,0 -62.25475899999999,-38.710009,0 -62.25521499999999,-38.709218,0 -62.2562,-38.709956,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>A. PALIHUE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.24721199999999,-38.701009,0 -62.250294,-38.69866,0 -62.245975,-38.695334,0 -62.243092,-38.697611,0 -62.24512,-38.699336,0 -62.24721199999999,-38.701009,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>PALIHUE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.257637,-38.706328,0 -62.260587,-38.704458,0 -62.26200900000001,-38.703196,0 -62.262776,-38.70229,0 -62.263949,-38.700561,0 -62.264424,-38.698044,0 -62.264453,-38.69714,0 -62.26460800000001,-38.69585,0 -62.261425,-38.694721,0 -62.25756700000001,-38.692914,0 -62.255136,-38.694845,0 -62.255196,-38.69489,0 -62.250294,-38.69866,0 -62.24721199999999,-38.701009,0 -62.250436,-38.703627,0 -62.252428,-38.705235,0 -62.254415,-38.703733,0 -62.257637,-38.706328,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>NAPOSTA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.264424,-38.698044,0 -62.263949,-38.700561,0 -62.262776,-38.70229,0 -62.26200900000001,-38.703196,0 -62.260587,-38.704458,0 -62.257637,-38.706328,0 -62.25842,-38.707004,0 -62.257668,-38.707344,0 -62.257356,-38.708571,0 -62.25692100000001,-38.709069,0 -62.256475,-38.709708,0 -62.2562,-38.709956,0 -62.25907699999999,-38.712119,0 -62.264296,-38.705659,0 -62.268737,-38.700173,0 -62.26638199999999,-38.699042,0 -62.264424,-38.698044,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CENTRO NORTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.266342,-38.718313,0 -62.27409,-38.712394,0 -62.27116800000001,-38.710227,0 -62.266304,-38.706875,0 -62.270106,-38.70281,0 -62.271144,-38.701263,0 -62.268737,-38.700173,0 -62.264296,-38.705659,0 -62.25907699999999,-38.712119,0 -62.264834,-38.716881,0 -62.263694,-38.717746,0 -62.26532,-38.719093,0 -62.266342,-38.718313,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CENTRO OESTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.272844,-38.723517,0 -62.281706,-38.716733,0 -62.27521700000001,-38.711533,0 -62.27409,-38.712394,0 -62.266342,-38.718313,0 -62.272844,-38.723517,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>UNIVERSITARIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.27521700000001,-38.711533,0 -62.287276,-38.702303,0 -62.287144,-38.702231,0 -62.284951,-38.701598,0 -62.283941,-38.701318,0 -62.273695,-38.69744,0 -62.271144,-38.701263,0 -62.270106,-38.702811,0 -62.266304,-38.706875,0 -62.27116800000001,-38.710227,0 -62.27409,-38.712394,0 -62.27521700000001,-38.711533,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>PACIFICO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.281706,-38.716733,0 -62.28386,-38.718452,0 -62.29667199999999,-38.708677,0 -62.295332,-38.707101,0 -62.29498300000001,-38.706823,0 -62.29403199999999,-38.706067,0 -62.287276,-38.702303,0 -62.27521700000001,-38.711533,0 -62.281706,-38.716733,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>PARQUE DE MAYO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.273695,-38.69744,0 -62.274072,-38.696877,0 -62.27581300000001,-38.695537,0 -62.272924,-38.693141,0 -62.271125,-38.694564,0 -62.266594,-38.690941,0 -62.263282,-38.693463,0 -62.26460800000001,-38.69585,0 -62.264453,-38.69714,0 -62.264424,-38.698044,0 -62.26638199999999,-38.699042,0 -62.268737,-38.700173,0 -62.271144,-38.701263,0 -62.273695,-38.69744,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CONICET</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.24651999999999,-38.633015,0 -62.18791599999999,-38.677374,0 -62.19186299999999,-38.676188,0 -62.195407,-38.675449,0 -62.200182,-38.675456,0 -62.200527,-38.674109,0 -62.201803,-38.672487,0 -62.204348,-38.672703,0 -62.20587399999999,-38.67289,0 -62.20665399999999,-38.674198,0 -62.207807,-38.675692,0 -62.208636,-38.675808,0 -62.210889,-38.676031,0 -62.212874,-38.676233,0 -62.217279,-38.676585,0 -62.218385,-38.676674,0 -62.22290100000001,-38.676659,0 -62.224589,-38.677336,0 -62.22738099999999,-38.679501,0 -62.22935,-38.680008,0 -62.233432,-38.679763,0 -62.23719,-38.681302,0 -62.238563,-38.682634,0 -62.23919899999999,-38.684242,0 -62.239097,-38.685606,0 -62.242414,-38.688396,0 -62.246109,-38.685344,0 -62.24366299999999,-38.684191,0 -62.252101,-38.67642,0 -62.258349,-38.6716,0 -62.259733,-38.671262,0 -62.254521,-38.667202,0 -62.272265,-38.653676,0 -62.24651999999999,-38.633015,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA FLORESTA y del PARQUE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.259733,-38.671262,0 -62.258349,-38.6716,0 -62.252101,-38.67642,0 -62.24366299999999,-38.684191,0 -62.246109,-38.685344,0 -62.242414,-38.688396,0 -62.245319,-38.690064,0 -62.249701,-38.691026,0 -62.251706,-38.691173,0 -62.255595,-38.692854,0 -62.25756700000001,-38.692914,0 -62.261425,-38.694721,0 -62.26460800000001,-38.69585,0 -62.263282,-38.693463,0 -62.266594,-38.690941,0 -62.271125,-38.694564,0 -62.272924,-38.693141,0 -62.27581300000001,-38.695537,0 -62.27847,-38.693488,0 -62.284853,-38.688632,0 -62.283888,-38.687794,0 -62.28336,-38.687353,0 -62.281868,-38.686107,0 -62.27820100000001,-38.683004,0 -62.276707,-38.680847,0 -62.27558,-38.678273,0 -62.27514300000001,-38.676956,0 -62.27431600000001,-38.675799,0 -62.265328,-38.668255,0 -62.260411,-38.671809,0 -62.259733,-38.671262,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA BELGRANO Y PARQUE NORTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.272265,-38.653676,0 -62.254521,-38.667202,0 -62.259733,-38.671262,0 -62.260411,-38.671809,0 -62.265328,-38.668255,0 -62.27431600000001,-38.675799,0 -62.27514300000001,-38.676956,0 -62.27558,-38.678273,0 -62.276707,-38.680847,0 -62.27820100000001,-38.683004,0 -62.280435,-38.68491,0 -62.283888,-38.687794,0 -62.284853,-38.688632,0 -62.29533,-38.680479,0 -62.288814,-38.675179,0 -62.294179,-38.67111,0 -62.278049,-38.657233,0 -62.276768,-38.657225,0 -62.272265,-38.653676,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SAN CAYETANO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.27847,-38.693488,0 -62.27581300000001,-38.695537,0 -62.274072,-38.696877,0 -62.273695,-38.69744,0 -62.283941,-38.701318,0 -62.284951,-38.701598,0 -62.291355,-38.696589,0 -62.291784,-38.696253,0 -62.287896,-38.693112,0 -62.282908,-38.697031,0 -62.27847,-38.693488,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>S. MARGARITA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.284853,-38.688632,0 -62.27847,-38.693488,0 -62.282908,-38.697031,0 -62.287896,-38.693112,0 -62.289181,-38.692116,0 -62.284853,-38.688632,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>NUEVA BELGRANO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.294179,-38.67111,0 -62.288814,-38.675179,0 -62.29533,-38.680479,0 -62.297074,-38.681889,0 -62.302423,-38.677855,0 -62.294179,-38.67111,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>AVELLANEDA\nDUPRAT Y\nCOOPERACIÓN</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.29533,-38.680479,0 -62.284853,-38.688632,0 -62.289181,-38.692116,0 -62.287896,-38.693112,0 -62.291784,-38.696253,0 -62.29794,-38.691562,0 -62.303671,-38.687195,0 -62.297074,-38.681889,0 -62.29533,-38.680479,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>P. SESQUICENTENARIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.303671,-38.687195,0 -62.309573,-38.691982,0 -62.314851,-38.687891,0 -62.302423,-38.677855,0 -62.297074,-38.681889,0 -62.303671,-38.687195,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BARRIO LATINO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.29794,-38.691562,0 -62.300006,-38.693259,0 -62.30039,-38.692936,0 -62.30244,-38.694594,0 -62.304211,-38.696027,0 -62.309573,-38.691982,0 -62.303671,-38.687195,0 -62.29794,-38.691562,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>LOS ALMENDROS</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.291355,-38.696589,0 -62.29506800000001,-38.699533,0 -62.29554799999999,-38.699913,0 -62.300977,-38.695723,0 -62.30244,-38.694594,0 -62.30039,-38.692936,0 -62.300006,-38.693259,0 -62.29794,-38.691562,0 -62.291784,-38.696253,0 -62.291355,-38.696589,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SAN ROQUE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.287144,-38.702231,0 -62.291126,-38.70258,0 -62.29506800000001,-38.699533,0 -62.291355,-38.696589,0 -62.284951,-38.701598,0 -62.287144,-38.702231,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>C. NAMUNCURA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.29554799999999,-38.699913,0 -62.29506800000001,-38.699533,0 -62.291126,-38.70258,0 -62.287144,-38.702231,0 -62.287276,-38.702303,0 -62.29403199999999,-38.706067,0 -62.29498300000001,-38.706823,0 -62.29971900000001,-38.703236,0 -62.29554799999999,-38.699913,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>C. ESTOMBA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.300977,-38.695723,0 -62.29554799999999,-38.699913,0 -62.29971900000001,-38.703236,0 -62.300011,-38.703012,0 -62.305137,-38.699128,0 -62.300977,-38.695723,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>LUJAN</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.300011,-38.703012,0 -62.29971900000001,-38.703236,0 -62.29498300000001,-38.706823,0 -62.295332,-38.707101,0 -62.29667199999999,-38.708677,0 -62.297226,-38.709328,0 -62.29803999999999,-38.710103,0 -62.29872,-38.71061,0 -62.30425399999999,-38.706309,0 -62.300011,-38.703012,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>RICCHIERI</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.305137,-38.699128,0 -62.300013,-38.703013,0 -62.30425399999999,-38.706309,0 -62.309197,-38.702548,0 -62.30960600000001,-38.702234,0 -62.306482,-38.699767,0 -62.305415,-38.698901,0 -62.305137,-38.699128,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA IRUPE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.309573,-38.691982,0 -62.304211,-38.696027,0 -62.30244,-38.694594,0 -62.300977,-38.695723,0 -62.305137,-38.699128,0 -62.305415,-38.698901,0 -62.306482,-38.699767,0 -62.307657,-38.698841,0 -62.308385,-38.69938,0 -62.31368,-38.695293,0 -62.309573,-38.691982,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>P. QUINTANA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.31368,-38.695293,0 -62.319028,-38.691216,0 -62.314851,-38.687891,0 -62.309573,-38.691982,0 -62.31368,-38.695293,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>AL COLORADO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.309197,-38.702548,0 -62.31254199999999,-38.705218,0 -62.314239,-38.706545,0 -62.326384,-38.697069,0 -62.319028,-38.691216,0 -62.31368,-38.695293,0 -62.308385,-38.69938,0 -62.307657,-38.698841,0 -62.306482,-38.699767,0 -62.30960600000001,-38.702234,0 -62.309197,-38.702548,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BO. MARA Y UOM</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.29872,-38.71061,0 -62.30058400000001,-38.712147,0 -62.301036,-38.712707,0 -62.30172700000001,-38.712164,0 -62.302239,-38.711762,0 -62.303145,-38.712486,0 -62.31254199999999,-38.705218,0 -62.309197,-38.702548,0 -62.30425399999999,-38.706309,0 -62.29872,-38.71061,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BARRIO AEROTALLERES</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.304119,-38.714327,0 -62.306566,-38.712446,0 -62.314239,-38.706545,0 -62.31254199999999,-38.705218,0 -62.303145,-38.712486,0 -62.302239,-38.711762,0 -62.30172700000001,-38.712164,0 -62.303086,-38.71367,0 -62.304119,-38.714327,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>KILOMETRO 5</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.28386,-38.718452,0 -62.288198,-38.721914,0 -62.29728,-38.714927,0 -62.297102,-38.71477,0 -62.30058400000001,-38.712147,0 -62.29872,-38.71061,0 -62.29803999999999,-38.710103,0 -62.297226,-38.709328,0 -62.29667199999999,-38.708677,0 -62.28386,-38.718452,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CENTRO SUDOESTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.267378,-38.727702,0 -62.271711,-38.731149,0 -62.270513,-38.73204,0 -62.271295,-38.73267,0 -62.27274200000001,-38.733836,0 -62.275999,-38.731324,0 -62.279325,-38.728754,0 -62.288198,-38.721914,0 -62.28386,-38.718452,0 -62.281706,-38.716733,0 -62.272844,-38.723517,0 -62.267378,-38.727702,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>PEDRO PICO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.254647,-38.731968,0 -62.25442400000001,-38.732129,0 -62.254441,-38.734109,0 -62.252545,-38.735497,0 -62.25977499999999,-38.741362,0 -62.26664,-38.736153,0 -62.271295,-38.73267,0 -62.270513,-38.73204,0 -62.271711,-38.731149,0 -62.267378,-38.727702,0 -62.263876,-38.724924,0 -62.254647,-38.731968,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>B%%D RIVADAVIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.245464,-38.741237,0 -62.254408,-38.748423,0 -62.2549,-38.748048,0 -62.25478400000001,-38.747866,0 -62.254778,-38.747559,0 -62.254935,-38.74689,0 -62.25526399999999,-38.745996,0 -62.255699,-38.745214,0 -62.25661900000001,-38.744152,0 -62.257503,-38.743144,0 -62.25977499999999,-38.741362,0 -62.252545,-38.735497,0 -62.254441,-38.734109,0 -62.25442400000001,-38.732129,0 -62.254647,-38.731967,0 -62.25455,-38.730409,0 -62.253677,-38.731001,0 -62.25011900000001,-38.733764,0 -62.249657,-38.734064,0 -62.249093,-38.734545,0 -62.24895500000001,-38.734653,0 -62.248973,-38.735258,0 -62.248478,-38.736885,0 -62.24823,-38.737812,0 -62.247744,-38.739146,0 -62.246964,-38.740478,0 -62.245936,-38.741086,0 -62.245464,-38.741237,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CENTENARIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.2549,-38.748048,0 -62.256181,-38.749089,0 -62.256241,-38.749025,0 -62.25739,-38.748775,0 -62.257975,-38.748748,0 -62.259125,-38.747884,0 -62.259554,-38.747629,0 -62.26140399999999,-38.746224,0 -62.257503,-38.743144,0 -62.25661900000001,-38.744152,0 -62.255699,-38.745214,0 -62.25526399999999,-38.745996,0 -62.254935,-38.74689,0 -62.254778,-38.747559,0 -62.25478400000001,-38.747866,0 -62.2549,-38.748048,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>THOMPSON</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.23995800000001,-38.745147,0 -62.244077,-38.74854,0 -62.244959,-38.747906,0 -62.249887,-38.751865,0 -62.254408,-38.748423,0 -62.245464,-38.741237,0 -62.244616,-38.741508,0 -62.24366,-38.741851,0 -62.23995800000001,-38.745147,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA MORESINO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.23766599999999,-38.74917,0 -62.236412,-38.750103,0 -62.235978,-38.751373,0 -62.23592500000001,-38.75293,0 -62.236365,-38.754588,0 -62.23888599999999,-38.756272,0 -62.239344,-38.75625,0 -62.242407,-38.757505,0 -62.245496,-38.755174,0 -62.249887,-38.751865,0 -62.244959,-38.747906,0 -62.244077,-38.74854,0 -62.23995800000001,-38.745147,0 -62.239845,-38.745245,0 -62.23931999999999,-38.74661,0 -62.23891,-38.74819,0 -62.23766599999999,-38.74917,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>5 DE ABRIL Y E. DE COMERCIO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.225657,-38.752977,0 -62.23725,-38.762514,0 -62.238206,-38.76161,0 -62.239072,-38.760885,0 -62.239347,-38.760245,0 -62.239479,-38.759095,0 -62.239385,-38.75778,0 -62.23888599999999,-38.756272,0 -62.236365,-38.754588,0 -62.23592500000001,-38.75293,0 -62.235978,-38.751373,0 -62.236412,-38.750103,0 -62.23766599999999,-38.74917,0 -62.235979,-38.747668,0 -62.233376,-38.74567,0 -62.231393,-38.747621,0 -62.229438,-38.749003,0 -62.223364,-38.751086,0 -62.225657,-38.752977,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. TALLERES</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.238206,-38.76161,0 -62.243841,-38.76391,0 -62.244313,-38.763237,0 -62.24693800000001,-38.759361,0 -62.242407,-38.757505,0 -62.239344,-38.75625,0 -62.23888599999999,-38.756272,0 -62.239385,-38.75778,0 -62.239479,-38.759095,0 -62.239347,-38.760245,0 -62.239072,-38.760885,0 -62.238206,-38.76161,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>V. SERRA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.244313,-38.763237,0 -62.250112,-38.758902,0 -62.245496,-38.755174,0 -62.242407,-38.757505,0 -62.24693800000001,-38.759361,0 -62.244313,-38.763237,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SPURR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.250112,-38.758902,0 -62.25111299999999,-38.758123,0 -62.25482999999999,-38.755341,0 -62.254695,-38.755231,0 -62.259792,-38.751307,0 -62.257353,-38.749303,0 -62.256875,-38.749653,0 -62.256181,-38.749089,0 -62.2549,-38.748048,0 -62.254408,-38.748423,0 -62.249887,-38.751865,0 -62.245496,-38.755174,0 -62.250112,-38.758902,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA ROSAS</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.25111299999999,-38.758123,0 -62.25517700000001,-38.761409,0 -62.256351,-38.760555,0 -62.258135,-38.761267,0 -62.260127,-38.761578,0 -62.261346,-38.761493,0 -62.263071,-38.761,0 -62.264262,-38.760374,0 -62.269867,-38.755908,0 -62.259554,-38.747629,0 -62.259125,-38.747884,0 -62.257975,-38.748748,0 -62.25739,-38.748775,0 -62.256241,-38.749025,0 -62.256181,-38.749089,0 -62.256875,-38.749653,0 -62.257353,-38.749303,0 -62.259792,-38.751307,0 -62.254695,-38.755231,0 -62.25482999999999,-38.755341,0 -62.25111299999999,-38.758123,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA RESSIA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.264936,-38.743542,0 -62.269127,-38.746984,0 -62.274515,-38.74291,0 -62.273167,-38.741846,0 -62.27023400000001,-38.739512,0 -62.264936,-38.743542,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA DELFINA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.269867,-38.755908,0 -62.270681,-38.756585,0 -62.270606,-38.76398,0 -62.27741200000001,-38.758821,0 -62.281311,-38.755865,0 -62.282444,-38.754856,0 -62.283662,-38.753249,0 -62.28483500000001,-38.751252,0 -62.28047,-38.747697,0 -62.274515,-38.74291,0 -62.269127,-38.746984,0 -62.264936,-38.743542,0 -62.26140399999999,-38.746224,0 -62.259554,-38.747629,0 -62.269867,-38.755908,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>SAN MARTIN</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.273167,-38.741846,0 -62.281487,-38.735651,0 -62.28121899999999,-38.735382,0 -62.280902,-38.735143,0 -62.280593,-38.734949,0 -62.280023,-38.734555,0 -62.27969699999999,-38.734293,0 -62.275999,-38.731324,0 -62.27274200000001,-38.733836,0 -62.271295,-38.73267,0 -62.26664,-38.736153,0 -62.27054700000001,-38.739263,0 -62.27023400000001,-38.739512,0 -62.273167,-38.741846,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>FERROCARRIL</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.28047,-38.747697,0 -62.28847,-38.741395,0 -62.281487,-38.735651,0 -62.273167,-38.741846,0 -62.274515,-38.74291,0 -62.28047,-38.747697,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>L. PARAGUAYA</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.28483500000001,-38.751252,0 -62.287363,-38.748528,0 -62.292448,-38.744532,0 -62.28847,-38.741395,0 -62.28047,-38.747697,0 -62.28483500000001,-38.751252,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>COLON</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.28847,-38.741395,0 -62.291737,-38.738716,0 -62.279325,-38.728754,0 -62.275999,-38.731324,0 -62.280023,-38.734555,0 -62.280593,-38.734949,0 -62.280902,-38.735143,0 -62.28121899999999,-38.735382,0 -62.281487,-38.735651,0 -62.28623900000001,-38.739577,0 -62.28847,-38.741395,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>NOROESTE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.291737,-38.738716,0 -62.300592,-38.731863,0 -62.292203,-38.725181,0 -62.288198,-38.721914,0 -62.279325,-38.728754,0 -62.291737,-38.738716,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>MARIANO MORENO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.292203,-38.725181,0 -62.303292,-38.716764,0 -62.302703,-38.71543,0 -62.301461,-38.713233,0 -62.301036,-38.712707,0 -62.30058400000001,-38.712147,0 -62.297102,-38.71477,0 -62.29728,-38.714927,0 -62.288198,-38.721914,0 -62.292203,-38.725181,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>PAMPA CENTRAL</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.300592,-38.731863,0 -62.307467,-38.726554,0 -62.307337,-38.7264,0 -62.306519,-38.725632,0 -62.305311,-38.723762,0 -62.304203,-38.721552,0 -62.30407,-38.721166,0 -62.303467,-38.719989,0 -62.303539,-38.718299,0 -62.303292,-38.716764,0 -62.292203,-38.725181,0 -62.300592,-38.731863,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>1 DE MAYO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.30407,-38.721166,0 -62.30862200000001,-38.717705,0 -62.310956,-38.715931,0 -62.306566,-38.712446,0 -62.304119,-38.714327,0 -62.302703,-38.71543,0 -62.303292,-38.716764,0 -62.303539,-38.718299,0 -62.303467,-38.719989,0 -62.30407,-38.721166,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VILLA NOCITO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.307337,-38.7264,0 -62.31097,-38.723777,0 -62.31245,-38.722901,0 -62.314181,-38.722076,0 -62.312849,-38.721029,0 -62.30862200000001,-38.717705,0 -62.30407,-38.721166,0 -62.304203,-38.721552,0 -62.305311,-38.723762,0 -62.306519,-38.725632,0 -62.307337,-38.7264,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VISTA ALEGRE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.312849,-38.721029,0 -62.31815,-38.716982,0 -62.314002,-38.713632,0 -62.310956,-38.715931,0 -62.30862200000001,-38.717705,0 -62.312849,-38.721029,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>CNEL MALDONADO</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle00</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.31278025617948,-38.72102371333116,0 -62.31935818436692,-38.71592928214243,0 -62.32341036455712,-38.71288797139318,0 -62.32161759906088,-38.71139534769198,0 -62.31955941249557,-38.71281266713137,0 -62.31895465442024,-38.71243923256126,0 -62.31801395502326,-38.71277858613548,0 -62.31697898982231,-38.71301978018245,0 -62.31614141509059,-38.71328171010831,0 -62.31398256507472,-38.71366505229533,0 -62.310956,-38.715931,0 -62.306566,-38.712446,0 -62.314239,-38.706545,0 -62.326384,-38.697069,0 -62.334984,-38.704175,0 -62.332093,-38.70864,0 -62.330662,-38.711536,0 -62.32922799999999,-38.714885,0 -62.324254,-38.717393,0 -62.31569900000001,-38.721461,0 -62.315541,-38.721429,0 -62.314181,-38.722076,0 -62.31278025617948,-38.72102371333116,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>INGENIERO WHITE</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.292448,-38.744532,0 -62.287363,-38.748528,0 -62.28483500000001,-38.751252,0 -62.283662,-38.753249,0 -62.282444,-38.754856,0 -62.281311,-38.755865,0 -62.27741200000001,-38.758821,0 -62.270606,-38.76398,0 -62.270681,-38.756585,0 -62.269867,-38.755908,0 -62.264262,-38.760374,0 -62.263071,-38.761,0 -62.261346,-38.761493,0 -62.260127,-38.761578,0 -62.258135,-38.761267,0 -62.256351,-38.760555,0 -62.25517700000001,-38.761409,0 -62.25111299999999,-38.758123,0 -62.250112,-38.758902,0 -62.244313,-38.763237,0 -62.243841,-38.76391,0 -62.238206,-38.76161,0 -62.23725,-38.762514,0 -62.225657,-38.752977,0 -62.162038,-38.802872,0 -62.173623,-38.812347,0 -62.188453,-38.801173,0 -62.190562,-38.802853,0 -62.19901399999999,-38.799505,0 -62.205298,-38.804678,0 -62.209667,-38.803642,0 -62.21077200000001,-38.802158,0 -62.216474,-38.803688,0 -62.240434,-38.804059,0 -62.258461,-38.798847,0 -62.26122600000001,-38.794816,0 -62.283607,-38.789414,0 -62.306105,-38.785468,0 -62.31129800000001,-38.783367,0 -62.313512,-38.779544,0 -62.320642,-38.774045,0 -62.335128,-38.767735,0 -62.341965,-38.764151,0 -62.344998,-38.759905,0 -62.34422,-38.755639,0 -62.342623,-38.755363,0 -62.324258,-38.763759,0 -62.30829,-38.751297,0 -62.308017,-38.751089,0 -62.303682,-38.754264,0 -62.292448,-38.744532,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>RUTA 3 SUR</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.352286,-38.717916,0 -62.334984,-38.704175,0 -62.332093,-38.70864,0 -62.330669,-38.71152,0 -62.32922799999999,-38.714885,0 -62.324254,-38.717393,0 -62.320816,-38.719004,0 -62.31569900000001,-38.721461,0 -62.315541,-38.721429,0 -62.314181,-38.722076,0 -62.31245,-38.722901,0 -62.31097,-38.723777,0 -62.307337,-38.7264,0 -62.307467,-38.726554,0 -62.300592,-38.731863,0 -62.291737,-38.738716,0 -62.28847,-38.741395,0 -62.292448,-38.744532,0 -62.303682,-38.754264,0 -62.308017,-38.751089,0 -62.30829,-38.751297,0 -62.352286,-38.717916,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>BORDEU</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.334984,-38.704175,0 -62.369973,-38.688817,0 -62.407342,-38.660376,0 -62.311649,-38.582415,0 -62.24651999999999,-38.633015,0 -62.272265,-38.653676,0 -62.276768,-38.657225,0 -62.278049,-38.657233,0 -62.294179,-38.67111,0 -62.302423,-38.677855,0 -62.314851,-38.687891,0 -62.319028,-38.691216,0 -62.326384,-38.697069,0 -62.334984,-38.704175,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>GRAL DANIEL CERRI</name>
+			<Snippet maxLines="0"></Snippet>
+			<styleUrl>#PolyStyle001</styleUrl>
+			<MultiGeometry>
+				<Polygon>
+					<tessellate>1</tessellate>
+					<outerBoundaryIs>
+						<LinearRing>
+							<coordinates>
+								-62.451449,-38.69565,0 -62.407342,-38.660376,0 -62.369973,-38.688817,0 -62.334984,-38.704175,0 -62.352286,-38.717916,0 -62.379354,-38.739398,0 -62.379801,-38.743226,0 -62.379109,-38.74672,0 -62.37857500000001,-38.751077,0 -62.390592,-38.749648,0 -62.393282,-38.752208,0 -62.400327,-38.75288,0 -62.41144200000001,-38.759773,0 -62.420861,-38.76232,0 -62.428144,-38.761891,0 -62.43410000000001,-38.760563,0 -62.437851,-38.755931,0 -62.441865,-38.749362,0 -62.444107,-38.741147,0 -62.452694,-38.729023,0 -62.457163,-38.711128,0 -62.459894,-38.694212,0 -62.455914,-38.692239,0 -62.451449,-38.69565,0 
+							</coordinates>
+						</LinearRing>
+					</outerBoundaryIs>
+				</Polygon>
+			</MultiGeometry>
+		</Placemark>
+		<Placemark>
+			<name>VISTA ALEGRE II</name>
+			<styleUrl>#msn_ylw-pushpin</styleUrl>
+			<Polygon>
+				<tessellate>1</tessellate>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							-62.32342149091937,-38.71287156661501,0 -62.31944765460808,-38.71588841654861,0 -62.31675480784388,-38.71376550762572,0 -62.31810142411279,-38.71275031951264,0 -62.31897225596634,-38.7124059241917,0 -62.31962370052097,-38.7128757122747,0 -62.32163503558513,-38.71143378160937,0 -62.32342149091937,-38.71287156661501,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>CNEL MALDONADO</name>
+			<open>1</open>
+			<styleUrl>#msn_ylw-pushpin0</styleUrl>
+			<Polygon>
+				<tessellate>1</tessellate>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							-62.31942461304614,-38.71586045782416,0 -62.31804954659579,-38.71694477793454,0 -62.31398529188643,-38.71365445506175,0 -62.31609212821229,-38.71328568443815,0 -62.31711813204927,-38.71298541868269,0 -62.3180619188328,-38.71276576794112,0 -62.31673608272622,-38.71376255803059,0 -62.31942461304614,-38.71586045782416,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+	</Folder>
+</Document>
+</kml>

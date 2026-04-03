@@ -22,6 +22,12 @@ import { BusinessHoursExecutor } from './BusinessHoursExecutor';
 import { SendCatalogExecutor } from './SendCatalogExecutor';
 import { SendMediaExecutor } from './SendMediaExecutor';
 import { GroqExecutor } from './GroqExecutor';
+import { LocationValidatorExecutor } from './LocationValidatorExecutor';
+import { IntentResolverExecutor } from './IntentResolverExecutor';
+import { OrderValidatorExecutor } from './OrderValidatorExecutor';
+import { ClearCartExecutor } from './ClearCartExecutor';
+import { ProductSearchExecutor } from './ProductSearchExecutor';
+
 
 export class NodeExecutorFactory {
   private executors = new Map<string, NodeExecutor>();
@@ -49,6 +55,12 @@ export class NodeExecutorFactory {
     this.register('sendMediaNode', new SendMediaExecutor());
     this.register('groqNode', new GroqExecutor());
     this.register('orderStatusNode', new OrderStatusExecutor());
+    this.register('locationValidatorNode', new LocationValidatorExecutor());
+    this.register('intentResolverNode', new IntentResolverExecutor());
+    this.register('orderValidatorNode', new OrderValidatorExecutor());
+    this.register('clearCartNode', new ClearCartExecutor());
+    this.register('productSearchNode', new ProductSearchExecutor());
+
     
     // Start / Input nodes
     this.register('input', new StartNodeExecutor());

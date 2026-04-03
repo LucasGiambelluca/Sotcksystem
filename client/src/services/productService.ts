@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import type { Product } from '../types';
+import type { Product, CatalogItem, CatalogCategory } from '../types';
 
 export const productService = {
   async getAll() {
@@ -62,20 +62,72 @@ export const productService = {
   }
 };
 
+// ─── Catalog Category Service ────────────────────────────────────────────────
+export const catalogCategoryService = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('catalog_categories')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return data as CatalogCategory[];
+  },
+
+  async create(category: Omit<CatalogCategory, 'id' | 'created_at' | 'updated_at'>) {
+    const { data, error } = await supabase
+      .from('catalog_categories')
+      .insert(category)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as CatalogCategory;
+  },
+
+  async update(id: string, category: Partial<CatalogCategory>) {
+    const { data, error } = await supabase
+      .from('catalog_categories')
+      .update({ ...category, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as CatalogCategory;
+  },
+
+  async updateAllOrders(items: { id: string; sort_order: number }[]) {
+    for (const item of items) {
+      await this.update(item.id, { sort_order: item.sort_order });
+    }
+  }
+};
+
 // ─── Catalog Item Service ─────────────────────────────────────────────────────
 // Used by NewOrder and the order flow to get the finished/elaborated products available for sale.
 // This queries catalog_items, NOT products (raw material inventory).
-import type { CatalogItem } from '../types';
 
 export const catalogItemService = {
   async getAll() {
     const { data, error } = await supabase
       .from('catalog_items')
-      .select('*')
+      .select('*, catalog_category:catalog_categories(*)')
       .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
+      .order('sort_order', { ascending: true });
+    
     if (error) throw error;
+    
+    // Manual secondary sort by category order if needed, or we rely on the join
+    // But better to use SQL ordering if possible.
+    // Let's refine the order to be by category sort_order then item sort_order
+    const { data: orderedData, error: orderError } = await supabase
+      .from('catalog_items')
+      .select('*, catalog_category!inner(*)')
+      .eq('is_active', true)
+      .order('sort_order', { foreignTable: 'catalog_categories', ascending: true })
+      .order('sort_order', { ascending: true });
+
+    if (!orderError && orderedData) return orderedData as CatalogItem[];
+
     return data as CatalogItem[];
   },
 
@@ -89,12 +141,19 @@ export const catalogItemService = {
     return data as CatalogItem;
   },
 
-  async updateStock(id: string, newStock: number) {
-    const { error } = await supabase
+  async update(id: string, item: Partial<CatalogItem>) {
+    const { data, error } = await supabase
       .from('catalog_items')
-      .update({ stock: newStock, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .update({ ...item, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw error;
+    return data as CatalogItem;
+  },
+
+  async updateStock(id: string, newStock: number) {
+    return this.update(id, { stock: newStock });
   },
 
   async updateAllOrders(items: { id: string; sort_order: number }[]) {
@@ -106,5 +165,52 @@ export const catalogItemService = {
         .eq('id', item.id);
       if (error) throw error;
     }
+  }
+};
+
+// ─── Catalog Promotion Service ──────────────────────────────────────────────
+export const catalogPromotionService = {
+  async getAll(onlyActive = true) {
+    let query = supabase
+      .from('catalog_promotions')
+      .select('*, catalog_item:catalog_items(*)')
+      .order('sort_order', { ascending: true });
+    
+    if (onlyActive) {
+      query = query.eq('is_active', true);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as any[];
+  },
+
+  async create(promo: any) {
+    const { data, error } = await supabase
+      .from('catalog_promotions')
+      .insert(promo)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, promo: any) {
+    const { data, error } = await supabase
+      .from('catalog_promotions')
+      .update({ ...promo, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string) {
+    const { error } = await supabase
+      .from('catalog_promotions')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   }
 };

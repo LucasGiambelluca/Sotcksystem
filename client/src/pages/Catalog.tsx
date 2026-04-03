@@ -78,6 +78,8 @@ export default function Catalog() {
   const [deliveryMethod, setDeliveryMethod] = useState('Delivery');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
+  const [isValidating, setIsValidating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const categoryBarRef = useRef<HTMLDivElement>(null);
 
@@ -158,26 +160,63 @@ export default function Catalog() {
   }
 
   /* ─── WhatsApp Order ─────── */
-  function handleCheckoutSubmit(e?: React.FormEvent) {
+  async function handleCheckoutSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!customerName.trim()) return;
 
-    const phone = config.whatsapp_phone || '';
+    // Validation for Delivery
+    if (deliveryMethod === 'Delivery') {
+      if (!address.trim()) return;
+      
+      setIsValidating(true);
+      setLocationError(null);
+      
+      try {
+        const response = await fetch('/api/public/validate-location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: address.trim() })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.allowed) {
+          setLocationError(result.error || 'Lo sentimos, no llegamos a esa ubicación.');
+          setIsValidating(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Validation error:', err);
+        // Fallback: if API fails, we let it pass but log it
+      } finally {
+        setIsValidating(false);
+      }
+    }
+
+    const rawPhone = config.whatsapp_phone || '';
+    const phone = rawPhone.replace(/\D/g, ''); // Ensure only digits
+    
     const lines = [
-      `Nombre: ${customerName.trim()} | Delivery: ${deliveryMethod}${deliveryMethod === 'Delivery' ? ` | Dirección: ${address.trim()}` : ''} | Pago: ${paymentMethod}`,
+      `*${customerName.trim()}* | _${deliveryMethod}_${deliveryMethod === 'Delivery' ? ` | Dir: ${address.trim()}` : ''} | $: ${paymentMethod}`,
       '🛒 *Hola! Quiero hacer el siguiente pedido:*', 
       ''
     ];
     cart.forEach(item => {
       const price = item.product.is_special && item.product.special_price ? item.product.special_price : item.product.price;
       lines.push(`• *${item.product.name}* x${item.quantity} — ${fmt(price * item.quantity)}`);
-      if (item.notes) lines.push(`  _Aclaraciones: ${item.notes}_`);
+      if (item.notes) lines.push(`  _Notas: ${item.notes}_`);
     });
     lines.push('');
-    lines.push(`*Total: ${fmt(cartTotal)}*`);
+    lines.push(`💰 *Total: ${fmt(cartTotal)}*`);
     const text = encodeURIComponent(lines.join('\n'));
     setCheckoutOpen(false);
-    window.open(phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`, '_blank');
+
+    // Optimized WhatsApp Link for all platforms (Browser, Desktop, Mobile)
+    const waUrl = phone 
+      ? `https://api.whatsapp.com/send/?phone=${phone}&text=${text}`
+      : `https://api.whatsapp.com/send/?text=${text}`;
+      
+    window.open(waUrl, '_blank');
   }
 
   const accent = config.catalog_accent_color || '#e53935';
@@ -594,11 +633,16 @@ export default function Catalog() {
                       type="text" 
                       required
                       value={address}
-                      onChange={e => setAddress(e.target.value)}
+                      onChange={e => { setAddress(e.target.value); setLocationError(null); }}
                       placeholder="Calle, número y localidad"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+                      className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${locationError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                       style={{ '--tw-ring-color': `${accent}66` } as any}
                     />
+                    {locationError && (
+                      <p className="mt-1.5 text-xs text-red-600 font-bold flex items-center gap-1.5 animate-bounce">
+                        ⚠️ {locationError}
+                      </p>
+                    )}
                     <p className="mt-2 text-[10px] text-gray-500 bg-blue-50 p-2 rounded-lg border border-blue-100 leading-tight">
                       ℹ️ <span className="font-medium text-gray-700">Opcional:</span> El cadete también podría pedirte tu ubicación GPS de WhatsApp para mayor precisión.
                     </p>
@@ -627,13 +671,18 @@ export default function Catalog() {
             </div>
 
             <div className="p-5 border-t border-gray-100 bg-gray-50 mt-auto">
-              <button
+                <button
                 type="submit"
-                className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition"
+                disabled={isValidating}
+                className={`w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition ${isValidating ? 'opacity-50 cursor-wait' : ''}`}
                 style={{ backgroundColor: '#25D366' }}
               >
-                <MessageCircle size={22} />
-                Enviar a WhatsApp
+                {isValidating ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <MessageCircle size={22} />
+                )}
+                {isValidating ? 'Validando...' : 'Enviar a WhatsApp'}
               </button>
             </div>
           </form>
