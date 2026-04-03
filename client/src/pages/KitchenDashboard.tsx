@@ -828,11 +828,12 @@ export default function KitchenDashboard() {
                                                 </>
                                             ) : (
                                                 <button onClick={() => {
-                                                    const nextStatus = (order.delivery_type === 'DELIVERY' || order.delivery_address) ? 'OUT_FOR_DELIVERY' : 'ready';
+                                                    const isDelivery = order.delivery_type === 'DELIVERY' || (order.delivery_address && !order.delivery_address.includes('Retiro en Local'));
+                                                    const nextStatus = isDelivery ? 'OUT_FOR_DELIVERY' : 'ready';
                                                     updateStatus(order.id, nextStatus as any);
                                                 }}
                                                     className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-green-500/20 border-b-4 border-green-700">
-                                                    {order.delivery_type === 'DELIVERY' || order.delivery_address ? '🛵 PEDIDO ENVIADO' : '🥡 AVISAR PARA RETIRAR'}
+                                                    { (order.delivery_type === 'DELIVERY' || (order.delivery_address && !order.delivery_address.includes('Retiro en Local'))) ? '🛵 PEDIDO ENVIADO' : '🥡 AVISAR PARA RETIRAR'}
                                                 </button>
                                             )}
                                         </div>

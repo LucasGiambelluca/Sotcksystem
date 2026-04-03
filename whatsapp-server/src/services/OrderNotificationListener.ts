@@ -252,8 +252,12 @@ export class OrderNotificationListener {
           break;
         case 'IN_TRANSIT':
         case 'SHIPPED':
-          // Treat transit/shipped as delivery notification
-          template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+          // Treat transit/shipped as delivery notification, BUT check if it's a pickup
+          if (order.delivery_type === 'PICKUP' || order.delivery_address?.includes('Retiro en Local')) {
+            template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
+          } else {
+            template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+          }
           break;
         case 'OUT_FOR_DELIVERY':
           // Ensure delivery notification is always sent even if cadet system is offline
