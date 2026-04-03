@@ -76,7 +76,27 @@ export class ConversationRouter {
         try {
             // --- 0. LOADS SESSION DATA ---
             const sessionId = this.getSessionId(phone, initialContext);
-            const session = await this.sessionRepository.getOrCreate(sessionId, cleanPhone, 'd7f26b46-2ac6-48bc-ad4e-6547dba77e20', initialContext);
+            
+            // Resolve Default Flow ID dynamically to avoid FK errors with hardcoded UUIDs
+            let defaultFlowId = 'd7f26b46-2ac6-48bc-ad4e-6547dba77e20'; // Fallback
+            try {
+                const { data: mainFlow } = await supabase.from('flows')
+                    .select('id')
+                    .or('name.eq.Tomar Pedido,trigger_word.eq.pedido')
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (mainFlow) {
+                    defaultFlowId = mainFlow.id;
+                } else {
+                    const { data: anyFlow } = await supabase.from('flows').select('id').eq('is_active', true).limit(1).maybeSingle();
+                    if (anyFlow) defaultFlowId = anyFlow.id;
+                }
+            } catch (err) {
+                logger.error(`[Router] Flow resolution failed`, err);
+            }
+
+            const session = await this.sessionRepository.getOrCreate(sessionId, cleanPhone, defaultFlowId, initialContext);
             const context = { ...session.getAllVariablesForCurrentFlow(), ...initialContext };
             const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${cleanPhone}@s.whatsapp.net`);
             
@@ -420,8 +440,21 @@ export class ConversationRouter {
         logger.info(`[CATALOG] Triggering flow jump`, { startNodeId, isRetiro });
 
         // 3. Execute Flow Engine
+        // Resolve Flow ID dynamically for checkout jump
+        let catalogFlowId = '0976f157-fc0f-4d3f-acf6-34b6786fec4c'; // Fallback
+        try {
+            const { data: checkoutFlow } = await supabase.from('flows')
+                .select('id')
+                .or('name.eq.Tomar Pedido,trigger_word.eq.pedido')
+                .limit(1)
+                .maybeSingle();
+            if (checkoutFlow) catalogFlowId = checkoutFlow.id;
+        } catch (e) {
+            logger.error(`[CATALOG] Checkout flow resolution failed`, e);
+        }
+
         const engineResponse = await this.flowEngine.processMessage(phone, '_CATALOG_CHECKOUT_', flowContext, {
-            flowId: '0976f157-fc0f-4d3f-acf6-34b6786fec4c',
+            flowId: catalogFlowId,
             startNodeId: startNodeId
         });
 
