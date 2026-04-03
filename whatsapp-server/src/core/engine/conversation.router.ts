@@ -311,18 +311,18 @@ export class ConversationRouter {
                     return await this.handleCheckout(phone, context, pushName);
                 }
 
-                if (aiResult.intent === 'menu_request') {
+                if (aiResult?.intent === 'menu_request') {
                     await this.sessionRepository.archive(sessionId, 'ai_menu_request');
                     const engineResponse = await this.flowEngine.processMessage(phone, 'menu', { ...context, pushName, remoteJid });
                     return this.extractMessages(engineResponse);
                 }
 
-                if (aiResult.intent === 'greeting') {
+                if (aiResult?.intent === 'greeting') {
                     const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
                     return this.extractMessages(engineResponse);
                 }
 
-                if (['confirmation', 'rejection'].includes(aiResult.intent) && context.last_inquiry) {
+                if (aiResult && ['confirmation', 'rejection'].includes(aiResult.intent) && context.last_inquiry) {
                     await this.sessionRepository.updateContext(sessionId, { last_inquiry: null });
                     if (aiResult.intent === 'confirmation') {
                          return await this.handleAIOrder(phone, { intent: 'order' as any, items: [{ name: context.last_inquiry.name, quantity: 1, resolvedProduct: { id: context.last_inquiry.productId, name: context.last_inquiry.name, price: context.last_inquiry.price }, matchConfidence: 1 }], confidence: 1, reasoning: 'Confirmado' }, context, pushName, sessionId);
