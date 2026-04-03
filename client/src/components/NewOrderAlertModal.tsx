@@ -125,9 +125,22 @@ export default function NewOrderAlertModal() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
-          const newId = (payload.new as any)?.id;
+          const newOrder = payload.new as any;
+          if (newOrder?.channel === 'TABLET') return;
+          const newId = newOrder?.id;
           // Minimal delay to ensure DB transaction committed (Supabase Realtime can sometimes be very fast)
           setTimeout(() => fetchAndEnqueue(newId), 100);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload) => {
+          const updated = payload.new as any;
+          // If the order is no longer PENDING, remove it from our local queue (someone else handled it)
+          if (updated.status !== 'PENDING') {
+            setQueue((prev) => prev.filter((o) => o.id !== updated.id));
+          }
         }
       )
       .subscribe((status) => {

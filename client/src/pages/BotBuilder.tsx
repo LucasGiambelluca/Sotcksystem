@@ -10,7 +10,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Save, Trash2 } from 'lucide-react';
+import { Save, Trash2, Download, Upload } from 'lucide-react';
 // ... existing imports ...
 
 // ... inside BotBuilder component ...
@@ -41,6 +41,11 @@ import SendCatalogNode from '../components/bot-builder/SendCatalogNode';
 import SendMediaNode from '../components/bot-builder/SendMediaNode';
 import OrderStatusNode from '../components/bot-builder/OrderStatusNode';
 import GroqNode from '../components/bot-builder/GroqNode';
+import IntentResolverNode from '../components/bot-builder/IntentResolverNode';
+import LocationValidatorNode from '../components/bot-builder/LocationValidatorNode';
+import OrderValidatorNode from '../components/bot-builder/OrderValidatorNode';
+import ClearCartNode from '../components/bot-builder/ClearCartNode';
+import ProductSearchNode from '../components/bot-builder/ProductSearchNode';
 
 // Register custom node types
 const nodeTypes = {
@@ -65,6 +70,11 @@ const nodeTypes = {
   sendMediaNode: SendMediaNode,
   orderStatusNode: OrderStatusNode,
   groqNode: GroqNode,
+  intentResolverNode: IntentResolverNode,
+  locationValidatorNode: LocationValidatorNode,
+  orderValidatorNode: OrderValidatorNode,
+  clearCartNode: ClearCartNode,
+  productSearchNode: ProductSearchNode,
 };
 
 const initialNodes: Node[] = [
@@ -103,77 +113,101 @@ export default function BotBuilder() {
     if (data) setFlows(data);
   };
 
-  const loadFlow = (flow: any) => {
+  const updateNodeData = useCallback((id: string, data: any) => {
+    setNodes((nds) => nds.map((node) => node.id === id ? { ...node, data: { ...node.data, ...data } } : node));
+  }, [setNodes]);
+
+  const deleteNode = useCallback((id: string) => {
+      setNodes((nds) => nds.filter((n) => n.id !== id));
+      setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+  }, [setNodes, setEdges]);
+
+  const prepareNodes = useCallback((nodes: any[]) => {
+    return (nodes || []).map((n: any) => {
+      let nodeData = {};
+      try {
+        nodeData = typeof n.data === 'string' ? JSON.parse(n.data) : (n.data || {});
+      } catch (err) {
+        console.error('[BotBuilder] Error parsing data:', err);
+        nodeData = n.data || {};
+      }
+
+      let nodePos = { x: 0, y: 0 };
+      try {
+        nodePos = typeof n.position === 'string' ? JSON.parse(n.position) : (n.position || { x: 0, y: 0 });
+      } catch (err) {
+        console.error('[BotBuilder] Error parsing position:', err);
+        nodePos = n.position || { x: 0, y: 0 };
+      }
+
+      return {
+        ...n,
+        position: nodePos,
+        data: {
+          ...nodeData,
+          onChange: (text: string) => updateNodeData(n.id, { text }),
+          onChangeQuestion: (q: string) => updateNodeData(n.id, { question: q }),
+          onChangeVariable: (v: string) => updateNodeData(n.id, { variable: v }),
+          onChangeValue: (v: string) => updateNodeData(n.id, { expectedValue: v }),
+          onChangeOptions: (o: string[]) => updateNodeData(n.id, { options: o }),
+          onChangeSaveField: (f: string) => updateNodeData(n.id, { saveField: f }),
+          onChangeFlow: (f: string) => updateNodeData(n.id, { flowId: f }),
+          onChangeProductVar: (v: string) => updateNodeData(n.id, { productVariable: v }),
+          onChangeQtyVar: (v: string) => updateNodeData(n.id, { qtyVariable: v }),
+          onChangeDetailVar: (v: string) => updateNodeData(n.id, { detailVariable: v }),
+          onChangeDuration: (d: string) => updateNodeData(n.id, { duration: d }),
+          onChangeShowTyping: (t: boolean) => updateNodeData(n.id, { showTyping: t }),
+          onChangeReportType: (t: string) => updateNodeData(n.id, { reportType: t }),
+          onChangePriority: (p: string) => updateNodeData(n.id, { priority: p }),
+          onChangeMessage: (m: string) => updateNodeData(n.id, { message: m }),
+          onChangeMediaUrl: (u: string) => updateNodeData(n.id, { mediaUrl: u }),
+          onChangeCaption: (c: string) => updateNodeData(n.id, { caption: c }),
+          onChangeMediaType: (t: string) => updateNodeData(n.id, { mediaType: t }),
+          onChangeFileName: (n_name: string) => updateNodeData(n.id, { fileName: n_name }),
+          onChangeMimeType: (m: string) => updateNodeData(n.id, { mimetype: m }),
+          onChangePrompt: (p: string) => updateNodeData(n.id, { prompt: p }),
+          onChangeSystemPrompt: (s: string) => updateNodeData(n.id, { systemPrompt: s }),
+          onChangeTemperature: (t: number) => updateNodeData(n.id, { temperature: t }),
+          onChangeSilent: (s: boolean) => updateNodeData(n.id, { silent: s }),
+          onChangePossibleIntents: (i: string) => updateNodeData(n.id, { possible_intents: i }),
+          onChangeFallbackMessage: (m: string) => updateNodeData(n.id, { fallback_message: m }),
+          onChangeMaxRetries: (r: number) => updateNodeData(n.id, { max_retries: r }),
+          onChangeContextVariables: (c: string[]) => updateNodeData(n.id, { context_variables: c }),
+          onChangeFailNodeId: (f: string) => updateNodeData(n.id, { failNodeId: f }),
+          onChangeQuery: (q: string) => updateNodeData(n.id, { query: q }),
+          onDelete: () => deleteNode(n.id),
+        }
+      };
+    });
+  }, [updateNodeData, deleteNode]);
+
+  const loadFlow = useCallback((flow: any) => {
       console.log('🔄 Loading Flow:', flow);
       setCurrentFlowId(flow.id);
       setFlowName(flow.name);
       setTrigger(flow.trigger_word);
       setIsActive(flow.is_active);
       
-      // Restore nodes/edges
-      // We need to re-attach callbacks to nodes because JSON doesn't store functions
-      const restoredNodes = (flow.nodes || []).map((n: any) => {
-          // Robust parsing in case data or position came as strings from DB
-          let nodeData = typeof n.data === 'string' ? JSON.parse(n.data) : (n.data || {});
-          let nodePos = typeof n.position === 'string' ? JSON.parse(n.position) : (n.position || { x: 0, y: 0 });
-
-          return {
-              ...n,
-              position: nodePos,
-              data: {
-                  ...nodeData,
-                  onChange: (text: string) => updateNodeData(n.id, { text }),
-                  onChangeQuestion: (q: string) => updateNodeData(n.id, { question: q }),
-                  onChangeVariable: (v: string) => updateNodeData(n.id, { variable: v }),
-                  onChangeValue: (v: string) => updateNodeData(n.id, { expectedValue: v }),
-                  onChangeOptions: (o: string[]) => updateNodeData(n.id, { options: o }),
-                  onChangeSaveField: (f: string) => updateNodeData(n.id, { saveField: f }),
-                  onChangeFlow: (f: string) => updateNodeData(n.id, { flowId: f }),
-                  onChangeProductVar: (v: string) => updateNodeData(n.id, { productVariable: v }),
-                  onChangeQtyVar: (v: string) => updateNodeData(n.id, { qtyVariable: v }),
-                  onChangeDetailVar: (v: string) => updateNodeData(n.id, { detailVariable: v }),
-                  onChangeDuration: (d: string) => updateNodeData(n.id, { duration: d }),
-                  onChangeShowTyping: (t: boolean) => updateNodeData(n.id, { showTyping: t }),
-                  onChangeReportType: (t: string) => updateNodeData(n.id, { reportType: t }),
-                  onChangePriority: (p: string) => updateNodeData(n.id, { priority: p }),
-                  onChangeMessage: (m: string) => updateNodeData(n.id, { message: m }),
-                  onChangeMediaUrl: (u: string) => updateNodeData(n.id, { mediaUrl: u }),
-                  onChangeCaption: (c: string) => updateNodeData(n.id, { caption: c }),
-                  onChangeMediaType: (t: string) => updateNodeData(n.id, { mediaType: t }),
-                  onChangeFileName: (n_name: string) => updateNodeData(n.id, { fileName: n_name }),
-                  onChangeMimeType: (m: string) => updateNodeData(n.id, { mimetype: m }),
-                  onChangePrompt: (p: string) => updateNodeData(n.id, { prompt: p }),
-                  onChangeSystemPrompt: (s: string) => updateNodeData(n.id, { systemPrompt: s }),
-                  onChangeTemperature: (t: number) => updateNodeData(n.id, { temperature: t }),
-                  onChangeSilent: (s: boolean) => updateNodeData(n.id, { silent: s }),
-                  onDelete: () => deleteNode(n.id),
-              }
-          };
-      });
-
+      const restoredNodes = prepareNodes(flow.nodes || []);
       console.log('🔄 Setting Nodes:', restoredNodes);
       setNodes(restoredNodes);
       setEdges(flow.edges || []);
       toast.info(`Flujo "${flow.name}" cargado`);
-  };
+  }, [prepareNodes, setNodes, setEdges]);
 
-  const createNewFlow = () => {
+  const createNewFlow = useCallback(() => {
       setCurrentFlowId(null);
       setFlowName('Nuevo Flujo');
       setTrigger('nuevo');
       setIsActive(true);
-      setNodes(initialNodes);
+      setNodes(prepareNodes(initialNodes));
       setEdges([]);
-  };
+  }, [prepareNodes, setNodes, setEdges]);
 
-  const deleteNode = (id: string) => {
-      setNodes((nds) => nds.filter((n) => n.id !== id));
-      setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
-  };
-
-  const updateNodeData = (id: string, data: any) => {
-      setNodes((nds) => nds.map((node) => node.id === id ? { ...node, data: { ...node.data, ...data } } : node));
-  };
+  // Initial preparation for nodes on mount
+  useEffect(() => {
+    setNodes((nds) => prepareNodes(nds));
+  }, []);
 
   const onConnect = useCallback((params: Connection | Edge) => {
     // Only create edges for explicit handle-to-handle connections
@@ -212,10 +246,17 @@ export default function BotBuilder() {
             showTyping: type === 'timerNode' ? true : undefined,
             systemPrompt: type === 'groqNode' ? 'Sos un asistente virtual para una rotisería.' : undefined,
             prompt: type === 'groqNode' ? 'Analizá este mensaje: {{respuesta}}' : undefined,
-            variable: type === 'questionNode' || type === 'pollNode' || type === 'mediaUploadNode' || type === 'stockCheckNode' || type === 'groqNode' ? (type === 'mediaUploadNode' ? 'file_url' : type === 'stockCheckNode' ? 'stock_result' : type === 'groqNode' ? 'ai_response' : 'respuesta') : undefined,
+            variable: type === 'questionNode' || type === 'pollNode' || type === 'mediaUploadNode' || type === 'stockCheckNode' || type === 'groqNode' || type === 'intentResolverNode' ? (type === 'mediaUploadNode' ? 'file_url' : type === 'stockCheckNode' ? 'stock_result' : type === 'groqNode' ? 'ai_response' : type === 'intentResolverNode' ? 'intent_clasificado' : 'respuesta') : undefined,
             temperature: type === 'groqNode' ? 0.7 : undefined,
             silent: type === 'groqNode' ? false : undefined,
-            // businessHoursNode has no extra configurable data – reads from global settings
+            possible_intents: type === 'intentResolverNode' ? 'delivery, retiro, cancelar, no_entendido' : undefined,
+            max_retries: type === 'intentResolverNode' ? 2 : undefined,
+            fallback_message: type === 'intentResolverNode' ? 'No te entendí bien. ¿Podrías expresarlo con otras palabras?' : undefined,
+            context_variables: type === 'intentResolverNode' ? [] : undefined,
+            // locationValidatorNode uses default logic from executor
+            failNodeId: type === 'locationValidatorNode' ? '' : undefined,
+            message: type === 'orderValidatorNode' ? '🛒 *Confirma tu pedido:*' : type === 'clearCartNode' ? '🧹 Carrito vaciado.' : type === 'productSearchNode' ? '🔍 Resultados de búsqueda:' : undefined,
+            query: type === 'productSearchNode' ? '' : undefined,
             
             // Callbacks
             onDelete: () => deleteNode(newNode.id),
@@ -243,6 +284,12 @@ export default function BotBuilder() {
             onChangeSystemPrompt: (s: string) => updateNodeData(newNode.id, { systemPrompt: s }),
             onChangeTemperature: (t: number) => updateNodeData(newNode.id, { temperature: t }),
             onChangeSilent: (s: boolean) => updateNodeData(newNode.id, { silent: s }),
+            onChangePossibleIntents: (i: string) => updateNodeData(newNode.id, { possible_intents: i }),
+            onChangeFallbackMessage: (m: string) => updateNodeData(newNode.id, { fallback_message: m }),
+            onChangeMaxRetries: (r: number) => updateNodeData(newNode.id, { max_retries: r }),
+            onChangeContextVariables: (c: string[]) => updateNodeData(newNode.id, { context_variables: c }),
+            onChangeFailNodeId: (f: string) => updateNodeData(newNode.id, { failNodeId: f }),
+            onChangeQuery: (q: string) => updateNodeData(newNode.id, { query: q }),
         },
       };
 
@@ -257,7 +304,7 @@ export default function BotBuilder() {
     
     // Clean up nodes data before saving
     const cleanNodes = flow.nodes.map((n: any) => {
-        const { onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, onChangePrompt, onChangeSystemPrompt, onChangeTemperature, onChangeSilent, ...restData } = n.data;
+        const { onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, onChangePrompt, onChangeSystemPrompt, onChangeTemperature, onChangeSilent, onChangePossibleIntents, onChangeFallbackMessage, onChangeMaxRetries, onChangeContextVariables, onChangeFailNodeId, onChangeQuery, ...restData } = n.data;
         return { ...n, data: restData };
     });
 
@@ -289,23 +336,92 @@ export default function BotBuilder() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!currentFlowId) return;
+  const handleExport = () => {
+    if (!reactFlowInstance) return;
+    const flow = reactFlowInstance.toObject();
     
-    if (!window.confirm('¿Estás seguro de que querés eliminar este flujo? Esta acción no se puede deshacer.')) {
-        return;
-    }
+    // Clean nodes data like we do for handleSave
+    const cleanNodes = flow.nodes.map((n: any) => {
+        const { 
+            onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, 
+            onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, 
+            onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, 
+            onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, 
+            onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, 
+            onChangePrompt, onChangeSystemPrompt, onChangeTemperature, onChangeSilent, 
+            onChangePossibleIntents, onChangeFallbackMessage, onChangeMaxRetries, 
+            onChangeContextVariables, onChangeFailNodeId, onChangeQuery, ...restData 
+        } = n.data;
+        return { ...n, data: restData };
+    });
 
-    try {
-        const { error } = await supabase.from('flows').delete().eq('id', currentFlowId);
-        if (error) throw error;
+    const exportData = {
+        version: '1.0',
+        name: flowName,
+        trigger_word: trigger,
+        is_active: isActive,
+        nodes: cleanNodes,
+        edges: flow.edges
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${flowName.replace(/\s+/g, '_')}_bot_flow.json`;
+    link.click();
+    toast.success('Flujo exportado correctamente');
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        if (!json.nodes || !Array.isArray(json.nodes)) {
+            throw new Error('El archivo no parece ser un flujo válido (faltan nodos)');
+        }
+
+        // Load into editor as a "New Flow" (unsaved)
+        setCurrentFlowId(null);
+        setFlowName(`${json.name || 'Importado'} (Copia)`);
+        setTrigger(json.trigger_word || 'cambiame');
+        setIsActive(json.is_active ?? true);
         
-        toast.success('Flujo eliminado correctamente');
-        fetchFlows(); // Refresh list
-        createNewFlow(); // Reset to new flow state
-    } catch (err: any) {
-        toast.error('Error al eliminar: ' + err.message);
-    }
+        const restoredNodes = prepareNodes(json.nodes);
+        setNodes(restoredNodes);
+        setEdges(json.edges || []);
+
+        toast.success(`Flujo "${json.name}" importado con éxito. No olvides guardarlo.`);
+      } catch (err: any) {
+        toast.error('Error al importar: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
+  };
+
+  const handleDelete = async () => {
+      if (!currentFlowId) return;
+      
+      const confirmDelete = window.confirm(`¿Estás seguro de que quieres eliminar el flujo "${flowName}"? Esta acción no se puede deshacer.`);
+      if (!confirmDelete) return;
+
+      try {
+          const { error } = await supabase.from('flows').delete().eq('id', currentFlowId);
+          if (error) throw error;
+          
+          toast.success('Flujo eliminado correctamente');
+          createNewFlow();
+          fetchFlows();
+      } catch (err: any) {
+          console.error('Error deleting flow:', err);
+          toast.error('Error al eliminar: ' + err.message);
+      }
   };
 
 
@@ -374,6 +490,30 @@ export default function BotBuilder() {
                         <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                         <span className="ml-2 text-xs font-medium text-gray-900">Activo</span>
                     </label>
+
+                    <div className="h-8 w-px bg-gray-200 mx-1"></div>
+
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={handleExport}
+                            title="Exportar archivo JSON"
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded transition"
+                        >
+                            <Download size={20} />
+                        </button>
+                        
+                        <label className="p-2 text-gray-600 hover:bg-gray-100 rounded transition cursor-pointer">
+                            <Upload size={20} />
+                            <input 
+                                type="file" 
+                                accept=".json" 
+                                className="hidden" 
+                                onChange={handleImport}
+                            />
+                        </label>
+                    </div>
+
+                    <div className="h-8 w-px bg-gray-200 mx-1"></div>
 
                     {currentFlowId && (
                         <button 
