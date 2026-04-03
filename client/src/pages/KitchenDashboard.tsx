@@ -806,36 +806,41 @@ export default function KitchenDashboard() {
                                     )}
                                     {isCooking && (
                                         <div className="flex-1 flex flex-col gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                                            {logisticsEnabled && (order.delivery_type === 'DELIVERY' || order.delivery_address) ? (
-                                                <>
-                                                    <select 
-                                                        className="w-full p-3 border-2 border-orange-200 rounded-xl bg-orange-50 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
-                                                        value={assignedToMap[order.id] || ''}
-                                                        onChange={(e) => setAssignedToMap(prev => ({ ...prev, [order.id]: e.target.value }))}
-                                                    >
-                                                        <option value="">-- Seleccionar Cadete --</option>
-                                                        {couriers.map(c => (
-                                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    <button 
-                                                        onClick={() => handleAssignAndShip(order.id, assignedToMap[order.id])}
-                                                        disabled={!assignedToMap[order.id]}
-                                                        className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-orange-500/20 disabled:bg-gray-300 disabled:shadow-none"
-                                                    >
-                                                        🛵 ASIGNAR Y ENVIAR
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <button onClick={() => {
-                                                    const isDelivery = order.delivery_type === 'DELIVERY' || (order.delivery_address && !order.delivery_address.includes('Retiro en Local'));
-                                                    const nextStatus = isDelivery ? 'OUT_FOR_DELIVERY' : 'ready';
-                                                    updateStatus(order.id, nextStatus as any);
-                                                }}
-                                                    className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-green-500/20 border-b-4 border-green-700">
-                                                    { (order.delivery_type === 'DELIVERY' || (order.delivery_address && !order.delivery_address.includes('Retiro en Local'))) ? '🛵 PEDIDO ENVIADO' : '🥡 AVISAR PARA RETIRAR'}
-                                                </button>
-                                            )}
+                                            {(() => {
+                                                const isDelivery = order.delivery_type === 'DELIVERY' || (order.delivery_type !== 'PICKUP' && order.delivery_address && !order.delivery_address.includes('Retiro en Local'));
+                                                if (logisticsEnabled && isDelivery) {
+                                                    return (
+                                                        <>
+                                                            <select 
+                                                                className="w-full p-3 border-2 border-orange-200 rounded-xl bg-orange-50 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
+                                                                value={assignedToMap[order.id] || ''}
+                                                                onChange={(e) => setAssignedToMap(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                            >
+                                                                <option value="">-- Seleccionar Cadete --</option>
+                                                                {couriers.map(c => (
+                                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                                ))}
+                                                            </select>
+                                                            <button 
+                                                                onClick={() => handleAssignAndShip(order.id, assignedToMap[order.id])}
+                                                                disabled={!assignedToMap[order.id]}
+                                                                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-orange-500/20 disabled:bg-gray-300 disabled:shadow-none"
+                                                            >
+                                                                🛵 ASIGNAR Y ENVIAR
+                                                            </button>
+                                                        </>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <button onClick={() => {
+                                                            updateStatus(order.id, isDelivery ? 'OUT_FOR_DELIVERY' : 'ready');
+                                                        }}
+                                                            className="w-full bg-green-500 hover:bg-green-600 active:scale-95 text-white font-black py-4 rounded-xl transition-all text-base shadow-lg shadow-green-500/20 border-b-4 border-green-700">
+                                                            {isDelivery ? '🛵 PEDIDO ENVIADO' : '🥡 LISTO PARA RETIRAR'}
+                                                        </button>
+                                                    );
+                                                }
+                                            })()}
                                         </div>
                                     )}
                                     {isReady && (
