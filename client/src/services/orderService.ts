@@ -179,7 +179,6 @@ export async function deleteOrder(orderId: string) {
 
 export async function updateOrder(orderId: string, updates: {
   delivery_date?: string | null;
-  time_slot?: string | null;
   notes?: string | null;
   channel?: Order['channel'];
 }) {

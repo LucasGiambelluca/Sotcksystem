@@ -431,7 +431,7 @@ export default function TabletOrdering() {
               <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500 shadow-inner">
                  <CheckCircle size={56} />
               </div>
-              <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">¡Pedido enviado!</h2>
+              <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">¡Pedido #{lastOrderNumber} enviado!</h2>
               <p className="text-slate-500 mb-8 font-medium">La comanda ya fue recibida en cocina y está siendo preparada.</p>
               <button 
                 onClick={() => setShowSuccess(false)}

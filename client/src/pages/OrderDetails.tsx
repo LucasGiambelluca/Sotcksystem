@@ -10,7 +10,6 @@ import {
   Globe,
   MapPin,
   Calendar,
-  Clock,
   Trash2,
   CheckCircle,
   XCircle,
@@ -32,7 +31,6 @@ export default function OrderDetails() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     delivery_date: '',
-    time_slot: '',
     channel: '' as OrderChannel,
     notes: '',
     client_name: '',
@@ -80,7 +78,6 @@ export default function OrderDetails() {
     if (!order) return;
     setEditForm({
       delivery_date: order.delivery_date || '',
-      time_slot: order.time_slot || '',
       channel: order.channel,
       notes: order.notes || '',
       client_name: order.client?.name || '',
@@ -102,7 +99,6 @@ export default function OrderDetails() {
       // Update order fields
       const { error: orderError } = await updateOrder(order.id, {
         delivery_date: editForm.delivery_date || null,
-        time_slot: editForm.time_slot || null,
         channel: editForm.channel,
         notes: editForm.notes || null,
       });
@@ -400,23 +396,6 @@ export default function OrderDetails() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Franja Horaria
-                  </label>
-                  <select
-                    value={editForm.time_slot}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, time_slot: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Cualquier horario</option>
-                    <option value="Mañana (09 - 13)">Mañana (09 - 13)</option>
-                    <option value="Tarde (14 - 18)">Tarde (14 - 18)</option>
-                    <option value="Noche (19 - 22)">Noche (19 - 22)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Notas
                   </label>
                   <textarea
@@ -481,15 +460,6 @@ export default function OrderDetails() {
                       : (
                         <span className="text-orange-500 italic">Sin fecha</span>
                       )}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-700">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <span className="font-medium">Franja:</span>
-                  <span>
-                    {order.time_slot || (
-                      <span className="text-gray-400 italic">Cualquier horario</span>
-                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-700">

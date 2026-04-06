@@ -741,9 +741,9 @@ export default function Catalog() {
                   >
                     Efectivo
                   </button>
-                  <button type="button" onClick={() => setPaymentMethod('Transferencia / MP')}
-                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Transferencia / MP' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
-                    style={paymentMethod === 'Transferencia / MP' ? { backgroundColor: accent } : {}}
+                  <button type="button" onClick={() => setPaymentMethod('Transf / MP')}
+                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Transf / MP' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={paymentMethod === 'Transf / MP' ? { backgroundColor: accent } : {}}
                   >
                     Transf. / MP
                   </button>

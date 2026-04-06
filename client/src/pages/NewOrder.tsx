@@ -243,7 +243,6 @@ export default function NewOrder() {
   // Form State
   const [selectedClientId, setSelectedClientId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
-  const [timeSlot, setTimeSlot] = useState('');
   const [channel, setChannel] = useState<'WEB' | 'WHATSAPP' | 'PHONE' | 'OTHER'>('WEB');
   const [orderItems, setOrderItems] = useState<Array<{ product_id: string; quantity: number; unit_price: number; product_name: string }>>([]);
   const [originalText, setOriginalText] = useState('');
@@ -348,7 +347,6 @@ export default function NewOrder() {
       client_id: selectedClientId,
       channel,
       delivery_date: deliveryDate,
-      time_slot: timeSlot,
       notes: channel === 'WHATSAPP' ? `📱 Pedido desde WhatsApp\n${originalText}` : undefined,
       original_text: originalText,
       items: orderItems,
@@ -529,22 +527,6 @@ export default function NewOrder() {
                 onChange={(e) => setDeliveryDate(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Franja Horaria
-              </label>
-              <select
-                value={timeSlot}
-                onChange={(e) => setTimeSlot(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              >
-                <option value="">Cualquie horario</option>
-                <option value="Mañana (09 - 13)">Mañana (09 - 13)</option>
-                <option value="Tarde (14 - 18)">Tarde (14 - 18)</option>
-                <option value="Noche (19 - 22)">Noche (19 - 22)</option>
-              </select>
             </div>
           </div>
         </div>

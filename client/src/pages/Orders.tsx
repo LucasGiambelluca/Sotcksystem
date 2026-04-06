@@ -251,7 +251,6 @@ export default function Orders() {
                     {order.delivery_date && (
                       <p>
                         📅 {new Date(order.delivery_date).toLocaleDateString('es-AR')}
-                        {order.time_slot && ` • ${order.time_slot}`}
                       </p>
                     )}
                     <p>

@@ -109,7 +109,6 @@ export interface Order {
   subtotal: number;
   delivery_fee: number;
   delivery_date: string | null;
-  time_slot: string | null;
   delivery_address: string | null;
   notes: string | null;
   original_text: string | null;
