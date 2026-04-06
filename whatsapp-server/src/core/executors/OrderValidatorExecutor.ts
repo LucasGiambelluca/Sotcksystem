@@ -11,12 +11,16 @@ export class OrderValidatorExecutor implements NodeExecutor {
             const { supabase } = require('../../config/database');
             const { data: draftOrder } = await supabase
                 .from('draft_orders')
-                .select('items, total')
+                .select('items, total, delivery_fee')
                 .eq('id', context.draft_order_id)
                 .single();
             
             if (draftOrder && draftOrder.items) {
                 items = draftOrder.items;
+                // If it's a catalog order, prioritize the delivery fee saved in the draft
+                if (draftOrder.delivery_fee > 0) {
+                    context.shipping_cost = draftOrder.delivery_fee;
+                }
             }
         }
 
@@ -52,7 +56,12 @@ export class OrderValidatorExecutor implements NodeExecutor {
             if (item.notes) summaryText += `  _(Notas: ${item.notes})_\n`;
         }
 
-        summaryText += `\n*TOTAL: $${total}*`;
+        const shippingFee = Number(context.shipping_cost) || 0;
+        if (shippingFee > 0) {
+            summaryText += `\n*Envío:* $${shippingFee}`;
+        }
+
+        summaryText += `\n\n*TOTAL: $${total + shippingFee}*`;
         summaryText += `\n\n¿El pedido es correcto o te gustaría sumar algo más?\n`;
 
         // 3. Build a dynamic numbered menu based on available categories

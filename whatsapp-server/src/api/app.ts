@@ -8,6 +8,7 @@ import claimsRoutes from './routes/claims.routes';
 import driverRoutes from './routes/driver.routes';
 import groupsRoutes from './routes/groups.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
+import publicOrderRoutes from './routes/public_orders.routes';
 import systemRoutes from './routes/system.routes';
 import printerRoutes from './routes/printer.routes';
 import { whatsappClient } from '../infrastructure/whatsapp/WhatsAppClient';
@@ -109,7 +110,8 @@ app.use('/api/logistics', requireAuth, logisticsRoutes);
 app.use('/api/claims', requireAuth, claimsRoutes);
 app.use('/api/driver', driverRoutes); // Public endpoint for drivers
 app.use('/api/printer', requireAuth, printerRoutes);
-app.post('/api/public/validate-location', LocationController.validateLocation);
+app.use('/api/public/validate-location', LocationController.validateLocation);
+app.use('/api/public/orders', publicOrderRoutes);
 
 import path from 'path';
 

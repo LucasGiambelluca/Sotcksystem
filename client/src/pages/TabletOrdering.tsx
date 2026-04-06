@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { 
   Search, Plus, Minus, X, Check,
   Wifi, Settings, Bell, UserRound, ArrowRight,
-  UtensilsCrossed, Tag
+  UtensilsCrossed, Tag, CheckCircle
 } from 'lucide-react';
 import type { CatalogItem } from '../types';
 
@@ -39,25 +39,26 @@ export default function TabletOrdering() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [branding, setBranding] = useState<any>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [lastOrderNumber, setLastOrderNumber] = useState('');
 
   useEffect(() => {
     fetchData();
   }, []);
 
   async function fetchData() {
-    setLoading(true);
-    const { data } = await supabase
-      .from('catalog_items')
-      .select('*')
-      .eq('is_active', true)
-      .order('category')
-      .order('name');
+    const [{ data }, { data: b }] = await Promise.all([
+      supabase.from('catalog_items').select('*').eq('is_active', true).order('category').order('name'),
+      supabase.from('public_branding').select('*').maybeSingle()
+    ]);
     
     if (data) {
       setItems(data);
       const cats = Array.from(new Set(data.map(i => i.category))).sort();
       setCategories(['Todos', ...cats]);
     }
+    if (b) setBranding(b);
     setLoading(false);
   }
 
@@ -155,11 +156,16 @@ export default function TabletOrdering() {
       if (error) throw error;
 
       toast.success('Pedido enviado a la cocina ✅');
+      setLastOrderNumber(error ? '' : 'CMD-' + Math.random().toString(36).substr(2, 4).toUpperCase()); 
+      setShowSuccess(true);
       setCart([]);
       setSearch('');
       setIsCheckoutModalOpen(false);
       setCustomerName('');
       setCustomerPhone('');
+      
+      // Auto-hide success after 4 seconds
+      setTimeout(() => setShowSuccess(false), 4000);
     } catch (err: any) {
       toast.error('Error al crear pedido: ' + err.message);
     } finally {
@@ -167,16 +173,19 @@ export default function TabletOrdering() {
     }
   };
 
+  const accent = branding?.catalog_accent_color || '#e53935';
+  const businessName = branding?.catalog_business_name || 'StockSystem';
+
   if (loading) return <div className="h-screen flex items-center justify-center font-bold text-gray-500 bg-slate-50">Cargando menú...</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
       
       {/* ── LEFT SIDEBAR: CATEGORIES ── */}
-      <div className="hidden md:flex flex-col w-64 bg-slate-50 border-r border-slate-200">
+      <div className="hidden lg:flex flex-col w-56 bg-slate-50 border-r border-slate-200 shrink-0">
         <div className="p-6">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Culinary Curator</h1>
-          <p className="text-sm font-medium text-slate-400 mt-1">Terminal #04</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 truncate">{businessName}</h1>
+          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Menú Tablet</p>
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
@@ -186,9 +195,10 @@ export default function TabletOrdering() {
               onClick={() => setActiveCategory(cat)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold text-sm ${
                 activeCategory === cat
-                  ? 'bg-slate-200/70 text-slate-900'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  ? 'bg-white shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:bg-white/50 hover:text-slate-700'
               }`}
+              style={activeCategory === cat ? { borderLeft: `4px solid ${accent}` } : {}}
             >
               <div className={activeCategory === cat ? 'text-slate-800' : 'text-slate-400'}>
                 {CATEGORY_ICONS[cat] || CATEGORY_ICONS.default}
@@ -246,8 +256,8 @@ export default function TabletOrdering() {
         </header>
 
         {/* Dynamic Product Grid */}
-        <main className="flex-1 overflow-y-auto p-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max pb-32">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max pb-32">
               {filteredItems.map((item, _index) => {
                 // Determine if this is a "Chef Special" style card (e.g., every 5th item just to showcase design variety, or if it matches a keyword)
                 const isSpecial = item.name.toLowerCase().includes('temporada') || item.name.toLowerCase().includes('degustación');
@@ -258,9 +268,9 @@ export default function TabletOrdering() {
                            {/* Background abstract element (optional) */}
                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -translate-y-10 translate-x-10"></div>
                            
-                           <div>
-                               <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-[10px] font-bold tracking-widest uppercase mb-4 text-indigo-200">
-                                   Chef's Special
+                            <div>
+                               <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-[10px] font-bold tracking-widest uppercase mb-4" style={{ color: `${accent}aa` }}>
+                                   Especial del Chef
                                </div>
                                <h3 className="text-3xl font-bold leading-tight mb-2 pr-4">{item.name}</h3>
                                <p className="text-slate-300 text-sm leading-relaxed max-w-[90%]">{item.description}</p>
@@ -295,13 +305,16 @@ export default function TabletOrdering() {
                       <p className="text-[13px] text-slate-500 leading-relaxed mb-4 line-clamp-3">{item.description}</p>
                     </div>
 
-                    <div className="flex items-center justify-between mt-auto pt-2">
-                       <span className="font-bold text-blue-600 text-lg tracking-tight">${item.price.toLocaleString('es-AR')}</span>
-                       <button onClick={() => addToCart(item)} className="bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm hover:bg-slate-800 active:scale-95 transition-all shadow-sm">
+                     <div className="mt-auto pt-3 border-t border-slate-50 space-y-3">
+                       <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Precio</span>
+                          <span className="font-black text-xl tracking-tight" style={{ color: accent }}>${item.price.toLocaleString('es-AR')}</span>
+                       </div>
+                       <button onClick={() => addToCart(item)} className="w-full text-white py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-sm" style={{ backgroundColor: accent }}>
                           <Plus size={16} />
                           Agregar
                        </button>
-                    </div>
+                     </div>
                   </div>
                 );
               })}
@@ -310,7 +323,7 @@ export default function TabletOrdering() {
       </div>
 
       {/* ── RIGHT SIDEBAR: CART ── */}
-      <div className="w-80 lg:w-[350px] xl:w-[400px] bg-slate-50 border-l border-slate-200 flex flex-col z-20 shrink-0 shadow-lg md:shadow-none">
+      <div className="w-72 lg:w-80 xl:w-96 bg-slate-50 border-l border-slate-200 flex flex-col z-20 shrink-0 shadow-lg md:shadow-none">
         <div className="px-6 py-6 pb-2">
           <div className="flex justify-between items-center mb-4">
              <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase">Resumen de Comanda</h2>
@@ -355,12 +368,12 @@ export default function TabletOrdering() {
                   <div className="flex items-center justify-between mt-2">
                       <p className="text-[11px] text-slate-400 font-medium">x{item.quantity} Unidades</p>
                       
-                      <div className="flex items-center bg-blue-50 rounded-full p-0.5">
-                        <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center text-blue-600 rounded-full hover:bg-blue-100 transition-colors">
+                       <div className="flex items-center rounded-full p-0.5" style={{ backgroundColor: `${accent}15` }}>
+                        <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/50 transition-colors" style={{ color: accent }}>
                           <Minus size={12} strokeWidth={3} />
                         </button>
-                        <span className="w-6 text-center font-bold text-xs text-blue-900">{item.quantity}</span>
-                        <button onClick={() => updateQty(item.id, +1)} className="w-6 h-6 flex items-center justify-center text-blue-600 rounded-full hover:bg-blue-100 transition-colors">
+                        <span className="w-6 text-center font-bold text-xs" style={{ color: accent }}>{item.quantity}</span>
+                        <button onClick={() => updateQty(item.id, +1)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/50 transition-colors" style={{ color: accent }}>
                           <Plus size={12} strokeWidth={3} />
                         </button>
                       </div>
@@ -399,16 +412,37 @@ export default function TabletOrdering() {
              </div>
           </div>
           
-          <button
+           <button
             onClick={() => setIsCheckoutModalOpen(true)}
             disabled={isCreatingOrder || cart.length === 0}
-            className="w-full py-4 bg-slate-900 hover:bg-black disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-[13px] tracking-widest transition-all shadow-md flex items-center justify-center gap-2 group"
+            className="w-full py-4 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-[13px] tracking-widest transition-all shadow-md flex items-center justify-center gap-2 group"
+            style={{ backgroundColor: cart.length > 0 ? accent : undefined }}
           >
             ENVIAR A COCINA
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>
+
+      {/* ── SUCCESS NOTIFICATION OVERLAY ── */}
+      {showSuccess && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+           <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-sm w-full text-center transform animate-in zoom-in-95 duration-300 border border-slate-100">
+              <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500 shadow-inner">
+                 <CheckCircle size={56} />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">¡Pedido enviado!</h2>
+              <p className="text-slate-500 mb-8 font-medium">La comanda ya fue recibida en cocina y está siendo preparada.</p>
+              <button 
+                onClick={() => setShowSuccess(false)}
+                className="w-full py-4 text-white rounded-2xl font-bold tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg"
+                style={{ backgroundColor: accent }}
+              >
+                ENTENDIDO
+              </button>
+           </div>
+        </div>
+      )}
 
       {/* ── CHECKOUT MODAL (Kept Functional with some matching styling) ── */}
       {isCheckoutModalOpen && (

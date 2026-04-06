@@ -1,4 +1,5 @@
 
+import { logger } from '../utils/logger';
 
 export interface LatLng {
     lat: number;
@@ -86,25 +87,25 @@ export class LocationService {
         const activeZones = zones.filter(z => z.is_active);
         
         if (!clientLocation) {
-            if (address && address.length > 5) {
+            if (address && address.length > 3) {
                 try {
-                    // Geocode address via Nominatim (free OSM API)
-                    const axios = require('axios');
-                    const query = encodeURIComponent(`${address}, Bahia Blanca, Argentina`);
-                    const { data: results } = await axios.get(
-                        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-                        { headers: { 'User-Agent': 'StockSystem/1.0' }, timeout: 5000 }
-                    );
-                    if (results && results.length > 0) {
-                        clientLocation = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+                    // Normalización básica: "cramer333" -> "cramer 333"
+                    const normalizedAddress = address.replace(/([a-zA-Z])(\d)/g, '$1 $2');
+                    
+                    const { GeocodingService } = require('./GeocodingService');
+                    const geo = await GeocodingService.geocode(normalizedAddress, 'Bahia Blanca, Argentina');
+                    
+                    if (geo) {
+                        clientLocation = { lat: geo.lat, lng: geo.lng };
+                        logger.info(`[LocationService] Geocodificado "${normalizedAddress}" a ${geo.lat}, ${geo.lng} (Google)`);
                     }
-                } catch (e) {
-                    console.error('[LocationService] Geocoding fallback failed:', e);
+                } catch (e: any) {
+                    logger.error(`[LocationService] Geocoding (Google) failed: ${e.message}`);
                 }
             }
 
             if (!clientLocation) {
-                return { zone: null, distance_km: null, allowed: false, error: 'No se pudo determinar la ubicación (GPS o Texto).' };
+                return { zone: null, distance_km: null, allowed: false, error: 'No se pudo determinar la ubicación de la dirección.' };
             }
         }
 
@@ -124,6 +125,13 @@ export class LocationService {
 
         // 2. CHEQUEO DE ZONAS PERMITIDAS (Verde)
         let distanceKm = null;
+        if (clientLocation && storeLocation) {
+            distanceKm = this.calculateHaversineDistance(storeLocation, clientLocation);
+            logger.info(`[LocationService] Distancia calculada: ${distanceKm.toFixed(2)} km`);
+        } else if (!storeLocation) {
+            logger.warn('[LocationService] Ubicación del local no configurada (storeLocation is null).');
+        }
+
         let eligibleZones: ShippingZone[] = [];
         const allowedZones = activeZones.filter(z => z.allow_delivery);
 
@@ -135,8 +143,7 @@ export class LocationService {
             }
 
             // Caso Radio
-            if (zone.zone_type === 'radius' && storeLocation && zone.max_radius_km) {
-                distanceKm = this.calculateHaversineDistance(storeLocation, clientLocation);
+            if (zone.zone_type === 'radius' && zone.max_radius_km && distanceKm !== null) {
                 if (distanceKm <= zone.max_radius_km) {
                     eligibleZones.push(zone);
                 }
@@ -154,7 +161,16 @@ export class LocationService {
             };
         }
 
-        // Devolver la zona más barata aplicable
+        // Devolver la zona: Priorizamos RADIUS (por cuadras) si existe, 
+        // de lo contrario la más barata aplicable.
+        const radiusZones = eligibleZones.filter(z => z.zone_type === 'radius');
+        if (radiusZones.length > 0) {
+            // Entre los radios que cubren la distancia, elegimos el de menor radio (el más ajustado)
+            radiusZones.sort((a, b) => (a.max_radius_km || 0) - (b.max_radius_km || 0));
+            return { zone: radiusZones[0], distance_km: distanceKm, allowed: true };
+        }
+
+        // Si no hay radios, usamos polígonos ordenados por costo
         eligibleZones.sort((a, b) => a.cost - b.cost);
         return { zone: eligibleZones[0], distance_km: distanceKm, allowed: true };
     }

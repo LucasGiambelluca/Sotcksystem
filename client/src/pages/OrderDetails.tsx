@@ -558,11 +558,23 @@ export default function OrderDetails() {
                 </table>
               </div>
               <div className="flex justify-end mt-4 pt-4 border-t">
-                <div className="text-right">
-                  <p className="text-gray-600 text-sm">Total</p>
-                  <p className="text-3xl font-bold text-green-700">
-                    ${subtotal.toFixed(2)}
-                  </p>
+                <div className="text-right space-y-1">
+                  <div className="flex justify-end items-center gap-4 text-sm text-gray-500">
+                    <span>Subtotal</span>
+                    <span className="w-24 font-medium">${subtotal.toFixed(2)}</span>
+                  </div>
+                  {order.delivery_fee > 0 && (
+                    <div className="flex justify-end items-center gap-4 text-sm text-blue-600">
+                      <span>Envío</span>
+                      <span className="w-24 font-medium">+${order.delivery_fee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-end items-center gap-4 pt-2">
+                    <span className="text-gray-900 font-bold">Total</span>
+                    <span className="text-3xl font-black text-green-700 w-24">
+                      ${(order.total_amount || 0).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </>

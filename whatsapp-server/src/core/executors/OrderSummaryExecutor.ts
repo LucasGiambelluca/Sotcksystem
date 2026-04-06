@@ -11,12 +11,15 @@ export class OrderSummaryExecutor implements NodeExecutor {
             const { supabase } = require('../../config/database');
             const { data: draftOrder } = await supabase
                 .from('draft_orders')
-                .select('items, total')
+                .select('items, total, delivery_fee')
                 .eq('id', context.draft_order_id)
                 .single();
             
             if (draftOrder && draftOrder.items) {
                 items = draftOrder.items;
+                if (draftOrder.delivery_fee > 0) {
+                    context.shipping_cost = draftOrder.delivery_fee;
+                }
                 console.log(`[OrderSummary] Loaded ${items.length} items from draft_order ${context.draft_order_id}`);
             }
         }
@@ -39,13 +42,18 @@ export class OrderSummaryExecutor implements NodeExecutor {
             summaryText += `• ${qty}x ${item.name} — $${lineTotal}\n`;
         }
 
-        summaryText += `\n*Total: $${total}*`;
+        const shippingFee = Number(context.shipping_cost) || 0;
+        if (shippingFee > 0) {
+            summaryText += `\n*Envío:* $${shippingFee}`;
+        }
+
+        summaryText += `\n*Total: $${total + shippingFee}*`;
 
         // Store total in context for downstream nodes
         return {
             messages: [summaryText],
             updatedContext: {
-                total_amount: total
+                total_amount: total + shippingFee
             },
             wait_for_input: false
         };

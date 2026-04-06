@@ -1,12 +1,14 @@
 import { supabase } from '../config/database';
 import { whatsappClient } from '../infrastructure/whatsapp/WhatsAppClient';
 import { ConfigurationService } from './ConfigurationService';
+import { logger } from '../utils/logger';
 
 interface OrderNotificationData {
   orderId: string;
   clientName: string;
   clientPhone: string;
   total: number;
+  deliveryFee?: number;
   deliveryDate?: string;
   deliveryAddress?: string;
 }
@@ -50,7 +52,7 @@ Hola {clientName}! El repartidor ya retiró tu pedido y pronto saldrá para all�
 Hola {clientName}! Tu pedido ha sido entregado.
 
 📦 Pedido: #{orderId}
-💰 Total: \${total}
+💰 {breakdown}
 
 ¡Gracias por tu compra! 🎉`,
 
@@ -76,7 +78,21 @@ function formatMessage(template: string, data: OrderNotificationData): string {
   let message = template;
   message = message.replace(/{clientName}/g, data.clientName);
   message = message.replace(/{orderId}/g, data.orderId.slice(0, 8));
-  message = message.replace(/{total}/g, data.total.toFixed(2));
+  
+  const totalVal = data.total || 0;
+  const feeVal = data.deliveryFee || 0;
+  const subtotalVal = totalVal - feeVal;
+
+  message = message.replace(/{total}/g, totalVal.toFixed(2));
+  message = message.replace(/{deliveryFee}/g, feeVal.toFixed(2));
+  message = message.replace(/{subtotal}/g, subtotalVal.toFixed(2));
+  
+  // Breakdown specific replacement
+  const breakdown = feeVal > 0 
+    ? `Subtotal: $${subtotalVal.toFixed(2)}\nEnvío: $${feeVal.toFixed(2)}\nTotal: *$${totalVal.toFixed(2)}*`
+    : `Total: *$${totalVal.toFixed(2)}*`;
+  
+  message = message.replace(/{breakdown}/g, breakdown);
   
   // Conditional replacements
   const dateStr = data.deliveryDate ? `📅 Entrega: ${new Date(data.deliveryDate).toLocaleDateString('es-AR')}` : '';
@@ -92,6 +108,7 @@ export class OrderNotificationListener {
   private static instance: OrderNotificationListener;
   private channel: any = null;
   private processedChanges: Map<string, string> = new Map(); // orderId -> status to prevent duplicates
+  private processedNewOrders: Set<string> = new Set(); // orderId -> handled for typing
 
   private constructor() {}
 
@@ -103,11 +120,11 @@ export class OrderNotificationListener {
   }
 
   public start() {
-    console.log('📡 [OrderNotificationListener] Starting Realtime listener... (V-ROBUST-1)');
+    logger.info('📡 [OrderNotificationListener] Starting Realtime listener... (V-ROBUST-1)');
     
     // Generamos un nombre único para evitar sesiones "trabadas"
     const channelName = `order-status-notifications-${Date.now()}`;
-    console.log(`📡 [OrderNotificationListener] Intentando conectar al canal: ${channelName}`);
+    logger.info(`📡 [OrderNotificationListener] Intentando conectar al canal: ${channelName}`);
 
     this.channel = supabase
       .channel(channelName)
@@ -123,51 +140,24 @@ export class OrderNotificationListener {
           const eventType = payload.eventType;
           const channel = (payload.new as any)?.channel;
 
-          console.log(`\n🔔 [OrderNotificationListener] EVENTO: ${eventType} | Pedido: ${orderId} | Canal: ${channel}`);
+          logger.info(`\n🔔 [OrderNotificationListener] EVENTO: ${eventType} | Pedido: ${orderId} | Canal: ${channel}`);
           
           if (eventType === 'INSERT') {
-            console.log(`🆕 [OrderNotificationListener] NUEVA ORDEN DETECTADA! Evaluando impresión...`);
-            
-            // For completely decoupled sources like the Web/Tablet dashboard,
-            // we catch the INSERT event and auto-queue the print ticket
-            // IF it isn't from WhatsApp (WhatsApp handles its own printing in CreateOrderExecutor)
+            logger.info(`🆕 [OrderNotificationListener] NUEVA ORDEN DETECTADA! ID: ${orderId}, Canal: ${channel}`);
             if (channel && channel !== 'WHATSAPP') {
-                console.log(`🖨️ [OrderNotificationListener] Canal válido para auto-impresión (${channel}).`);
-                try {
-                    // Check centralized config
-                    const appConfig = await ConfigurationService.getFullConfig();
-                    const { data: pCfg } = await supabase.from('printer_config').select('auto_print_enabled').limit(1).maybeSingle();
-                    
-                    const isAutoPrint = pCfg?.auto_print_enabled || appConfig.auto_print;
-                    console.log(`⚙️ [OrderNotificationListener] Config Impresión: ${isAutoPrint ? 'ON' : 'OFF'}`);
-                        
-                    if (isAutoPrint) {
-                        const { PrinterService } = require('./PrinterService');
-                        const success = await PrinterService.queueOrderTicket(orderId);
-                        if (success) {
-                            console.log(`✅ [OrderNotificationListener] Ticket encolado para #${orderId.slice(0,8)}`);
-                        } else {
-                            console.warn(`❌ [OrderNotificationListener] Falló PrinterService.queueOrderTicket para #${orderId.slice(0,8)}`);
-                        }
-                    } else {
-                        console.log(`⏩ [OrderNotificationListener] Auto-impresión desactivada.`);
-                    }
-                } catch (e) {
-                    console.error('❌ [OrderNotificationListener] Error fatal disparando impresión:', e);
-                }
-            } else {
-                console.log(`⏩ [OrderNotificationListener] Saltando impresión (Canal WhatsApp o Desconocido: ${channel})`);
+                 await this.triggerAutoPrint(orderId, channel);
             }
-          } else if (eventType === 'UPDATE') {
+          }
+ else if (eventType === 'UPDATE') {
             await this.handleStatusChange(orderId, (payload.new as any)?.status);
           }
         }
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`📡 [OrderNotificationListener] Successfully subscribed to orders changes.`);
+          logger.info(`📡 [OrderNotificationListener] Successfully subscribed to orders changes.`);
         } else {
-          console.warn(`⚠️ [OrderNotificationListener] Subscription status: ${status}. Usando POLLING como respaldo.`);
+          logger.warn(`⚠️ [OrderNotificationListener] Subscription status: ${status}. Usando POLLING como respaldo.`);
         }
       });
 
@@ -198,6 +188,75 @@ export class OrderNotificationListener {
             console.error('[OrderPolling] Error:', e);
         }
     }, 2000); // 2 seconds for near-realtime feedback
+
+    // POLLING FALLBACK PARA NUEVAS ORDENES (si falla Realtime INSERT)
+    setInterval(async () => {
+        try {
+            const windowMs = 300000; // 5 minutos
+            const lookback = new Date(Date.now() - windowMs).toISOString();
+            const { data: newOrders } = await supabase
+                .from('orders')
+                .select('id, channel, status')
+                .eq('status', 'PENDING')
+                .gt('created_at', lookback);
+
+            if (newOrders && newOrders.length > 0) {
+                for (const order of newOrders) {
+                    if (order.channel !== 'WHATSAPP' && !this.processedNewOrders.has(order.id)) {
+                        logger.info(`[INSERT-Polling] Detectada nueva orden no procesada: ${order.id} (${order.channel})`);
+                        this.processedNewOrders.add(order.id);
+                        await this.triggerAutoPrint(order.id, order.channel);
+                    }
+                }
+            }
+        } catch (e) {
+            logger.error('[INSERT-Polling] Error:', e);
+        }
+    }, 10000); // Cada 10 segundos
+  }
+
+  private async triggerAutoPrint(orderId: string, channel: string) {
+    logger.info(`🖨️ [OrderNotificationListener] Iniciando trigger de impresión para #${orderId.slice(0,8)} (Canal: ${channel})`);
+    
+    // ESPERAR un momento para que los items lleguen (Race condition fix)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    try {
+        // Verificar si ya está en print_queue para evitar duplicados persistentes
+        const { data: existing } = await supabase
+            .from('print_queue')
+            .select('id')
+            .eq('order_id', orderId)
+            .maybeSingle();
+
+        if (existing) {
+            logger.info(`⏩ [OrderNotificationListener] La orden #${orderId.slice(0,8)} ya existe en print_queue. Saltando.`);
+            this.processedNewOrders.add(orderId);
+            return;
+        }
+
+        // Check centralized config
+        const appConfig = await ConfigurationService.getFullConfig();
+        const { data: pCfg } = await supabase.from('printer_config').select('auto_print_enabled').limit(1).maybeSingle();
+        
+        const isAutoPrint = pCfg?.auto_print_enabled || appConfig.auto_print;
+        logger.info(`⚙️ [OrderNotificationListener] Config Impresión: ${isAutoPrint ? 'ON' : 'OFF'}`);
+            
+        if (isAutoPrint) {
+            const { PrinterService } = require('./PrinterService');
+            const success = await PrinterService.queueOrderTicket(orderId);
+            if (success) {
+                logger.info(`✅ [OrderNotificationListener] Ticket encolado satisfactoriamente para #${orderId.slice(0,8)}`);
+                this.processedNewOrders.add(orderId);
+            } else {
+                logger.warn(`❌ [OrderNotificationListener] PrinterService.queueOrderTicket retornó FALSE para #${orderId.slice(0,8)}`);
+            }
+        } else {
+            logger.info(`⏩ [OrderNotificationListener] Auto-impresión desactivada en configuración.`);
+        }
+    } catch (e: any) {
+        logger.error('❌ [OrderNotificationListener] Error fatal disparando impresión:', { error: e.message });
+    }
   }
 
   private async handleStatusChange(orderId: string, newStatus: string) {
@@ -320,7 +379,8 @@ export class OrderNotificationListener {
         orderId: order.id,
         clientName: order.client?.name || 'Cliente',
         clientPhone: phone,
-        total: order.total_amount,
+        total: order.total_amount || 0,
+        deliveryFee: order.delivery_fee || 0,
         deliveryDate: order.delivery_date || undefined,
         deliveryAddress: order.delivery_address || undefined,
       };

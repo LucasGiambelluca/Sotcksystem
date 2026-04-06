@@ -30,11 +30,12 @@ export class OrderService {
         deliveryDate?: string | Date;
         paymentMethod?: string;
         deliveryType?: string;
+        deliveryFee?: number;
         status?: string;
         pushName?: string;
         chatContext?: any;
     }) {
-        const { phone, items, total, deliverySlotId, address, deliveryDate, paymentMethod, deliveryType, status, pushName, chatContext } = params;
+        const { phone, items, total, deliverySlotId, address, deliveryDate, paymentMethod, deliveryType, deliveryFee, status, pushName, chatContext } = params;
 
         // 1. Buscar o crear cliente
         let { data: client } = await this.db
@@ -70,8 +71,9 @@ export class OrderService {
                 phone: phone,
                 channel: 'WHATSAPP',
                 status: status || 'PENDING',
+                delivery_fee: deliveryFee || 0,
                 total_amount: total,
-                subtotal: total, // Por ahora igual al total si no hay descuentos/envío
+                subtotal: total - (deliveryFee || 0),
                 delivery_slot_id: deliverySlotId,
                 delivery_address: address,
                 delivery_date: deliveryDate ? new Date(deliveryDate).toISOString() : null,

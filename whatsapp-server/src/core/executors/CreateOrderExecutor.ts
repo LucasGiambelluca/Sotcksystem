@@ -103,9 +103,9 @@ export class CreateOrderExecutor implements NodeExecutor {
                         total += shippingCost;
                         
                         if (clientLoc) {
-                            finalAddressString = `📍 GPS (${distanceKm?.toFixed(1)}km): ` + (address ? `"${address}"` : locResult.zone.name);
+                            finalAddressString = `GPS (${distanceKm?.toFixed(1)}km): ` + (address ? `"${address}"` : locResult.zone.name);
                         } else {
-                            finalAddressString = `🗺️ Zona: ${locResult.zone.name} (${address || 'Sin detalles'})`;
+                            finalAddressString = `Zona: ${locResult.zone.name} (${address || 'Sin detalles'})`;
                         }
                         
                         // Si era modo SMART y mandó texto, agregar posible fee de validación si configurado en zona
@@ -137,7 +137,7 @@ export class CreateOrderExecutor implements NodeExecutor {
             let validatedAddress = address;
             if (finalDeliveryType === 'PICKUP') {
                 validatedAddress = null;
-                finalAddressString = '📍 Retiro en Local';
+                finalAddressString = 'Retiro en Local';
             }
 
             const order = await engine.orderService.createOrder({
@@ -149,6 +149,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                 deliveryDate: deliveryDate,
                 paymentMethod: paymentMethod,
                 deliveryType: finalDeliveryType,
+                deliveryFee: shippingCost,
                 status: 'PENDING',
                 pushName: pushName,
                 chatContext: { 
@@ -201,7 +202,7 @@ export class CreateOrderExecutor implements NodeExecutor {
             const isDelivery = deliveryType?.toLowerCase().includes('delivery') || deliveryType?.toLowerCase().includes('env');
             
             const replyMessages: any[] = [
-                { text: `✅ *¡Pedido confirmado!*` },
+                { text: `*¡Pedido confirmado!*` },
                 { text: `Orden: #${order.order_number}` },
                 { text: `Total: *$${total}* ${shippingCost > 0 ? `(Incluye $${shippingCost} de envío)` : ''}` },
                 { text: `Destino: ${finalAddressString || (isDelivery ? 'Envío a domicilio' : 'Retiro en local')}` }

@@ -621,6 +621,80 @@ export default function Settings() {
                 </div>
             </div>
 
+            {/* Tarifas por Distancia (Cuadras) */}
+            <div className="md:col-span-2">
+                <div className="bg-white p-6 rounded-xl shadow-lg border">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                            <MapPin className="text-blue-600" size={24} />
+                            <h2 className="text-xl font-bold text-gray-800">Tarifas por Distancia (Cuadras)</h2>
+                        </div>
+                        <button 
+                            onClick={() => handleAddZone({
+                                name: 'Nueva Zona (Distancia)',
+                                zone_type: 'radius',
+                                max_radius_km: 1.0,
+                                cost: 1000,
+                                allow_delivery: true
+                            })}
+                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                        >
+                            <Plus size={18} />
+                            Agregar Tramo
+                        </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {zones.filter(z => z.zone_type === 'radius').map(zone => (
+                            <div key={zone.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex flex-col gap-3">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Radio / Distancia</span>
+                                    <button onClick={() => deleteZone(String(zone.id))} className="text-red-400 hover:text-red-600 p-1">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Hasta (Cuadras)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="number" 
+                                                value={(zone.max_radius_km || 0) * 10} 
+                                                onChange={(e) => updateZone(String(zone.id), { max_radius_km: Number(e.target.value) / 10 })}
+                                                className="w-full px-3 py-2 bg-white border rounded-lg font-bold text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Costo ($)</label>
+                                        <input 
+                                            type="number" 
+                                            value={zone.cost} 
+                                            onChange={(e) => updateZone(String(zone.id), { cost: Number(e.target.value) })}
+                                            className="w-full px-3 py-2 bg-white border rounded-lg font-bold text-sm text-green-700"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                    <span>{zone.max_radius_km} km</span>
+                                    <span className={`px-2 py-0.5 rounded-full ${zone.allow_delivery ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                        {zone.allow_delivery ? 'Activa' : 'Pausada'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                        {zones.filter(z => z.zone_type === 'radius').length === 0 && (
+                            <div className="col-span-full py-8 text-center bg-gray-50 rounded-xl border-2 border-dashed">
+                                <p className="text-sm text-gray-500 mb-2">No has configurado tarifas por distancia aún.</p>
+                                <p className="text-xs text-gray-400">Estas tarifas permiten cobrar según qué tan lejos vive el cliente (en cuadras).</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
             {/* Legacy/Quick Zones List (Optional, can be hidden if map is enough) */}
             <div className="bg-white p-6 rounded-lg shadow-sm border opacity-80">
                 <div className="flex justify-between items-center mb-4">

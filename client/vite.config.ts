@@ -6,7 +6,14 @@ export default defineConfig({
   base: '/elpollocomilon/', // Ensure assets load correctly from the subpath
   plugins: [react()],
   server: {
-    allowedHosts: ['.ngrok-free.app', '.loca.lt', 'all']
+    allowedHosts: ['.ngrok-free.app', '.loca.lt', 'all'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   build: {
     target: 'esnext',
