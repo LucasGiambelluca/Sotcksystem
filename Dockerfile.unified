@@ -10,7 +10,9 @@ COPY client/ ./
 ARG VITE_API_URL=/api
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-RUN pnpm build
+ARG VITE_APP_SLUG=elpollocomilon
+RUN sed -i "s|/elpollocomilon/|/${VITE_APP_SLUG}/|g" client/public/manifest.json
+RUN VITE_APP_SLUG=$VITE_APP_SLUG pnpm build
 
 # Etapa 2: Build del Server (Express)
 FROM node:20-alpine AS backend-build

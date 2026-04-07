@@ -124,17 +124,19 @@ app.use('/api/official', whatsappWebhooks); // Official Webhook endpoint
 app.use('/api', systemRoutes);
 
 // --- STATIC FRONTEND SERVING (Unified Container) ---
-// Serve static client files under /elpollocomilon
+// Serve static client files under dynamic slug
+const CATALOG_SLUG = process.env.CATALOG_SLUG || 'elpollocomilon';
 const clientBuildPath = path.join(__dirname, '../../../client/dist');
-app.use('/elpollocomilon', (req, res, next) => {
+
+app.use(`/${CATALOG_SLUG}`, (req, res, next) => {
     console.log(`[DEBUG-STATIC] Requesting: ${req.url}`);
     next();
 }, express.static(clientBuildPath));
 
 // Catch-all route to serve index.html for React Router handling
-app.get('/elpollocomilon/ping', (req, res) => res.send('Static Hosting OK!'));
+app.get(`/${CATALOG_SLUG}/ping`, (req, res) => res.send('Static Hosting OK!'));
 
-app.get('/elpollocomilon/*', (req, res) => {
+app.get(`/${CATALOG_SLUG}/*`, (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 

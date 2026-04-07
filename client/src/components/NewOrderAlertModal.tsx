@@ -35,7 +35,8 @@ const playAlertSound = (() => {
       const audio = new Audio('/sounds/comanda.wav');
       audio.play().catch(() => {
         // Fallback to basename path if first fails
-        const fallback = new Audio('/elpollocomilon/sounds/comanda.wav');
+        const slug = import.meta.env.VITE_APP_SLUG || 'elpollocomilon';
+        const fallback = new Audio(`/${slug}/sounds/comanda.wav`);
         fallback.play().catch(e => console.warn('Audio playback failed entirely:', e));
       });
     } catch (e) {

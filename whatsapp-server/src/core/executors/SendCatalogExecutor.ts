@@ -21,7 +21,8 @@ export class SendCatalogExecutor implements NodeExecutor {
         const addr = context.direccion || context.address || context.deliveryAddress;
         if (addr) params.append('address', addr);
 
-        const catalogUrl = `${baseUrl}/elpollocomilon/catalog${params.toString() ? '?' + params.toString() : ''}`;
+        const catalogSlug = process.env.CATALOG_SLUG || 'elpollocomilon';
+        const catalogUrl = `${baseUrl}/${catalogSlug}/catalog${params.toString() ? '?' + params.toString() : ''}`;
         
 
         const message = data.customMessage

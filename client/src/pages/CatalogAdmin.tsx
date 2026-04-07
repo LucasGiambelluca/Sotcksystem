@@ -478,7 +478,7 @@ export default function CatalogAdmin() {
               ]}
             />
             <a
-              href="/elpollocomilon/catalog"
+              href={`/${import.meta.env.VITE_APP_SLUG || 'elpollocomilon'}/catalog`}
               target="_blank"
               rel="noreferrer"
               className="flex-1 md:w-auto bg-emerald-50 text-emerald-700 px-6 py-4 rounded-2xl flex items-center justify-center space-x-2 hover:bg-emerald-100 transition-all font-bold border border-emerald-100"

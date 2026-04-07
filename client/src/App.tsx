@@ -34,8 +34,10 @@ import Staff from './pages/Staff';
 import CourierManagement from './pages/CourierManagement';
 
 function App() {
+  const basename = `/${import.meta.env.VITE_APP_SLUG || 'elpollocomilon'}`;
+
   return (
-    <BrowserRouter basename="/elpollocomilon">
+    <BrowserRouter basename={basename}>
       <AuthProvider>
         <SoundProvider>
           <Routes>
