@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import ShiftLogin from '../components/ShiftLogin';
 import type { Shift, Station, Employee } from '../types';
 import { employeeService } from '../services/employeeService';
+import { logisticsV2Service } from '../services/logisticsV2Service';
 
 // Types
 interface OrderItem {
@@ -190,6 +191,7 @@ export default function KitchenDashboard() {
         return localStorage.getItem('kitchen_logistics_enabled') === 'true';
     });
     const [assignedToMap, setAssignedToMap] = useState<Record<string, string>>({}); // orderId -> courierId
+    const [autoAcceptOrders, setAutoAcceptOrders] = useState(false);
     const { soundEnabled, enableSound, disableSound, playNotification } = useSound();
 
     // Check for saved shifts in localStorage
@@ -237,6 +239,11 @@ export default function KitchenDashboard() {
         // Load couriers
         employeeService.getAll().then(emps => {
             setCouriers(emps.filter(e => (e.role === 'cadete' || e.role === 'delivery') && e.is_active));
+        });
+
+        // Load Auto-Accept config
+        supabase.from('whatsapp_config').select('auto_accept_orders').limit(1).maybeSingle().then(({ data }) => {
+            if (data) setAutoAcceptOrders(data.auto_accept_orders || false);
         });
         
         const channel = supabase
@@ -385,23 +392,20 @@ export default function KitchenDashboard() {
         }
         
         try {
-            // 1. Assign courier in DB
-            const { error: assignErr } = await supabase
-                .from('orders')
-                .update({ 
-                    assigned_to: courierId,
-                    assigned_at: new Date().toISOString(),
-                    status: 'IN_TRANSIT' // Same as 'PEDIDO ENVIADO'
-                })
-                .eq('id', orderId);
+            // Use logical service to handle mission creation and order assignment
+            await logisticsV2Service.assignOrderToCadete(orderId, courierId);
             
-            if (assignErr) throw assignErr;
+            // Still update local state/orders for the dashboard
+            await supabase
+                .from('orders')
+                .update({ status: 'IN_TRANSIT' })
+                .eq('id', orderId);
 
-            toast.success('Cadete asignado y pedido enviado');
+            toast.success('Cadete asignado y misión creada');
             fetchOrders();
-        } catch (err) {
-            console.error(err);
-            toast.error('Error al asignar cadete');
+        } catch (err: any) {
+            console.error('Error assigning courier:', err);
+            toast.error(`Error al asignar cadete: ${err.message || 'Intente nuevamente'}`);
         }
     };
 
@@ -443,107 +447,45 @@ export default function KitchenDashboard() {
         }
     };
 
+    const handleToggleAutoAccept = async () => {
+        const newValue = !autoAcceptOrders;
+        setAutoAcceptOrders(newValue);
+        
+        try {
+            const { data: config } = await supabase.from('whatsapp_config').select('id').limit(1).maybeSingle();
+            if (config) {
+                await supabase.from('whatsapp_config').update({ auto_accept_orders: newValue }).eq('id', config.id);
+                toast.success(newValue ? 'Auto-aceptar activado' : 'Auto-aceptar desactivado');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Error al cambiar auto-aceptar');
+            setAutoAcceptOrders(!newValue);
+        }
+    };
+
     const handlePrintOrder = async (orderId: string) => {
         try {
-            // 1. Fetch order data and printer config
-            const [{ data: order, error: orderError }, { data: config }] = await Promise.all([
-                supabase
-                    .from('orders')
-                    .select(`*, client:clients(name), items:order_items(quantity, unit_price, catalog_item:catalog_items(name))`)
-                    .eq('id', orderId)
-                    .single(),
-                supabase
-                    .from('printer_config')
-                    .select('*')
-                    .limit(1)
-                    .maybeSingle()
-            ]);
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            const response = await fetch(`${apiUrl}/api/printer/print/${orderId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-            if (orderError || !order) {
-                toast.error('No se encontró el pedido');
-                return;
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to enqueue print job');
             }
 
-            // 2. Settings
-            const storeName = config?.store_name || 'EL POLLO COMILON';
-            const footerMsg = config?.footer_message || '¡Gracias por tu compra! 🍗';
-            const marginTop = config?.margin_top || 0;
-            const marginBottom = config?.margin_bottom || 3;
-
-            // 3. Generate ESC/POS commands
-            const ESC = 0x1B, GS = 0x1D, LF = 0x0A;
-            const strToBytes = (s: string) => Array.from(new TextEncoder().encode(s));
-            const W = 42;
-            const fmtRow = (c1: string, c2: string, c3: string) => {
-                const p1 = c1.padEnd(6);
-                const c2w = W - 6 - 12;
-                const p2 = c2.length > c2w ? c2.substring(0, c2w - 1) + ' ' : c2.padEnd(c2w);
-                const p3 = c3.padStart(12);
-                return p1 + p2 + p3 + '\n';
-            };
-
-            let cmds: number[] = [
-                ESC,0x40, ESC,0x74,0x10
-            ];
-
-            // Margins Top
-            for (let i = 0; i < marginTop; i++) cmds.push(LF);
-
-            cmds.push(
-                ESC,0x61,0x01, GS,0x21,0x11,
-                ...strToBytes(`${storeName}\n`),
-                GS,0x21,0x00, ...strToBytes('------------------------------------------\n'),
-                GS,0x21,0x01, ...strToBytes(`ORDEN #${order.order_number}\n`),
-                GS,0x21,0x00,
-                ...strToBytes(`${new Date(order.created_at).toLocaleString('es-AR')}\n`),
-                ...strToBytes(`${order.client?.name || order.chat_context?.pushName || 'Cliente'}\n`),
-                ...strToBytes(`${order.delivery_type === 'PICKUP' ? 'RETIRO EN LOCAL' : order.delivery_type === 'DELIVERY' ? 'DELIVERY' : 'MOSTRADOR'}\n`),
-            );
-
-            // Address if delivery
-            if (order.delivery_type !== 'PICKUP' && order.delivery_address) {
-                cmds.push(...strToBytes(`DIR: ${order.delivery_address}\n`));
-            }
-
-            cmds.push(
-                ESC,0x61,0x00, ...strToBytes('------------------------------------------\n'),
-                ...strToBytes(fmtRow('CANT', 'PRODUCTO', 'SUBTOTAL')),
-                ...strToBytes('------------------------------------------\n'),
-            );
-
-            for (const item of (order.items || [])) {
-                const name = item.catalog_item?.name || 'Producto';
-                cmds.push(...strToBytes(fmtRow(`${item.quantity}x`, name, `$${(item.quantity * item.unit_price).toLocaleString('es-AR')}`)));
-            }
-
-            cmds.push(
-                ...strToBytes('------------------------------------------\n'),
-                ESC,0x61,0x02, GS,0x21,0x11,
-                ...strToBytes(`TOTAL: $${order.total_amount?.toLocaleString('es-AR')}\n`),
-                GS,0x21,0x00, ESC,0x61,0x01, LF,
-                ...strToBytes(`${footerMsg}\n`)
-            );
-
-            // Margins Bottom
-            for (let i = 0; i < marginBottom; i++) cmds.push(LF);
-            cmds.push(GS,0x56,0x00);
-
-            // 3. Encode to base64 and insert into print_queue (cloud)
-            const raw = btoa(String.fromCharCode(...new Uint8Array(cmds)));
-            const { error: queueError } = await supabase
-                .from('print_queue')
-                .insert({ 
-                    order_id: orderId, 
-                    raw_content: raw, 
-                    status: 'pending',
-                    logo_url: config?.logo_url 
-                });
-
-            if (queueError) throw queueError;
-            toast.success('Ticket enviado a la cola de impresión');
-        } catch (err) {
+            toast.success('Ticket enviado a la cola de impresión 🖨️');
+        } catch (err: any) {
             console.error('Print error:', err);
-            toast.error('Error al enviar ticket a la cola');
+            toast.error(`Error al imprimir: ${err.message}`);
         }
     };
 
@@ -637,6 +579,16 @@ export default function KitchenDashboard() {
                             className={`w-10 h-5 rounded-full relative transition-colors ${logisticsEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
                         >
                             <span className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${logisticsEnabled ? 'translate-x-5' : ''}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-2 pl-4 border-l border-gray-200">
+                        <span className={`text-[10px] font-bold ${autoAcceptOrders ? 'text-green-600' : 'text-gray-400'}`}>AUTO-ACEPTAR</span>
+                        <button
+                            onClick={handleToggleAutoAccept}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${autoAcceptOrders ? 'bg-green-600' : 'bg-gray-300'}`}
+                        >
+                            <span className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${autoAcceptOrders ? 'translate-x-5' : ''}`} />
                         </button>
                     </div>
                 </div>

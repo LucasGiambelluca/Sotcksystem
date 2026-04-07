@@ -42,11 +42,19 @@ export class PublicOrderController {
                     distanceKm = locResult.distance_km;
                     deliveryAddressFull = address;
                 } else {
-                    logger.warn(`[PublicOrder] Pedido NO permitido para envío o sin zona: ${locResult.error || 'Sin zona'}`);
+                    logger.warn(`[PublicOrder] Pedido RECHAZADO: ${locResult.error || 'Fuera de zona'}`);
+                    return res.status(400).json({ 
+                        error: locResult.error || 'Lo sentimos, no llegamos a esa dirección para envíos. Podés elegir Retiro en Local.' 
+                    });
                 }
             }
 
-            const totalWithShipping = total + shippingFee;
+            const itemSubtotal = items.reduce((sum: number, it: any) => {
+                const price = it.product.is_special && it.product.special_price ? it.product.special_price : it.product.price;
+                return sum + (price * it.quantity);
+            }, 0);
+
+            const totalWithShipping = itemSubtotal + shippingFee;
 
             // Normalize phone: Ensure it has 549 for Argentina if it's a 10-digit number
             let normalizedPhone = phone.replace(/\D/g, '');
@@ -95,7 +103,7 @@ export class PublicOrderController {
                 `*Productos:*`,
                 ...items.map((it: any) => `• ${it.product.name} x${it.quantity}`),
                 `--------------------------`,
-                `*Subtotal:* ${fmt(total)}`,
+                `*Subtotal:* ${fmt(itemSubtotal)}`,
                 shippingFee > 0 ? `*Envío:* ${fmt(shippingFee)}` : '',
                 `*TOTAL: ${fmt(totalWithShipping)}*`,
                 `--------------------------`

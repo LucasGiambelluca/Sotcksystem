@@ -37,7 +37,7 @@ export class BusinessHoursExecutor implements NodeExecutor {
                 return { messages: [], wait_for_input: false, conditionResult: true };
             }
 
-            const { days, startTime, endTime, timezone } = businessHours;
+            const { days, shifts, startTime, endTime, timezone, cutoffMinutes = 0 } = businessHours;
 
             // 2. Get current local time using the configured timezone
             const now = new Date();
@@ -58,18 +58,46 @@ export class BusinessHoursExecutor implements NodeExecutor {
             const currentDay = weekdayMap[weekdayStr] ?? now.getDay();
             const currentMinutes = toMinutes(parseInt(hourStr, 10), parseInt(minuteStr, 10));
 
-            const start = parseTime(startTime || '09:00');
-            const end   = parseTime(endTime   || '18:00');
-            const startMinutes = toMinutes(start.hours, start.minutes);
-            const endMinutes   = toMinutes(end.hours,   end.minutes);
+            const isDayOpen = (days as number[]).includes(currentDay);
+            if (!isDayOpen) {
+                console.log(`[BusinessHoursExecutor] ❌ CLOSED: Day ${weekdayStr}(${currentDay}) not in open days [${days}]`);
+                return { messages: [], wait_for_input: false, conditionResult: false };
+            }
 
-            const isDayOpen  = (days as number[]).includes(currentDay);
-            const isTimeOpen = currentMinutes >= startMinutes && currentMinutes < endMinutes;
-            const isOpen     = isDayOpen && isTimeOpen;
+            // 3. Check against shifts (or fallback to legacy startTime/endTime)
+            const activeShifts = shifts && Array.isArray(shifts) && shifts.length > 0 
+                ? shifts 
+                : [{ startTime: startTime || '09:00', endTime: endTime || '18:00' }];
 
-            console.log(`[BusinessHoursExecutor] 📅 day=${weekdayStr}(${currentDay}) time=${hourStr}:${minuteStr}(${currentMinutes}min)`);
-            console.log(`[BusinessHoursExecutor] 🕐 window=${startTime}(${startMinutes})-${endTime}(${endMinutes}) openDays=[${days}]`);
-            console.log(`[BusinessHoursExecutor] 🏪 isDayOpen=${isDayOpen} isTimeOpen=${isTimeOpen} → ${isOpen ? '✅ OPEN' : '❌ CLOSED'}`);
+            let isTimeOpen = false;
+            let cutoffReason = false;
+
+            for (const shift of activeShifts) {
+                const s = parseTime(shift.startTime);
+                const e = parseTime(shift.endTime);
+                const startMins = toMinutes(s.hours, s.minutes);
+                const endMins   = toMinutes(e.hours, e.minutes);
+                
+                // Effective end considering cutoff
+                const effectiveEndMins = endMins - cutoffMinutes;
+
+                if (currentMinutes >= startMins && currentMinutes < endMins) {
+                    // We are within the shift window
+                    if (currentMinutes < effectiveEndMins) {
+                        isTimeOpen = true;
+                        break;
+                    } else {
+                        // We are in the cutoff zone
+                        cutoffReason = true;
+                    }
+                }
+            }
+
+            const isOpen = isTimeOpen;
+
+            console.log(`[BusinessHoursExecutor] 📅 Day: ${weekdayStr}(${currentDay}) | Time: ${hourStr}:${minuteStr}(${currentMinutes}m)`);
+            console.log(`[BusinessHoursExecutor] 🕒 Shifts: ${JSON.stringify(activeShifts)} | Cutoff: ${cutoffMinutes}m`);
+            console.log(`[BusinessHoursExecutor] 🏪 Status: ${isOpen ? '✅ OPEN' : cutoffReason ? '❌ CUTOFF ZONE' : '❌ CLOSED'}`);
 
             return {
                 messages: [],

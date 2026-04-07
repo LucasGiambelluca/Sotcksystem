@@ -135,6 +135,14 @@ export class LocationService {
         let eligibleZones: ShippingZone[] = [];
         const allowedZones = activeZones.filter(z => z.allow_delivery);
 
+        // Find the fallback radius (the largest one) to use when distance exceeds all defined rules
+        const radiusZonesGroup = allowedZones.filter(z => z.zone_type === 'radius' && z.max_radius_km);
+        let maxRadiusZone: ShippingZone | null = null;
+        if (radiusZonesGroup.length > 0) {
+            radiusZonesGroup.sort((a, b) => (b.max_radius_km || 0) - (a.max_radius_km || 0));
+            maxRadiusZone = radiusZonesGroup[0];
+        }
+
         for (const zone of allowedZones) {
             // Caso Polígono
             if (zone.zone_type === 'polygon' && this.isPointInPolygon(clientLocation, zone.polygon)) {
@@ -145,6 +153,11 @@ export class LocationService {
             // Caso Radio
             if (zone.zone_type === 'radius' && zone.max_radius_km && distanceKm !== null) {
                 if (distanceKm <= zone.max_radius_km) {
+                    eligibleZones.push(zone);
+                } else if (zone.id === maxRadiusZone?.id) {
+                    // Fallback logic (requested by user): 
+                    // If address is beyond all radii, use the tariff of the largest one.
+                    logger.info(`[LocationService] Fallback detected: dist ${distanceKm.toFixed(2)}km > max radius ${zone.max_radius_km}km. Using "${zone.name}" price.`);
                     eligibleZones.push(zone);
                 }
             }

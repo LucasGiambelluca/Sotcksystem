@@ -203,32 +203,9 @@ export class LogisticsController {
                     .in('id', orderIds);
             }
 
-            // 5. Send WhatsApp to each client
-            let notified = 0;
-            const etaMin = route.estimated_duration_min || 30;
-            for (const ro of (routeOrders as any[] || [])) {
-                const phone = ro.order?.phone || ro.order?.client?.phone;
-                const name = ro.order?.client?.name || 'cliente';
-
-                if (!phone) continue;
-
-                const msg = [
-                    `🛵 ¡Hola ${name}!`,
-                    `Tu pedido ya salió de nuestro local y está en camino. 🎉`,
-                    `⏱️ Tiempo estimado de llegada: ~${etaMin} min.`,
-                    `¡Estate atento al timbre! 🔔`
-                ].join('\n');
-
-                try {
-                    await (whatsappClient as any).sendTextMessage(phone, msg);
-                    notified++;
-                } catch (wErr: any) {
-                    console.warn(`[dispatchRoute] Could not notify ${phone}:`, wErr.message);
-                }
-            }
-
-            console.log(`[dispatchRoute] Route ${id} dispatched. ${notified}/${(routeOrders || []).length} clients notified.`);
-            res.json({ success: true, notified, total: (routeOrders || []).length });
+            // 5. WhatsApp notification removed (per user request to only send on PICKED_UP)
+            console.log(`[dispatchRoute] Route ${id} dispatched. (Notifications suppressed for PICKED_UP)`);
+            res.json({ success: true, notified: 0, total: (routeOrders || []).length });
 
         } catch (error: any) {
             console.error('[LogisticsController] dispatchRoute Error:', error);

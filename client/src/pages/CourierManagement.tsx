@@ -54,7 +54,8 @@ export default function CourierManagement() {
   };
 
   const loadCouriers = async () => {
-    const data = await employeeService.getAll();
+    // Pass true to include inactive couriers so we can see/reactivate them here
+    const data = await employeeService.getAll(true);
     // Filter by role (cadete or delivery)
     setCouriers(data.filter(emp => emp.role === 'cadete' || emp.role === 'delivery'));
   };
@@ -84,6 +85,18 @@ export default function CourierManagement() {
     } catch (error) {
       console.error('Error saving courier:', error);
       toast.error('Error al guardar el repartidor');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este repartidor? Esta acción no se puede deshacer.')) return;
+    try {
+      await employeeService.delete(id);
+      toast.success('Repartidor eliminado definitivamente');
+      loadCouriers();
+    } catch (error: any) {
+      console.error('Error deleting courier:', error);
+      toast.error('Error al eliminar el repartidor. Por favor, intente nuevamente.');
     }
   };
 
@@ -235,18 +248,15 @@ export default function CourierManagement() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                  <button
-                    onClick={() => handleToggleStatus(courier)}
-                    className={`text-xs font-bold px-4 py-2 rounded-xl transition-all ${
-                      courier.is_active 
-                        ? 'text-green-600 hover:bg-green-50' 
-                        : 'text-red-600 hover:bg-red-50'
-                    }`}
-                  >
-                    {courier.is_active ? 'Empleado ACTIVO' : 'Empleado INACTIVO'}
-                  </button>
-                  
-                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleToggleStatus(courier)}
+                      className={`p-2.5 rounded-xl transition-all shadow-sm ${
+                        courier.is_active ? 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white' : 'bg-red-50 text-red-600 hover:bg-red-600 hover:text-white'
+                      }`}
+                      title={courier.is_active ? 'Desactivar' : 'Activar'}
+                    >
+                      <User size={18} />
+                    </button>
                     <button 
                       onClick={() => openModal(courier)}
                       className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
@@ -255,12 +265,12 @@ export default function CourierManagement() {
                       <Pencil size={18} />
                     </button>
                     <button 
+                      onClick={() => handleDelete(courier.id)}
                       className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
                       title="Eliminar"
                     >
                       <Trash size={18} />
                     </button>
-                  </div>
                 </div>
               </div>
             );

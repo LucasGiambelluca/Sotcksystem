@@ -268,11 +268,21 @@ export const logisticsV2Service = {
     // 4. Update the order status to OUT_FOR_DELIVERY (actually it's better to wait for pickup, 
     // but for now let's use a transition status or just IN_TRANSIT)
     
-    // NEW: Also update assigned_to in the orders table directly for easier filtering
-    await supabase
-      .from('orders')
-      .update({ assigned_to: cadeteId, assigned_at: new Date().toISOString() })
-      .eq('id', orderId);
+    // 4. Update the order status to OUT_FOR_DELIVERY
+    // We try to update assigned_to but don't fail if the legacy FK is broken
+    try {
+        const { error: ordersError } = await supabase
+          .from('orders')
+          .update({ 
+              assigned_to: cadeteId, 
+              assigned_at: new Date().toISOString() 
+          })
+          .eq('id', orderId);
+        
+        if (ordersError) console.warn('[LogisticsV2] Warning updating orders table:', ordersError.message);
+    } catch (e) {
+        console.warn('[LogisticsV2] Non-blocking error updating orders table:', e);
+    }
 
     return assignment;
   },
@@ -373,16 +383,27 @@ export const logisticsV2Service = {
     if (stopsError) throw stopsError;
 
     // 4. Update all order statuses and assignments
-    const { error: ordersError } = await supabase
-      .from('orders')
-      .update({ 
-          status: 'OUT_FOR_DELIVERY',
-          assigned_to: cadeteId,
-          assigned_at: new Date().toISOString()
-      })
-      .in('id', orderIds);
+    try {
+        const { error: ordersError } = await supabase
+          .from('orders')
+          .update({ 
+              status: 'OUT_FOR_DELIVERY',
+              assigned_to: cadeteId,
+              assigned_at: new Date().toISOString()
+          })
+          .in('id', orderIds);
 
-    if (ordersError) throw ordersError;
+        if (ordersError) {
+            console.warn('[LogisticsV2] Warning in bulk update:', ordersError.message);
+            // If it failed because of assigned_to, try updating ONLY the status
+            await supabase
+              .from('orders')
+              .update({ status: 'OUT_FOR_DELIVERY' })
+              .in('id', orderIds);
+        }
+    } catch (e) {
+        console.warn('[LogisticsV2] Error in bulk status update:', e);
+    }
 
     return assignment;
   }

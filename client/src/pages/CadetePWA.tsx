@@ -16,14 +16,12 @@ export default function CadetePWA() {
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeAssignment, setActiveAssignment] = useState<any>(null);
+  const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [activeShift, setActiveShift] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [cadetesDisponibles, setCadetesDisponibles] = useState<any[]>([]);
   const [showSelector, setShowSelector] = useState(false);
   const { playNotification } = useSound();
-  const [prevAvailableCount, setPrevAvailableCount] = useState(0);
-  const [availableOrders, setAvailableOrders] = useState<any[]>([]);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // 1. Check for stored session/shift
   useEffect(() => {
@@ -53,21 +51,6 @@ export default function CadetePWA() {
     checkSession();
   }, []);
 
-  // 2. Fetch Active Mission
-    const fetchAvailable = useCallback(async () => {
-        if (!isOnline || !employee) return;
-        try {
-            const orders = await logisticsV2Service.getAvailableOrders(employee.id);
-            if (orders.length > prevAvailableCount) {
-                playNotification();
-            }
-            setPrevAvailableCount(orders.length);
-            setAvailableOrders(orders);
-        } catch (err) {
-            console.error(err);
-        }
-    }, [isOnline, employee, prevAvailableCount, playNotification]);
-
   const fetchMission = useCallback(async () => {
     if (!employee || !isOnline) return;
     try {
@@ -81,11 +64,35 @@ export default function CadetePWA() {
     }
   }, [employee, isOnline, activeAssignment, playNotification]);
 
+  const fetchHistory = useCallback(async () => {
+      if (!employee) return;
+      try {
+          const { data, error } = await supabase
+              .from('assignments')
+              .select(`
+                  *,
+                  assignment_orders (
+                      *,
+                      order:orders (*)
+                  )
+              `)
+              .eq('employee_id', employee.id)
+              .eq('status', 'COMPLETED')
+              .order('created_at', { ascending: false })
+              .limit(10);
+
+          if (error) throw error;
+          setAssignmentHistory(data || []);
+      } catch (err) {
+          console.error('Error fetching history:', err);
+      }
+  }, [employee]);
+
     useEffect(() => {
         if (!isOnline || !employee) return;
         
         fetchMission();
-        fetchAvailable();
+        fetchHistory();
         
         // Comprehensive Realtime Subscription
         const channel = supabase
@@ -95,21 +102,16 @@ export default function CadetePWA() {
                 schema: 'public', 
                 table: 'assignments', 
                 filter: `cadete_id=eq.${employee.id}` 
-            }, () => fetchMission())
+            }, () => { fetchMission(); fetchHistory(); })
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
                 table: 'assignment_orders' 
             }, () => fetchMission())
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'orders'
-            }, () => fetchAvailable())
             .subscribe();
         
         return () => { channel.unsubscribe(); };
-    }, [employee, isOnline, fetchMission, fetchAvailable]);
+    }, [employee, isOnline, fetchMission, fetchHistory]);
 
   // 3. Location Tracking
   useEffect(() => {
@@ -142,32 +144,28 @@ export default function CadetePWA() {
     const handleStartShift = async (empId: string) => {
         setLoading(true);
         try {
-            // Find the employee in our already fetched list
             const empObj = cadetesDisponibles.find(c => c.id === empId);
             if (!empObj) throw new Error('Empleado no encontrado');
 
-            // Find a station (preferably one for delivery/logistics)
             const { data: stations } = await supabase.from('stations').select('*').limit(5);
             const stationId = stations?.find(s => s.name.toLowerCase().includes('reparto'))?.id 
                         || stations?.[0]?.id 
                         || '';
             
+            let currentStationId = stationId;
             if (!stationId) {
-                // If no station exists, create a default one
                 const { data: newStation, error: stationErr } = await supabase
                     .from('stations')
                     .insert({ name: 'Reparto', is_active: true, color: '#db2777' })
                     .select()
                     .single();
                 if (stationErr) throw stationErr;
-                var currentStationId = newStation.id;
-            } else {
-                var currentStationId = stationId;
+                currentStationId = newStation.id;
             }
 
             const shift = await shiftService.startShift(empId, currentStationId);
             await logisticsV2Service.updateCadeteStatus(empId, true);
-            setEmployee(empObj); // CRITICAL: Set the employee state
+            setEmployee(empObj);
             setActiveShift(shift);
             setIsOnline(true);
             localStorage.setItem('cadete_id', empId);
@@ -197,48 +195,23 @@ export default function CadetePWA() {
       try {
           const stop = activeAssignment.assignment_orders.find((s: any) => s.id === stopId);
           if (stop?.action_type === 'PICKUP') {
-              // If it's a PICKUP, complete ALL PICKUP stops in the mission
               const pickups = activeAssignment.assignment_orders.filter((s: any) => s.action_type === 'PICKUP' && s.status !== 'COMPLETED');
               for (const p of pickups) {
                   await logisticsV2Service.updateStopStatus(p.id, status);
               }
           } else {
               await logisticsV2Service.updateStopStatus(stopId, status);
-              
-              // NEW: If delivery is completed, update the main order status to DELIVERED
               if (stop?.action_type === 'DELIVERY' && status === 'COMPLETED' && stop.order_id) {
-                  console.log(`[CadetePWA] Confirming final delivery for order ${stop.order_id}`);
                   await updateOrderStatus(stop.order_id, 'DELIVERED');
               }
           }
           toast.success('Estado actualizado');
           fetchMission();
+          fetchHistory();
       } catch (err) {
           toast.error('Error al actualizar');
       }
   };
-
-    const handleClaimMultiple = async () => {
-        if (!employee || selectedOrderIds.length === 0) return;
-        setLoading(true);
-        try {
-            await logisticsV2Service.assignOrdersToCadete(selectedOrderIds, employee.id);
-            toast.success(`¡Misión creada con ${selectedOrderIds.length} pedidos!`);
-            setSelectedOrderIds([]);
-            fetchMission();
-            fetchAvailable();
-        } catch (err) {
-            toast.error('No se pudo crear la ruta');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleOrderSelection = (id: string) => {
-        setSelectedOrderIds(prev => 
-            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-        );
-    };
 
   const openNavigation = (address: string) => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
@@ -247,31 +220,29 @@ export default function CadetePWA() {
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-[#f8fafc]"><Clock className="animate-spin text-red-600" size={40} /></div>;
 
-  // Login Screen if no employee
   if (!employee || !isOnline) {
       return (
-          <div className="min-h-screen bg-[#0f172a] p-8 flex flex-col items-center justify-center font-sans relative overflow-hidden">
-              {/* Decorative background elements */}
-              <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[40%] bg-red-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-              <div className="absolute bottom-[-5%] left-[-5%] w-[50%] h-[30%] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+          <div className="min-h-screen bg-white p-8 flex flex-col items-center justify-center font-sans relative overflow-hidden">
+              <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[40%] bg-red-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+              <div className="absolute bottom-[-5%] left-[-5%] w-[50%] h-[30%] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none"></div>
 
               <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
-                  <div className="bg-white/5 backdrop-blur-2xl w-24 h-24 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-2xl border border-white/10 group hover:scale-110 transition-transform duration-500">
-                      <Navigation className="text-red-500 w-12 h-12 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                  <div className="bg-slate-50 w-24 h-24 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-xl border border-slate-100 group hover:scale-110 transition-transform duration-500">
+                      <Navigation className="text-red-500 w-12 h-12 drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]" />
                   </div>
                   
                   <div className="text-center mb-10 space-y-2">
-                      <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
+                      <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">
                         Modo <span className="text-red-500">Cadete</span>
                       </h1>
-                      <p className="text-slate-400 font-medium text-sm">Tu centro de operaciones logísticas en tiempo real.</p>
+                      <p className="text-slate-500 font-medium text-sm">Tu centro de operaciones logísticas.</p>
                   </div>
                   
                   {showSelector ? (
                       <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-500">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] text-center mb-4">Identificate para Continuar</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] text-center mb-4">Identificate para Continuar</p>
                           {cadetesDisponibles.length === 0 ? (
-                              <div className="bg-white/5 backdrop-blur-md border border-dashed border-white/10 rounded-[2.5rem] p-10 text-center">
+                              <div className="bg-slate-50 border border-dashed border-slate-200 rounded-[2.5rem] p-10 text-center">
                                   <p className="text-sm text-slate-500 font-medium">No hay personal logístico registrado.</p>
                               </div>
                           ) : (
@@ -280,9 +251,9 @@ export default function CadetePWA() {
                                       <button
                                         key={c.id}
                                         onClick={() => handleStartShift(c.id)}
-                                        className="w-full py-5 bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl font-black text-white hover:bg-white/10 hover:border-red-500/50 transition-all flex items-center px-8 gap-5 group shadow-lg"
+                                        className="w-full py-5 bg-white border border-slate-100 rounded-3xl font-black text-slate-800 hover:bg-slate-50 hover:border-red-500 transition-all flex items-center px-8 gap-5 group shadow-sm hover:shadow-md"
                                       >
-                                          <div className="w-10 h-10 bg-slate-800 rounded-2xl flex items-center justify-center border border-white/5 group-hover:bg-red-500 group-hover:text-white transition-colors shadow-inner">
+                                          <div className="w-10 h-10 bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 group-hover:bg-red-500 group-hover:text-white transition-colors shadow-inner">
                                               <User size={20} />
                                           </div>
                                           <span className="text-lg tracking-tight uppercase italic">{c.name}</span>
@@ -293,7 +264,7 @@ export default function CadetePWA() {
                           )}
                           <button 
                             onClick={() => setShowSelector(false)}
-                            className="w-full py-4 text-slate-500 text-xs font-black tracking-widest hover:text-white transition-colors mt-4"
+                            className="w-full py-4 text-slate-400 text-xs font-black tracking-widest hover:text-slate-900 transition-colors mt-4"
                           >
                               ← VOLVER ATRÁS
                           </button>
@@ -314,16 +285,15 @@ export default function CadetePWA() {
                                     setLoading(false);
                                 });
                             }}
-                            className="w-full py-6 bg-red-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_60px_rgba(220,38,38,0.4)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-4 border-red-800"
+                            className="w-full py-6 bg-red-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_40px_rgba(220,38,38,0.2)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-4 border-red-800"
                         >
                             <Power size={26} />
                             INICIAR TURNO
                         </button>
-                        
-                        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black tracking-widest uppercase opacity-50">
-                            <div className="w-8 h-[1px] bg-slate-700"></div>
+                        <div className="flex items-center gap-2 text-slate-300 text-[10px] font-black tracking-widest uppercase">
+                            <div className="w-8 h-[1px] bg-slate-200"></div>
                             V0.4 ALPHA
-                            <div className="w-8 h-[1px] bg-slate-700"></div>
+                            <div className="w-8 h-[1px] bg-slate-200"></div>
                         </div>
                     </div>
                   )}
@@ -333,168 +303,144 @@ export default function CadetePWA() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col font-sans pb-24 relative overflow-x-hidden">
-      {/* Dynamic Background Orbs */}
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none"></div>
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans pb-24 relative overflow-x-hidden">
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-30 px-6 py-5 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex justify-between items-center shadow-2xl">
+      <header className="sticky top-0 z-30 px-6 py-5 bg-white/80 backdrop-blur-3xl border-b border-slate-200 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-4">
-            <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-tr from-slate-700 to-slate-800 rounded-2xl flex items-center justify-center overflow-hidden border border-white/10 shadow-inner">
-                    <User className="text-slate-400" size={24} />
+            <div className="relative group">
+                <div className="w-14 h-14 bg-slate-100 rounded-[1.2rem] flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm transition-transform group-hover:scale-105 duration-300">
+                    <User className="text-slate-400" size={28} />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-lg"></div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-[3px] border-white shadow-md"></div>
             </div>
             <div>
-                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] leading-none mb-1">En Línea</p>
-                <h2 className="text-xl font-black text-white leading-tight tracking-tight">{employee.name}</h2>
+                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em] leading-none mb-1">Modo Activo</p>
+                <h2 className="text-xl font-black text-slate-900 leading-tight tracking-tight">{employee.name}</h2>
             </div>
         </div>
         <button 
           onClick={handleEndShift}
-          className="p-3 bg-white/5 text-slate-400 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all border border-white/5 active:scale-90"
+          className="p-3.5 bg-slate-50 text-slate-400 rounded-2xl hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200 active:scale-90"
         >
             <LogOut size={22} />
         </button>
       </header>
 
-      <main className="flex-1 p-6 z-10 space-y-8 max-w-lg mx-auto w-full">
+      <main className="flex-1 px-6 pt-8 max-w-lg mx-auto w-full">
         {!activeAssignment ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Dashboard Stats */}
-            <div className="grid grid-cols-2 gap-5">
-                <div className="bg-white/5 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 shadow-xl group hover:bg-white/10 transition-colors">
-                    <div className="bg-emerald-500/10 w-10 h-10 rounded-xl flex items-center justify-center mb-3 border border-emerald-500/20">
-                        <CheckCircle2 size={20} className="text-emerald-500" />
+            <div className="grid grid-cols-1 gap-5">
+                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-5">
+                        <div className="bg-emerald-50 w-14 h-14 rounded-2xl flex items-center justify-center border border-emerald-100">
+                            <CheckCircle2 size={28} className="text-emerald-500" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Misiones hoy</p>
+                            <span className="text-3xl font-black text-slate-900">
+                                {assignmentHistory.filter(a => new Date(a.created_at).toDateString() === new Date().toDateString()).length}
+                            </span>
+                        </div>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Misiones hoy</p>
-                    <span className="text-2xl font-black text-white">4</span>
-                </div>
-                <div className="bg-white/5 backdrop-blur-md p-5 rounded-[2rem] border border-white/10 shadow-xl group hover:bg-white/10 transition-colors">
-                    <div className="bg-blue-500/10 w-10 h-10 rounded-xl flex items-center justify-center mb-3 border border-blue-500/20">
-                        <TrendingUp size={20} className="text-blue-500" />
+                    <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Entregas</p>
+                        <span className="text-xl font-black text-slate-700">
+                            {assignmentHistory
+                                .filter(a => new Date(a.created_at).toDateString() === new Date().toDateString())
+                                .reduce((acc, a) => acc + (a.assignment_orders?.length || 0), 0)}
+                        </span>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ganado</p>
-                    <span className="text-2xl font-black text-white">$58.400</span>
                 </div>
             </div>
 
-            {/* Pulsing Radar Section */}
-            <div className="relative py-14 flex flex-col items-center justify-center bg-gradient-to-b from-white/5 via-transparent to-transparent rounded-[3rem] border border-white/5 overflow-hidden">
-                {/* Sonar Effect */}
+            {/* Waiting for Mission Radar */}
+            <div className="relative py-14 flex flex-col items-center justify-center bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-40 h-40 bg-red-500/10 rounded-full animate-ping duration-[3000ms]"></div>
-                    <div className="absolute w-60 h-60 bg-red-500/5 rounded-full animate-ping duration-[4000ms]"></div>
+                    <div className="w-40 h-40 bg-red-500/[0.03] rounded-full animate-ping duration-[3000ms]"></div>
                 </div>
 
                 <div className="relative z-10 flex flex-col items-center text-center">
-                    <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-red-500/40 rotate-12 group-hover:rotate-0 transition-transform">
-                        <Radio className="text-white animate-pulse" size={32} />
+                    <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6 shadow-sm border border-slate-100 rotate-12 group-hover:rotate-0 transition-transform">
+                        <Radio className="text-red-500 animate-pulse" size={32} />
                     </div>
-                    <h3 className="text-2xl font-black text-white tracking-tight">Rastreo de Pedidos</h3>
-                    <p className="text-slate-400 text-sm mt-2 max-w-[240px] font-medium">Buscando misiones cercanas para asignarte automáticamente.</p>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase italic">Esperando Misión</h3>
+                    <p className="text-slate-400 text-sm mt-2 max-w-[240px] font-medium leading-relaxed">Los pedidos aparecerán aquí automáticamente cuando te sean asignados.</p>
                 </div>
             </div>
 
-            {availableOrders.length > 0 && (
-                <div className="space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2 h-6 bg-red-500 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.5)]"></div>
-                            <h4 className="text-xs font-black text-white uppercase tracking-[0.2em]">Pedidos Disponibles</h4>
+            {/* Mission History */}
+            <div className="space-y-4">
+                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] px-2 italic">Historial Reciente</h3>
+                <div className="space-y-3">
+                    {assignmentHistory.length === 0 ? (
+                        <div className="bg-white p-8 rounded-[2rem] border border-dashed border-slate-200 text-center">
+                            <p className="text-xs text-slate-400 font-medium">No hay entregas registradas aún.</p>
                         </div>
-                        <span className="bg-white/10 text-white text-[10px] font-black px-3 py-1 rounded-full border border-white/5">{availableOrders.length} DISPONIBLES</span>
-                    </div>
-                    
-                    <div className="grid gap-4">
-                        {availableOrders.map((order, idx) => {
-                            const isSelected = selectedOrderIds.includes(order.id);
-                            return (
-                                <div 
-                                  key={order.id} 
-                                  onClick={() => toggleOrderSelection(order.id)}
-                                  style={{ animationDelay: `${idx * 100}ms` }}
-                                  className={`group relative bg-slate-900 rounded-[2rem] p-6 border-2 transition-all transition-all animate-in fade-in slide-in-from-right-4 shadow-xl ${
-                                    isSelected 
-                                        ? 'border-red-500 ring-8 ring-red-500/5 bg-slate-800' 
-                                        : 'border-white/5 hover:border-white/15'
-                                  }`}
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                                isSelected ? 'bg-red-500 border-red-500 rotate-[360deg]' : 'border-slate-700'
-                                            }`}>
-                                                {isSelected && <CheckCircle2 size={12} className="text-white" />}
-                                            </div>
-                                            <p className="text-[10px] font-mono font-bold text-slate-500">ORDEN #{order.order_number}</p>
-                                        </div>
-                                        <div className="bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/20">
-                                            <span className="text-emerald-400 font-black text-sm">${order.total_amount?.toLocaleString()}</span>
-                                        </div>
+                    ) : (
+                        assignmentHistory.map(a => (
+                            <div key={a.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 text-slate-400">
+                                        <TrendingUp size={18} />
                                     </div>
-                                    <h5 className="text-lg font-black text-white group-hover:text-red-400 transition-colors uppercase tracking-tight">{order.client?.name || 'Cliente'}</h5>
-                                    <div className="flex items-center gap-2 text-slate-400 text-xs mt-2 font-medium">
-                                        <MapPin size={14} className="text-red-500/70" />
-                                        <span className="truncate">{order.delivery_address || 'Bahía Blanca'}</span>
+                                    <div>
+                                        <h4 className="text-xs font-black text-slate-800 uppercase italic">Misión #{a.id.slice(-4).toUpperCase()}</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold">{new Date(a.created_at).toLocaleDateString()} • {a.assignment_orders?.length} Paradas</p>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                                <div className="bg-emerald-50 px-3 py-1.5 rounded-full text-[9px] font-black text-emerald-600 border border-emerald-100">
+                                    COMPLETADA
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
-            )}
-            
-            {selectedOrderIds.length > 0 && (
-                <div className="fixed bottom-32 left-8 right-8 z-40 animate-in slide-in-from-bottom-20 duration-500">
-                    <button 
-                      onClick={handleClaimMultiple}
-                      className="w-full py-6 bg-red-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(220,38,38,0.4)] flex items-center justify-center gap-4 border-b-4 border-red-800 active:translate-y-1 active:border-b-0 transition-all text-xl"
-                    >
-                        <Navigation size={24} className="animate-pulse" />
-                        TOMAR RUTA ({selectedOrderIds.length})
-                    </button>
-                </div>
-            )}
+            </div>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6">
             <div className="flex items-center justify-between px-2">
-                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Misión Activa</span>
-                <span className="bg-white/5 backdrop-blur-sm text-red-400 px-4 py-1.5 rounded-full text-[11px] font-black border border-white/10 shadow-lg">#{activeAssignment.id.slice(-4).toUpperCase()}</span>
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Misión Activa</span>
+                <span className="bg-white text-red-500 px-4 py-1.5 rounded-full text-[11px] font-black border border-slate-100 shadow-sm">#{activeAssignment.id.slice(-4).toUpperCase()}</span>
             </div>
 
-            <div className="bg-white/[0.03] backdrop-blur-2xl rounded-[3rem] p-8 shadow-2xl border border-white/5 relative overflow-hidden group">
-                {/* Background lighting */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full"></div>
-
-                <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
+            <div className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-50 relative overflow-hidden group">
+                <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
                     <div>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total a Recaudar</p>
-                        <h3 className="text-4xl font-black text-white tracking-tighter">${activeAssignment.assignment_orders?.reduce((acc: number, o: any) => acc + (o.order?.total_amount || 0), 0).toLocaleString()}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total a Recaudar</p>
+                        <h3 className="text-4xl font-black text-slate-900 tracking-tighter">
+                            ${(() => {
+                                const uniqueOrderIds = new Set();
+                                return activeAssignment.assignment_orders?.reduce((acc: number, o: any) => {
+                                    if (!o.order_id || uniqueOrderIds.has(o.order_id)) return acc;
+                                    uniqueOrderIds.add(o.order_id);
+                                    return acc + (o.order?.total_amount || 0);
+                                }, 0).toLocaleString();
+                            })()}
+                        </h3>
                     </div>
-                    <div className="bg-white/5 p-4 rounded-[2rem] border border-white/5 text-center min-w-[80px]">
-                        <p className="text-2xl font-black text-white leading-none">{activeAssignment.assignment_orders?.length}</p>
-                        <p className="text-[8px] font-extrabold text-slate-500 uppercase mt-1">Paradas</p>
+                    <div className="bg-slate-50 p-4 rounded-[2rem] border border-slate-100 text-center min-w-[80px]">
+                        <p className="text-2xl font-black text-slate-900 leading-none">{activeAssignment.assignment_orders?.length}</p>
+                        <p className="text-[8px] font-extrabold text-slate-400 uppercase mt-1">Paradas</p>
                     </div>
                 </div>
 
-                <div className="space-y-10 relative">
+                <div className="space-y-12 relative mt-4">
                     {(() => {
                         if (activeAssignment.status === 'ASSIGNED') {
                             return (
-                                <div className="text-center py-10 flex flex-col items-center gap-8 animate-in zoom-in-95 duration-500">
+                                <div className="text-center py-10 flex flex-col items-center gap-10 animate-in zoom-in-95 duration-700">
                                     <div className="relative">
-                                        <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 shadow-[inset_0_0_20px_rgba(59,130,246,0.2)]">
-                                            <BellRing size={48} className="animate-bounce" />
+                                        <div className="w-32 h-32 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 border border-blue-100 shadow-sm">
+                                            <BellRing size={56} className="animate-bounce" />
                                         </div>
-                                        <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-[40px] animate-pulse"></div>
                                     </div>
-                                    <div className="space-y-3">
-                                        <h3 className="text-2xl font-black text-white tracking-tight uppercase">Nueva Ruta Disponible</h3>
-                                        <p className="text-slate-400 text-sm px-6 font-medium">Se te ha asignado una misión con {activeAssignment.assignment_orders?.length} destinos prioritarios.</p>
+                                    <div className="space-y-4">
+                                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">¡Misión Entrante!</h3>
+                                        <p className="text-slate-500 text-sm px-8 font-medium leading-relaxed">Se ha trazado una nueva ruta optimizada con {activeAssignment.assignment_orders?.length} puntos de interés.</p>
                                     </div>
                                     <button 
                                       onClick={async () => {
@@ -502,15 +448,15 @@ export default function CadetePWA() {
                                               playNotification();
                                               await logisticsV2Service.updateAssignmentStatus(activeAssignment.id, 'IN_PROGRESS');
                                               fetchMission();
-                                              toast.success('¡Misión aceptada!');
+                                              toast.success('¡Ruta Iniciada!');
                                           } catch (err) {
                                               toast.error('Error al aceptar misión');
                                           }
                                       }}
-                                      className="w-full py-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(37,99,235,0.4)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-4 border-blue-800"
+                                      className="w-full py-7 bg-blue-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_40px_rgba(37,99,235,0.2)] active:scale-95 transition-all text-xl flex items-center justify-center gap-4 border-b-8 border-blue-800 uppercase italic tracking-tighter"
                                     >
-                                        <Navigation size={26} />
-                                        INICIAR LOGÍSTICA
+                                        <Navigation size={28} />
+                                        Comenzar Operativo
                                     </button>
                                 </div>
                             );
@@ -537,27 +483,29 @@ export default function CadetePWA() {
 
                         if (!firstIncomplete && allDeliveriesDone) {
                             return (
-                                <div className="text-center py-8 flex flex-col items-center gap-6 animate-in zoom-in duration-500">
-                                    <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
-                                        <CheckCircle2 size={48} />
+                                <div className="text-center py-10 flex flex-col items-center gap-8 animate-in zoom-in duration-700">
+                                    <div className="relative">
+                                        <div className="w-32 h-32 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 border border-emerald-100 shadow-sm">
+                                            <CheckCircle2 size={56} />
+                                        </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">¡Objetivos Logrados!</h3>
-                                        <p className="text-slate-400 text-sm font-medium">Todas las entregas fueron completadas con éxito.</p>
+                                    <div className="space-y-2">
+                                        <h3 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">¡Operativo Exitoso!</h3>
+                                        <p className="text-slate-500 text-sm font-medium">Has completado todos los objetivos de esta misión.</p>
                                     </div>
                                     <button 
                                       onClick={async () => {
                                           try {
                                               await logisticsV2Service.updateAssignmentStatus(activeAssignment.id, 'COMPLETED');
                                               setActiveAssignment(null);
-                                              toast.success('¡Misión finalizada!');
+                                              toast.success('¡Misión cerrada correctamente!');
                                           } catch (err) {
                                               toast.error('Error al finalizar misión');
                                           }
                                       }}
-                                      className="w-full py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-2xl shadow-emerald-600/30 active:scale-95 transition-all mt-4 text-lg border-b-4 border-emerald-800"
+                                      className="w-full py-7 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-[0_20px_40px_rgba(16,185,129,0.2)] active:scale-95 transition-all mt-6 text-xl border-b-8 border-emerald-800 uppercase italic tracking-tighter"
                                     >
-                                        CERRAR MISIÓN Y VOLVER
+                                        Finalizar y Volver
                                     </button>
                                 </div>
                             );
@@ -569,67 +517,67 @@ export default function CadetePWA() {
                             const address = stop.action_type === 'PICKUP' ? 'S. Martín 450 (Local)' : stop.order?.delivery_address || 'Bahía Blanca';
                             
                             return (
-                                <div key={stop.id} className={`flex gap-6 relative transition-all duration-500 ${isDone ? 'opacity-30 blur-[0.5px]' : ''}`}>
+                                <div key={stop.id} className={`flex gap-8 relative transition-all duration-700 ${isDone ? 'opacity-30' : ''}`}>
                                     {/* Vertical Connector */}
                                     {idx < displayStops.length - 1 && (
-                                        <div className={`absolute left-[1.15rem] top-10 bottom-[-40px] w-0.5 ${isDone ? 'bg-emerald-500/50' : 'bg-white/5'}`}></div>
+                                        <div className={`absolute left-[1.15rem] top-12 bottom-[-48px] w-0.5 ${isDone ? 'bg-emerald-200' : 'bg-slate-100'}`}></div>
                                     )}
 
-                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
-                                        isDone ? 'bg-emerald-500 text-white rotate-[360deg]' : 
-                                        isCurrent ? 'bg-red-600 text-white shadow-[0_0_25px_rgba(220,38,38,0.5)] scale-125 border-2 border-white/20' : 
-                                        'bg-slate-800 text-slate-500 border border-white/5'
+                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 z-10 transition-all duration-700 border-2 ${
+                                        isDone ? 'bg-emerald-500 border-emerald-500 text-white rotate-[360deg]' : 
+                                        isCurrent ? 'bg-red-600 border-red-600 text-white shadow-lg scale-125' : 
+                                        'bg-slate-50 border-slate-200 text-slate-400'
                                     }`}>
                                         {stop.action_type === 'PICKUP' ? <Store size={20} /> : <MapPin size={20} />}
                                     </div>
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start">
-                                            <h4 className={`font-black text-lg truncate tracking-tight transition-colors ${isCurrent ? 'text-white' : 'text-slate-400'}`}>
+                                            <h4 className={`font-black text-lg truncate tracking-tighter transition-colors uppercase italic ${isCurrent ? 'text-slate-900' : 'text-slate-400'}`}>
                                                 {stop.action_type === 'PICKUP' 
-                                                    ? `RETIRO LOCAL ${stop.isConsolidated ? `(${stop.count})` : ''}` 
-                                                    : `ENTREGA #${stop.order?.id?.slice(-4).toUpperCase()}`}
+                                                    ? `Retiro Casa Central ${stop.isConsolidated ? `(${stop.count})` : ''}` 
+                                                    : `Entrega #${stop.order?.id?.slice(-4).toUpperCase()}`}
                                             </h4>
-                                            <span className="text-[10px] font-black text-slate-600 font-mono mt-1 whitespace-nowrap">
-                                                {stop.estimated_arrival ? stop.estimated_arrival.slice(11, 16) : '--:--'} HS
-                                            </span>
+                                            {isCurrent && (
+                                                <div className="bg-red-50 text-red-600 px-2 py-0.5 rounded-lg border border-red-100 text-[9px] font-black animate-pulse uppercase">Actual</div>
+                                            )}
                                         </div>
-                                        <p className="text-xs text-slate-500 mt-1 font-medium truncate">{address}</p>
+                                        <p className={`text-sm mt-1 font-medium truncate transition-colors ${isCurrent ? 'text-slate-600' : 'text-slate-300'}`}>{address}</p>
                                         
                                         {isCurrent && (
-                                            <div className="flex flex-col gap-4 mt-6 animate-in slide-in-from-top-4 duration-500">
+                                            <div className="flex flex-col gap-5 mt-8 animate-in slide-in-from-top-6 duration-700">
                                                 <button 
                                                   onClick={() => openNavigation(address)}
-                                                  className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl shadow-blue-600/20 active:scale-95 transition-all text-sm border-b-4 border-blue-800 group"
+                                                  className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black flex items-center justify-center gap-4 shadow-xl active:scale-95 transition-all text-base border-b-6 border-slate-700 group uppercase italic tracking-tighter"
                                                 >
-                                                    <Navigation size={20} className="group-hover:animate-bounce" /> 
-                                                    NAVEGAR GPS
+                                                    <Navigation size={24} className="group-hover:rotate-45 transition-transform" /> 
+                                                    Trazar Ruta GPS
                                                 </button>
                                                 
-                                                <div className="grid grid-cols-1 gap-3">
+                                                <div className="grid grid-cols-1 gap-4">
                                                     {stop.action_type === 'DELIVERY' && stop.status === 'PENDING' && (
                                                         <button 
                                                           onClick={() => handleUpdateStop(stop.id, 'ARRIVED')}
-                                                          className="w-full py-5 bg-amber-500 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-xl shadow-amber-500/10 active:scale-95 transition-all text-sm border-b-4 border-amber-700"
+                                                          className="w-full py-5 bg-amber-500 text-white rounded-[2rem] font-black flex items-center justify-center gap-4 shadow-lg active:scale-95 transition-all text-sm border-b-6 border-amber-700 uppercase italic"
                                                         >
-                                                            <BellRing size={20} /> 
-                                                            AVISAR LLEGADA 📱
+                                                            <BellRing size={22} className="animate-pulse" /> 
+                                                            Notificar Llegada
                                                         </button>
                                                     )}
                                                     
                                                     {stop.status === 'ARRIVED' && (
-                                                        <div className="w-full py-4 bg-amber-500/10 text-amber-500 rounded-3xl font-black flex items-center justify-center gap-2 text-xs border border-amber-500/20 mb-2">
-                                                            <CheckCircle2 size={16} />
-                                                            CLIENTE NOTIFICADO
+                                                        <div className="w-full py-4 bg-amber-50 text-amber-600 rounded-[1.5rem] font-black flex items-center justify-center gap-3 text-xs border border-amber-100 mb-2 italic">
+                                                            <CheckCircle2 size={18} />
+                                                            CLIENTE YA NOTIFICADO
                                                         </div>
                                                     )}
 
                                                     <button 
                                                       onClick={() => handleUpdateStop(stop.id, 'COMPLETED')}
-                                                      className="w-full py-5 bg-emerald-500 text-white rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all text-sm border-b-4 border-emerald-700"
+                                                      className="w-full py-6 bg-emerald-500 text-white rounded-[2rem] font-black flex items-center justify-center gap-4 shadow-xl active:scale-95 transition-all text-base border-b-6 border-emerald-800 uppercase italic tracking-tighter"
                                                     >
-                                                        <CheckCircle2 size={20} /> 
-                                                        {stop.action_type === 'PICKUP' ? 'FINALIZAR RETIRO' : 'CONFIRMAR ENTREGA'}
+                                                        <CheckCircle2 size={24} /> 
+                                                        {stop.action_type === 'PICKUP' ? 'Confirmar Retiro' : 'Confirmar Entrega'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -645,15 +593,15 @@ export default function CadetePWA() {
         )}
       </main>
 
-      {/* Glass Footer Persistence */}
-      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-slate-900/40 backdrop-blur-2xl border-t border-white/5 flex items-center justify-start gap-5 z-20">
-          <div className="flex items-center gap-3 px-5 py-2.5 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black tracking-widest border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]"></div>
+      {/* Clean Footer Persistence */}
+      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-3xl border-t border-slate-100 flex items-center justify-start gap-5 z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black tracking-widest border border-emerald-100">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               GPS ACTIVO
           </div>
           <div className="flex flex-col">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Último Reporte</p>
-              <p className="text-[11px] font-bold text-slate-300">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} HS</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Último Reporte</p>
+              <p className="text-[11px] font-bold text-slate-700">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} HS</p>
           </div>
       </footer>
     </div>

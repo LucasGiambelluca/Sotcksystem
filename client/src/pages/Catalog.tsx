@@ -82,11 +82,27 @@ export default function Catalog() {
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [distanceInfo, setDistanceInfo] = useState<{ blocks: number | null, error?: string } | null>(null);
 
-  // Auto-calculate shipping fee when address changes
+  // 1. Auto-fill from URL Parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get('name');
+    const phone = params.get('phone');
+    const addr = params.get('address');
+
+    if (name) setCustomerName(name);
+    if (phone) setPhoneNumber(phone);
+    if (addr) {
+        setAddress(addr);
+        setDeliveryMethod('Delivery');
+    }
+  }, []);
+
+  // 2. Auto-calculate shipping fee when address changes
   useEffect(() => {
     if (deliveryMethod !== 'Delivery' || !address || address.length < 5) {
       setShippingFee(null);
       setDistanceInfo(null);
+      setLocationError(null);
       return;
     }
 
@@ -101,9 +117,11 @@ export default function Catalog() {
         if (data.success) {
           setShippingFee(data.fee);
           setDistanceInfo({ blocks: data.blocks });
+          setLocationError(null);
         } else {
           setShippingFee(null);
           setDistanceInfo({ blocks: null, error: data.error });
+          setLocationError(data.error || 'Fuera de zona de entrega');
         }
       } catch (e) {
         console.error('Error calculating shipping:', e);
@@ -125,7 +143,7 @@ export default function Catalog() {
 
   async function loadData() {
     const [{ data: prods }, { data: cfg }] = await Promise.all([
-      supabase.from('public_catalog').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
+      supabase.from('public_catalog').select('*').order('name', { ascending: true }),
       supabase.from('public_branding').select('*').maybeSingle()
     ]);
     if (prods) setProducts(prods as PublicCatalogItem[]);
@@ -200,6 +218,11 @@ export default function Catalog() {
     if (e) e.preventDefault();
     if (!customerName.trim()) return;
 
+    if (deliveryMethod === 'Delivery' && (shippingFee === null || locationError)) {
+      alert(locationError || 'Lo sentimos, esa dirección está fuera de nuestra zona de entrega.');
+      return;
+    }
+
     console.log('🚀 Iniciando checkout directo...');
     setIsValidating(true);
     try {
@@ -213,7 +236,7 @@ export default function Catalog() {
           address: deliveryMethod === 'Delivery' ? address : null,
           paymentMethod,
           items: cart,
-          total: cartTotal + (shippingFee || 0)
+          total: cartTotal
         })
       });
 

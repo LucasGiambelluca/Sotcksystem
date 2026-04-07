@@ -17,6 +17,7 @@ export interface AppConfig {
     // Business Logic
     shipping_policy: string;
     auto_print: boolean;
+    auto_accept_orders: boolean;
     checkout_message: string;
     sileo_api_key?: string | null;
     
@@ -73,6 +74,7 @@ export class ConfigurationService {
                 
                 shipping_policy: wConfig?.shipping_policy || 'smart',
                 auto_print: wConfig?.auto_print || false,
+                auto_accept_orders: wConfig?.auto_accept_orders || false,
                 checkout_message: wConfig?.checkout_message || '¡Gracias por tu pedido!',
                 sileo_api_key: wConfig?.sileo_api_key || null,
                 whatsapp_phone: bConfig?.whatsapp_phone || wConfig?.whatsapp_phone || null
@@ -95,6 +97,7 @@ export class ConfigurationService {
                 store_city: 'Bahía Blanca',
                 shipping_policy: 'smart',
                 auto_print: false,
+                auto_accept_orders: false,
                 checkout_message: 'Gracias por tu pedido'
             };
         }

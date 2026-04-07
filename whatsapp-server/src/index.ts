@@ -4,6 +4,7 @@ import { whatsappClient } from './infrastructure/whatsapp/WhatsAppClient';
 import { stockCronService } from './services/StockCronService';
 import { orderNotificationListener } from './services/OrderNotificationListener';
 import { logisticsNotificationListener } from './services/LogisticsNotificationListener';
+import { PrinterBridgeService } from './services/PrinterBridgeService';
 
 const PORT = process.env.PORT || 3001;
 
@@ -37,6 +38,9 @@ async function bootstrap() {
     } catch (error) {
         console.error('❌ Failed to initialize WhatsApp Client:', error);
     }
+
+    // 2b. Start Printer Bridge (Queue worker)
+    PrinterBridgeService.getInstance().start();
 
     // 3. Start Background Jobs
     stockCronService.start();

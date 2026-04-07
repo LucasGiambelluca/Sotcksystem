@@ -5,8 +5,24 @@ import { logger } from '../../utils/logger';
 export class SendCatalogExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
         const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        // Use the configured business phone if available for cleaner links
-        const catalogUrl = `${baseUrl}/elpollocomilon/catalog`;
+        
+        // Prepare auto-fill parameters
+        const params = new URLSearchParams();
+        if (context.pushName) params.append('name', context.pushName);
+        
+        // Try multiple possible keys for phone
+        const phone = context.phone || context.phoneNumber || context.msid;
+        if (phone) {
+            const cleanPhone = String(phone).split('@')[0];
+            params.append('phone', cleanPhone);
+        }
+
+        // Try multiple possible keys for address
+        const addr = context.direccion || context.address || context.deliveryAddress;
+        if (addr) params.append('address', addr);
+
+        const catalogUrl = `${baseUrl}/elpollocomilon/catalog${params.toString() ? '?' + params.toString() : ''}`;
+        
 
         const message = data.customMessage
             ? `${data.customMessage}\n\n👉 ${catalogUrl}`

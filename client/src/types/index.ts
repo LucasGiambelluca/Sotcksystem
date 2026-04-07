@@ -326,8 +326,10 @@ export interface WhatsAppConfig {
   business_hours?: {
     isActive: boolean;
     days: number[]; // 0=Sunday, 1=Monday...
-    startTime: string; // "09:00"
-    endTime: string; // "18:00"
+    startTime?: string; // Legacy
+    endTime?: string; // Legacy
+    shifts?: { startTime: string; endTime: string }[];
+    cutoffMinutes?: number;
     timezone: string;
   };
   catalog_banner_url?: string;
@@ -343,4 +345,5 @@ export interface WhatsAppConfig {
   store_province?: string;
   store_country?: string;
   auto_print?: boolean;
+  auto_accept_orders?: boolean;
 }

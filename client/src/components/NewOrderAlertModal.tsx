@@ -177,9 +177,22 @@ export default function NewOrderAlertModal() {
     }
   };
 
-  const handleDismiss = (orderId: string) => {
+  const handleDismiss = useCallback((orderId: string) => {
     setQueue((prev) => prev.filter((o) => o.id !== orderId));
-  };
+  }, []);
+
+  // Auto-dismiss timer: 8 seconds to prevent alert stacking
+  useEffect(() => {
+    if (queue.length > 0) {
+      const currentId = queue[0].id;
+      const timer = setTimeout(() => {
+        console.log(`[NewOrderAlert] Auto-dismissing order ${currentId} after 8s`);
+        handleDismiss(currentId);
+      }, 8000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [queue, handleDismiss]);
 
   if (queue.length === 0) return null;
 

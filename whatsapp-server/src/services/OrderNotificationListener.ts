@@ -43,9 +43,9 @@ Hola {clientName}! El repartidor ya está en camino con tu pedido.
 
 ¡Preparate para recibirlo! 🎉`,
 
-  PICKED_UP: `🛵 *¡Pedido Retirado!*
-
-Hola {clientName}! El repartidor ya retiró tu pedido y pronto saldrá para allá.`,
+  PICKED_UP: `🛵 *¡Tu pedido está en camino!*
+  
+Hola {clientName}! El cadete ya tiene tu pedido y está yendo a tu dirección. ¡Preparate para recibirlo! 🔔`,
 
   DELIVERED: `✅ *Pedido Entregado*
 
@@ -143,9 +143,34 @@ export class OrderNotificationListener {
           logger.info(`\n🔔 [OrderNotificationListener] EVENTO: ${eventType} | Pedido: ${orderId} | Canal: ${channel}`);
           
           if (eventType === 'INSERT') {
+            if (this.processedNewOrders.has(orderId)) {
+                logger.info(`⏩ [OrderNotificationListener] Pedido #${orderId.slice(0,8)} ya procesado por polling. Saltando.`);
+                return;
+            }
+            this.processedNewOrders.add(orderId);
+
             logger.info(`🆕 [OrderNotificationListener] NUEVA ORDEN DETECTADA! ID: ${orderId}, Canal: ${channel}`);
-            if (channel && channel !== 'WHATSAPP') {
-                 await this.triggerAutoPrint(orderId, channel);
+            
+            // 1. Auto Print
+            await this.triggerAutoPrint(orderId, channel);
+
+            // 2. Auto Accept
+            const appConfig = await ConfigurationService.getFullConfig();
+            if (appConfig.auto_accept_orders) {
+                // Pequeño delay de gracia para asegurar que el INSERT de la orden se haya completado en DB
+                // y evitar conflictos de versión en Supabase.
+                await new Promise(res => setTimeout(res, 500));
+                
+                logger.info(`🤖 [OrderNotificationListener] Auto-aceptando pedido #${orderId.slice(0,8)}`);
+                const { error: updateError } = await supabase.from('orders').update({ 
+                    status: 'IN_PREPARATION'
+                }).eq('id', orderId);
+
+                if (updateError) {
+                    logger.error(`❌ [OrderNotificationListener] Error en auto-aceptación de #${orderId.slice(0,8)}:`, updateError);
+                } else {
+                    logger.info(`✅ [OrderNotificationListener] Estado actualizado a IN_PREPARATION para #${orderId.slice(0,8)}`);
+                }
             }
           }
  else if (eventType === 'UPDATE') {
@@ -169,23 +194,22 @@ export class OrderNotificationListener {
             const lookback = new Date(Date.now() - windowMs).toISOString();
             const { data: recentOrders } = await supabase
                 .from('orders')
-                .select('id, status, updated_at')
-                .gt('updated_at', lookback)
+                .select('id, status, created_at')
+                .gt('created_at', lookback)
                 .not('status', 'eq', 'PENDING');
 
             if (recentOrders && recentOrders.length > 0) {
                 for (const order of recentOrders) {
                     const lastProcessed = this.processedChanges.get(order.id);
                     if (lastProcessed !== order.status) {
-                        console.log(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
-                        // Removed this.processedChanges.set(order.id, order.status); here
-                        // to let handleStatusChange process it and avoid the early return check inside it.
+                        logger.info(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
+                        this.processedChanges.set(order.id, order.status);
                         await this.handleStatusChange(order.id, order.status);
                     }
                 }
             }
         } catch (e) {
-            console.error('[OrderPolling] Error:', e);
+            logger.error('[OrderPolling] Error:', e);
         }
     }, 2000); // 2 seconds for near-realtime feedback
 
@@ -202,10 +226,19 @@ export class OrderNotificationListener {
 
             if (newOrders && newOrders.length > 0) {
                 for (const order of newOrders) {
-                    if (order.channel !== 'WHATSAPP' && !this.processedNewOrders.has(order.id)) {
+                    if (!this.processedNewOrders.has(order.id)) {
                         logger.info(`[INSERT-Polling] Detectada nueva orden no procesada: ${order.id} (${order.channel})`);
                         this.processedNewOrders.add(order.id);
+                        
+                        // 1. Auto Print
                         await this.triggerAutoPrint(order.id, order.channel);
+
+                        // 2. Auto Accept
+                        const appConfig = await ConfigurationService.getFullConfig();
+                        if (appConfig.auto_accept_orders) {
+                            logger.info(`🤖 [INSERT-Polling] Auto-aceptando pedido #${order.id.slice(0,8)}`);
+                            await supabase.from('orders').update({ status: 'IN_PREPARATION' }).eq('id', order.id);
+                        }
                     }
                 }
             }
@@ -260,12 +293,21 @@ export class OrderNotificationListener {
   }
 
   private async handleStatusChange(orderId: string, newStatus: string) {
-    console.log(`🔔 [OrderNotificationListener] Received status change for #${orderId.slice(0,8)}: ${newStatus}`);
+    logger.info(`🔔 [OrderNotificationListener] Received status change for #${orderId.slice(0,8)}: ${newStatus}`);
     try {
-      // Evitar duplicados (Realtime vs Polling)
+      // 1. Evitar duplicados (In-memory)
       if (this.processedChanges.get(orderId) === newStatus) {
         return;
       }
+
+      // 2. Persistent Deduplication (Redis)
+      const { DeduplicationService } = require('./DeduplicationService');
+      const isDup = await DeduplicationService.isDuplicate(`wa_notif:${orderId}:${newStatus}`, 300); // 5 minute window
+      if (isDup) {
+        logger.info(`⏩ [OrderNotificationListener] Skipping duplicate notification (Redis) for #${orderId.slice(0,8)} | Status: ${newStatus}`);
+        return;
+      }
+      
       this.processedChanges.set(orderId, newStatus);
       
       // 1. Fetch order details with client info
@@ -281,10 +323,16 @@ export class OrderNotificationListener {
       }
 
       console.log(`[OrderNotificationListener] Processing status "${newStatus}" for order #${order.id.slice(0,8)}...`);
+      
+      // Skip WhatsApp notifications for TABLET channel (In-store sales)
+      if (order.channel === 'TABLET') {
+        logger.info(`ℹ️ [OrderNotificationListener] Skipping WhatsApp notification for TABLET order ${orderId}`);
+        return;
+      }
 
       const phone = order.phone || order.client?.phone;
       if (!phone) {
-        console.log(`⚠️ [OrderNotificationListener] No phone for order ${orderId}, skipping.`);
+        logger.info(`⚠️ [OrderNotificationListener] No phone for order ${orderId}, skipping.`);
         return;
       }
 
@@ -324,12 +372,12 @@ export class OrderNotificationListener {
           if (isPickup) {
             template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           } else {
-            template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+            // Wait for PICKED_UP
+            return;
           }
           break;
         }
         case 'OUT_FOR_DELIVERY': {
-          // Ensure delivery notification is always sent even if cadet system is offline
           const dtLower = (order.delivery_type || '').toLowerCase();
           const adLower = (order.delivery_address || '').toLowerCase();
           const isPickup = dtLower === 'pickup' || 
@@ -341,7 +389,8 @@ export class OrderNotificationListener {
           if (isPickup) {
             template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           } else {
-            template = waConfig?.template_out_delivery || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
+            // Only send when PICKED_UP
+            return;
           }
           break;
         }
@@ -370,7 +419,7 @@ export class OrderNotificationListener {
       console.log(`[OrderNotificationListener] Selected template:`, !!template ? "Found" : "NOT FOUND");
 
       if (!template) {
-         console.log(`⚠️ [OrderNotificationListener] No template found for status: ${newStatus}`);
+         logger.info(`⚠️ [OrderNotificationListener] No template found for status: ${newStatus}`);
          return;
       }
 

@@ -91,6 +91,14 @@ export class LogisticsNotificationListener {
     if (!orderId) return;
 
     try {
+      // Redis-based deduplication for persistent protection
+      const { DeduplicationService } = require('./DeduplicationService');
+      const isDup = await DeduplicationService.isDuplicate(`wa_arrival:${orderId}`, 1800); // 30 minute window
+      if (isDup) {
+          console.log(`⏩ [LogisticsNotificationListener] Skipping duplicate arrival (Redis) for ${orderId}`);
+          return;
+      }
+
       // Fetch order details with client info
       const { data: order, error: orderError } = await supabase
         .from('orders')

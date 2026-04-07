@@ -40,6 +40,7 @@ export default function Settings() {
     footer_message: string;
     print_logo: boolean;
     logo_url: string | null;
+    print_shipping_fee: boolean;
   } | null>(null);
 
   
@@ -242,7 +243,8 @@ export default function Settings() {
           store_address: waConfig.store_address,
           store_city: waConfig.store_city,
           store_province: waConfig.store_province,
-          store_country: waConfig.store_country
+          store_country: waConfig.store_country,
+          auto_accept_orders: waConfig.auto_accept_orders
         })
         .eq('id', waConfig.id);
 
@@ -284,6 +286,7 @@ export default function Settings() {
           footer_message: printerConfig.footer_message,
           print_logo: printerConfig.print_logo,
           logo_url: printerConfig.logo_url,
+          print_shipping_fee: printerConfig.print_shipping_fee,
           updated_at: new Date().toISOString()
         })
         .eq('id', printerConfig.id);
@@ -789,6 +792,21 @@ export default function Settings() {
                         <p className="text-[10px] text-gray-500 mt-1 ml-6">
                             Si se activa, cada vez que el bot confirme un pedido, se enviará automáticamente a la cola de impresión.
                         </p>
+                        
+                        <div className="mt-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={waConfig.auto_accept_orders ?? false}
+                                    onChange={(e) => setWaConfig({...waConfig, auto_accept_orders: e.target.checked})}
+                                    className="w-4 h-4 text-green-600 rounded"
+                                />
+                                <span className="text-gray-700 text-sm font-semibold">Aceptar Pedidos Automáticamente</span>
+                            </label>
+                            <p className="text-[10px] text-gray-500 mt-1 ml-6">
+                                Si se activa, los pedidos nuevos pasarán directamente a "En Preparación" (notificando al cliente).
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -863,37 +881,100 @@ export default function Settings() {
                             </div>
                          </div>
 
-                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Hora Apertura</label>
-                                <input 
-                                    type="time" 
-                                    value={waConfig.business_hours?.startTime || '09:00'}
-                                    onChange={(e) => setWaConfig({
-                                        ...waConfig,
-                                        business_hours: {
-                                            ...(waConfig.business_hours || { isActive: false, days: [1,2,3,4,5], endTime: '18:00', timezone: 'America/Argentina/Buenos_Aires' }),
-                                            startTime: e.target.value
-                                        }
-                                    })}
-                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Hora Cierre</label>
-                                <input 
-                                    type="time" 
-                                    value={waConfig.business_hours?.endTime || '18:00'}
-                                    onChange={(e) => setWaConfig({
-                                        ...waConfig,
-                                        business_hours: {
-                                            ...(waConfig.business_hours || { isActive: false, days: [1,2,3,4,5], startTime: '09:00', timezone: 'America/Argentina/Buenos_Aires' }),
-                                            endTime: e.target.value
-                                        }
-                                    })}
-                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-                                />
-                            </div>
+                         <div className="space-y-4">
+                             <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700">Turnos / Horarios</label>
+                                <button 
+                                    onClick={() => {
+                                        const currentShifts = waConfig.business_hours?.shifts || [];
+                                        setWaConfig({
+                                            ...waConfig,
+                                            business_hours: {
+                                                ...(waConfig.business_hours || { isActive: false, days: [], timezone: 'America/Argentina/Buenos_Aires' }),
+                                                shifts: [...currentShifts, { startTime: '09:00', endTime: '18:00' }]
+                                            }
+                                        });
+                                    }}
+                                    className="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded border border-orange-100 hover:bg-orange-100 flex items-center gap-1"
+                                >
+                                    <Plus size={14} /> Añadir Turno
+                                </button>
+                             </div>
+
+                             <div className="space-y-2">
+                                {(waConfig.business_hours?.shifts || [{ 
+                                    startTime: waConfig.business_hours?.startTime || '09:00', 
+                                    endTime: waConfig.business_hours?.endTime || '18:00' 
+                                }]).map((shift, sIdx) => (
+                                    <div key={sIdx} className="flex gap-4 items-end bg-gray-50 p-3 rounded-lg border border-gray-100 group">
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Apertura</label>
+                                            <input 
+                                                type="time" 
+                                                value={shift.startTime}
+                                                onChange={(e) => {
+                                                    const newShifts = [...(waConfig.business_hours?.shifts || [{ startTime: '09:00', endTime: '18:00' }])];
+                                                    newShifts[sIdx] = { ...newShifts[sIdx], startTime: e.target.value };
+                                                    setWaConfig({
+                                                        ...waConfig,
+                                                        business_hours: { ...waConfig.business_hours!, shifts: newShifts }
+                                                    });
+                                                }}
+                                                className="w-full px-2 py-1.5 border rounded-lg text-sm focus:ring-1 focus:ring-orange-500"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cierre</label>
+                                            <input 
+                                                type="time" 
+                                                value={shift.endTime}
+                                                onChange={(e) => {
+                                                    const newShifts = [...(waConfig.business_hours?.shifts || [{ startTime: '09:00', endTime: '18:00' }])];
+                                                    newShifts[sIdx] = { ...newShifts[sIdx], endTime: e.target.value };
+                                                    setWaConfig({
+                                                        ...waConfig,
+                                                        business_hours: { ...waConfig.business_hours!, shifts: newShifts }
+                                                    });
+                                                }}
+                                                className="w-full px-2 py-1.5 border rounded-lg text-sm focus:ring-1 focus:ring-orange-500"
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                const newShifts = (waConfig.business_hours?.shifts || []).filter((_, i) => i !== sIdx);
+                                                setWaConfig({
+                                                    ...waConfig,
+                                                    business_hours: { ...waConfig.business_hours!, shifts: newShifts }
+                                                });
+                                            }}
+                                            className="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                             </div>
+
+                             <div className="pt-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Corte Automático (Minutos antes del cierre)</label>
+                                <div className="flex items-center gap-3">
+                                    <input 
+                                        type="number" 
+                                        min="0"
+                                        max="120"
+                                        value={waConfig.business_hours?.cutoffMinutes || 0}
+                                        onChange={(e) => setWaConfig({
+                                            ...waConfig,
+                                            business_hours: {
+                                                ...(waConfig.business_hours || { isActive: false, days: [], timezone: 'America/Argentina/Buenos_Aires' }),
+                                                cutoffMinutes: parseInt(e.target.value) || 0
+                                            }
+                                        })}
+                                        className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 font-bold"
+                                    />
+                                    <span className="text-sm text-gray-500">Ej: 20 min antes del cierre no se aceptan más pedidos.</span>
+                                </div>
+                             </div>
                          </div>
                     </div>
                     <div className="mt-4 flex justify-end">
@@ -1206,6 +1287,27 @@ export default function Settings() {
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           printerConfig.auto_print_enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm">Mostrar envío en ticket</h3>
+                      <p className="text-xs text-gray-500">Incluir el costo de delivery en la impresión</p>
+                    </div>
+                    <button
+                      onClick={() => setPrinterConfig({...printerConfig, print_shipping_fee: !printerConfig.print_shipping_fee})}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        printerConfig.print_shipping_fee ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          printerConfig.print_shipping_fee ? 'translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>
