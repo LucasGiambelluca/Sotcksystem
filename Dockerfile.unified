@@ -11,7 +11,7 @@ ARG VITE_API_URL=/api
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_APP_SLUG=elpollocomilon
-RUN sed -i "s|/elpollocomilon/|/${VITE_APP_SLUG}/|g" client/public/manifest.json
+RUN sed -i "s|/elpollocomilon/|/${VITE_APP_SLUG}/|g" public/manifest.json
 RUN VITE_APP_SLUG=$VITE_APP_SLUG pnpm build
 
 # Etapa 2: Build del Server (Express)
