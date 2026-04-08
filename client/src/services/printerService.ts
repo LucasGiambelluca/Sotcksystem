@@ -7,37 +7,47 @@ export const printerService = {
    */
   async printToRawBT(base64Content: string): Promise<boolean> {
     return new Promise((resolve) => {
-      try {
-        const WS_URL = 'ws://localhost:40213';
-        const socket = new WebSocket(WS_URL);
-
-        socket.onopen = () => {
-          console.log('📡 Conectado a RawBT via WebSocket');
-          // Convertimos a binario
-          const binaryString = window.atob(base64Content);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          // Enviamos los bytes directamente
-          socket.send(bytes);
-          
-          // Cerramos despues de un pequeño delay
-          setTimeout(() => {
+      // Intentamos con 127.0.0.1 que es mas directo que localhost en Android
+      const trySocket = (url: string) => {
+        try {
+          const socket = new WebSocket(url);
+          let timeout = setTimeout(() => {
             socket.close();
-            resolve(true);
-          }, 500);
-        };
+            if (url.includes('127.0.0.1')) {
+              trySocket('ws://localhost:40213'); // Reintento con localhost
+            } else {
+              // Si ambos fallan, fallback al intent ruidoso
+              window.location.href = `rawbt:base64,${base64Content}`;
+              resolve(true);
+            }
+          }, 1500);
 
-        socket.onerror = (error) => {
-          console.error('❌ Error de WebSocket con RawBT:', error);
-          // Fallback al metodo antiguo si el socket falla
-          window.location.href = `rawbt:base64,${base64Content}`;
-          resolve(true);
-        };
-      } catch (e) {
-        resolve(false);
-      }
+          socket.onopen = () => {
+            clearTimeout(timeout);
+            const binaryString = window.atob(base64Content);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            socket.send(bytes);
+            setTimeout(() => { socket.close(); resolve(true); }, 500);
+          };
+
+          socket.onerror = () => {
+            clearTimeout(timeout);
+            if (url.includes('127.0.0.1')) {
+              trySocket('ws://localhost:40213');
+            } else {
+              window.location.href = `rawbt:base64,${base64Content}`;
+              resolve(true);
+            }
+          };
+        } catch (e) {
+          resolve(false);
+        }
+      };
+
+      trySocket('ws://127.0.0.1:40213');
     });
   },
 

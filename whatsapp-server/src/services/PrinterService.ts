@@ -1,5 +1,6 @@
 import { supabase } from '../config/database';
 import { logger } from '../utils/logger';
+import Jimp from 'jimp';
 
 /**
  * PrinterService
@@ -8,6 +9,54 @@ import { logger } from '../utils/logger';
  */
 export class PrinterService {
     private static COLUMN_WIDTH = 42; // Standard for 80mm (Font A)
+
+    /**
+     * Downloads an image, converts it to B/W raster, and returns ESC/POS bytes.
+     */
+    private static async processLogo(url: string): Promise<number[] | null> {
+        try {
+            const image = await Jimp.read(url);
+            
+            // 384px is the standard dot width for 80mm printers
+            image.resize(384, Jimp.AUTO);
+            image.greyscale();
+            image.contrast(0.8);
+
+            const width = image.bitmap.width;
+            const height = image.bitmap.height;
+            const widthBytes = Math.ceil(width / 8);
+
+            // GS v 0 0 xL xH yL yH d1...dk
+            const commands: number[] = [
+                0x1D, 0x76, 0x30, 0x00,
+                widthBytes & 0xFF, (widthBytes >> 8) & 0xFF,
+                height & 0xFF, (height >> 8) & 0xFF
+            ];
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < widthBytes; x++) {
+                    let byte = 0;
+                    for (let bit = 0; bit < 8; bit++) {
+                        const pixelX = x * 8 + bit;
+                        if (pixelX < width) {
+                            const color = Jimp.intToRGBA(image.getPixelColor(pixelX, y));
+                            // If average brightness is < 128, consider it black
+                            const brightness = (color.r + color.g + color.b) / 3;
+                            if (brightness < 128) {
+                                byte |= (1 << (7 - bit));
+                            }
+                        }
+                    }
+                    commands.push(byte);
+                }
+            }
+
+            return commands;
+        } catch (err) {
+            console.error('[PrinterService] Error processing logo image:', err);
+            return null;
+        }
+    }
 
     /**
      * Enqueues a printer job for a specific order.
@@ -41,7 +90,7 @@ export class PrinterService {
                 return false;
             }
 
-            const rawContent = this.generateEscPos(order, config);
+            const rawContent = await this.generateEscPos(order, config);
             const base64Content = Buffer.from(rawContent).toString('base64');
 
             const { error: queueError } = await supabase
@@ -69,7 +118,7 @@ export class PrinterService {
     /**
      * Generates a raw ESC/POS buffer for 80mm printers.
      */
-    private static generateEscPos(order: any, config?: any): Uint8Array {
+    private static async generateEscPos(order: any, config?: any): Promise<Uint8Array> {
         const ESC = 0x1B;
         const GS = 0x1D;
         const LF = 0x0A;
@@ -81,11 +130,23 @@ export class PrinterService {
         const marginBottom = config?.margin_bottom || 1;
 
         let commands: number[] = [
-            ESC, ESC, ESC,      // Send multiple ESC to break any pending text sequence
             ESC, 0x40,          // Initialize
-            ESC, 0x40,          // Redundant reset
             ESC, 0x74, 0x10,    // Code page 16 (WPC1252/Latin 1)
         ];
+
+        // --- NEW: LOGO PROCESSING ---
+        if (config?.print_logo && config?.logo_url) {
+            try {
+                const logoBytes = await this.processLogo(config.logo_url);
+                if (logoBytes) {
+                    commands.push(ESC, 0x61, 0x01); // Center
+                    commands.push(...logoBytes);
+                    commands.push(LF);
+                }
+            } catch (err) {
+                logger.error('[PrinterService] Logo processing failed:', err);
+            }
+        }
 
         // Top Margins
         for (let i = 0; i < marginTop; i++) commands.push(LF);
