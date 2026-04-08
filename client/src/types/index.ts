@@ -321,6 +321,8 @@ export interface WhatsAppConfig {
   template_transit?: string;
   template_delivered?: string;
   template_cancelled?: string;
+  template_ready?: string;
+  template_arrived?: string;
   checkout_message?: string;
   sileo_api_key?: string;
   business_hours?: {
