@@ -154,6 +154,7 @@ export class CreateOrderExecutor implements NodeExecutor {
                 pushName: pushName,
                 chatContext: { 
                     ...context, 
+                    bot_id: process.env.WHATSAPP_PHONE_NUMBER_ID, // Ownership tag
                     delivery_date: deliveryDate, 
                     delivery_type: deliveryType,
                     liv: {

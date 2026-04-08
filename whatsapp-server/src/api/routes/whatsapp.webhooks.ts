@@ -81,11 +81,26 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
                         const value = change.value;
                         const metadata = value.metadata;
                         const phoneIdInConfig = process.env.WHATSAPP_PHONE_NUMBER_ID;
+                        const urlBotId = req.params.botId;
 
-                        // MULTI-BOT FILTER: Ignore messages not intended for this specific number ID
-                        if (metadata && phoneIdInConfig && metadata.phone_number_id !== phoneIdInConfig) {
-                            // Silently ignore to avoid cluttering logs, but you could add a trace logger here
-                            continue;
+                        // MULTI-BOT FILTER: Ensure this instance only handles messages for its own number
+                        
+                        // 1. Check URL identifier if present (Isolation via URL)
+                        if (urlBotId && phoneIdInConfig && urlBotId !== phoneIdInConfig) {
+                            // This request is physically directed to the wrong bot endpoint (according to URL)
+                            return; // Stop processing entirely for this request
+                        }
+
+                        // 2. Check Payload Metadata (Isolation via Content)
+                        if (metadata && metadata.phone_number_id) {
+                            if (phoneIdInConfig && metadata.phone_number_id !== phoneIdInConfig) {
+                                logger.info(`[Webhook] 🔕 IGNORED: Message for Phone ID ${metadata.phone_number_id} (Instance: ${phoneIdInConfig})`);
+                                continue;
+                            }
+                        } else {
+                            if (phoneIdInConfig && !value.statuses && !value.messages) {
+                                 // Not a message event, continue
+                            }
                         }
                         
                         // Ignore status updates (delivered, read, sent)

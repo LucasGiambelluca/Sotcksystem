@@ -330,6 +330,16 @@ export class OrderNotificationListener {
         return;
       }
 
+      // --- MULTI-BOT PROTECTION ---
+      const orderBotId = order.chat_context?.bot_id || order.metadata?.bot_id;
+      const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+      if (orderBotId && myBotId && orderBotId !== myBotId) {
+          logger.info(`[OrderNotificationListener] 🛡️ Ignoring order ${orderId} - Belongs to Bot ID: ${orderBotId}`);
+          return;
+      }
+      // ----------------------------
+
       const phone = order.phone || order.client?.phone;
       if (!phone) {
         logger.info(`⚠️ [OrderNotificationListener] No phone for order ${orderId}, skipping.`);
