@@ -108,7 +108,8 @@ export default function Catalog() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/public/orders/calculate-shipping', {
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${API_BASE}/api/public/orders/calculate-shipping`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ address })
@@ -226,7 +227,8 @@ export default function Catalog() {
     console.log('🚀 Iniciando checkout directo...');
     setIsValidating(true);
     try {
-      const response = await fetch('/api/public/orders/submit-order', {
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_BASE}/api/public/orders/submit-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

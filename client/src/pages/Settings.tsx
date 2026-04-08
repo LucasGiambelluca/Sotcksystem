@@ -125,7 +125,8 @@ export default function Settings() {
         const cleanStoreCountry = waConfig.store_country?.split(',')[0].trim() || 'Argentina';
 
         const fullAddress = `${waConfig.store_address}, ${cleanStoreCity}, ${cleanStoreProv}, ${cleanStoreCountry}`;
-        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001/api/geocode' : '/api/geocode';
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001/api/geocode' : `${API_BASE}/api/geocode`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -159,7 +160,8 @@ export default function Settings() {
   const generateSlots = async () => {
     try {
         const loadingToast = toast.loading('Generando franjas...');
-        const res = await fetch('http://localhost:3001/api/slots/generate', { method: 'POST' });
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${API_BASE}/api/slots/generate`, { method: 'POST' });
         
         toast.dismiss(loadingToast);
         
