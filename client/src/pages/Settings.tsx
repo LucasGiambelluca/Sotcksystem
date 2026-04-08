@@ -1073,6 +1073,30 @@ export default function Settings() {
                             placeholder="Mensaje para pedido cancelado..."
                         />
                     </div>
+
+                    {/* Ready for Pickup */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">🥡 Listo para Retiro / Local</label>
+                        <textarea 
+                            value={waConfig.template_ready || ''}
+                            onChange={(e) => setWaConfig({...waConfig, template_ready: e.target.value})}
+                            rows={4}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            placeholder="Mensaje para pedido listo para retirar..."
+                        />
+                    </div>
+
+                    {/* Arrived / At the door */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">🔔 Cadete en la Puerta</label>
+                        <textarea 
+                            value={waConfig.template_arrived || ''}
+                            onChange={(e) => setWaConfig({...waConfig, template_arrived: e.target.value})}
+                            rows={4}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            placeholder="Mensaje para cuando el cadete llega al domicilio..."
+                        />
+                    </div>
                 </div>
 
                 <div className="mt-6 flex justify-end">

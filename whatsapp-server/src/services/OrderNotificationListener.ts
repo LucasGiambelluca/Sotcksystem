@@ -89,7 +89,7 @@ function formatMessage(template: string, data: OrderNotificationData): string {
   
   // Breakdown specific replacement
   const breakdown = feeVal > 0 
-    ? `Subtotal: $${subtotalVal.toFixed(2)}\nEnvío: $${feeVal.toFixed(2)}\nTotal: *$${totalVal.toFixed(2)}*`
+    ? `Subtotal: $${subtotalVal.toFixed(2)}\nEnvio: $${feeVal.toFixed(2)}\nTotal: *$${totalVal.toFixed(2)}*`
     : `Total: *$${totalVal.toFixed(2)}*`;
   
   message = message.replace(/{breakdown}/g, breakdown);
@@ -346,7 +346,8 @@ export class OrderNotificationListener {
           template_cancelled: waConfigRaw['template_cancelled' as any],
           template_ready: waConfigRaw['template_ready' as any],
           template_transit: waConfigRaw['template_transit' as any] || waConfigRaw['template_out_delivery' as any],
-          template_picked_up: waConfigRaw['template_picked_up' as any]
+          template_picked_up: waConfigRaw['template_picked_up' as any],
+          template_arrived: waConfigRaw['template_arrived' as any]
       };
 
       // 3. Select Template
@@ -393,6 +394,11 @@ export class OrderNotificationListener {
         case 'READY_FOR_PICKUP':
         case 'READY':
           template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
+          break;
+        case 'ARRIVED':
+          template = waConfig?.template_arrived || `🔔 *¡Llegó tu pedido!*
+
+Hola {clientName}, el cadete está en la puerta de tu domicilio con tu pedido. ¡Preparate para recibirlo! 🛵`;
           break;
         default:
           // No template for other statuses

@@ -79,6 +79,14 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
                         if (change.field !== 'messages') continue;
 
                         const value = change.value;
+                        const metadata = value.metadata;
+                        const phoneIdInConfig = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+                        // MULTI-BOT FILTER: Ignore messages not intended for this specific number ID
+                        if (metadata && phoneIdInConfig && metadata.phone_number_id !== phoneIdInConfig) {
+                            // Silently ignore to avoid cluttering logs, but you could add a trace logger here
+                            continue;
+                        }
                         
                         // Ignore status updates (delivered, read, sent)
                         if (value.statuses) continue;
