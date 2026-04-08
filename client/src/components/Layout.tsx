@@ -9,6 +9,7 @@ import { supabase } from '../supabaseClient';
 import systemLogo from '../assets/systemlogo.png';
 import { getTotalUnreadCount } from '../services/whatsappService';
 import NewOrderAlertModal from './NewOrderAlertModal';
+import PrinterBridge from './PrinterBridge';
 
 export default function Layout() {
   const { signOut } = useAuth();
@@ -169,6 +170,7 @@ export default function Layout() {
         </nav>
         
         <div className="p-4 mx-4 mb-4 space-y-2">
+          <PrinterBridge />
           {isInstallable && (
             <button
               onClick={handleInstallClick}
