@@ -14,21 +14,7 @@ export class PrinterService {
      */
     static async queueOrderTicket(orderId: string): Promise<boolean> {
         try {
-            // 1. Deduplication: Check if there's a recent job for this order (last 30 seconds)
-            const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
-            const { data: existingJob } = await supabase
-                .from('print_queue')
-                .select('id, created_at')
-                .eq('order_id', orderId)
-                .gte('created_at', thirtySecondsAgo)
-                .maybeSingle();
-
-            if (existingJob) {
-                logger.info(`[PrinterService] Skipping duplicate print job for order #${orderId} (already enqueued/printed in the last 30s)`);
-                return true;
-            }
-
-            // 1b. Get Printer Config
+            // 1. Get Printer Config
             const { data: config } = await supabase
                 .from('printer_config')
                 .select('*')

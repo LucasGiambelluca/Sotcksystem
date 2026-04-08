@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { printerService } from '../services/printerService';
 import { Printer, Wifi, WifiOff } from 'lucide-react';
-import { toast } from 'sonner';
 
 export default function PrinterBridge() {
   const [isActive, setIsActive] = useState(() => {
@@ -16,30 +15,36 @@ export default function PrinterBridge() {
 
     // Suscribirse a la cola de impresión
     const subscription = printerService.subscribeToPrintQueue(async (job) => {
-      console.log('🖨️ Nuevo trabajo de impresión detectado:', job.id);
+      console.log('🖨️ Nuevo trabajo detectado:', job.id);
       
-      const success = await printerService.printToRawBT(job.raw_content);
-      
-      if (success) {
+      try {
+        await printerService.printToRawBT(job.raw_content);
         await printerService.markAsPrinted(job.id);
-        // toast.success('Ticket enviado a RawBT');
-      } else {
-        toast.error('Fallo al enviar a RawBT. Asegúrate de que la App esté abierta.');
+      } catch (err) {
+        console.error('Error en el puente:', err);
       }
     });
 
-    // Verificar conexión con RawBT cada 30 segundos
     const checkRawBT = async () => {
       try {
-        const res = await fetch('http://localhost:40213/status');
-        setIsConnected(res.ok);
+        const WS_URL = 'ws://localhost:40213';
+        const socket = new WebSocket(WS_URL);
+        
+        socket.onopen = () => {
+          setIsConnected(true);
+          socket.close();
+        };
+        
+        socket.onerror = () => {
+          setIsConnected(false);
+        };
       } catch (e) {
         setIsConnected(false);
       }
     };
 
     checkRawBT();
-    const interval = setInterval(checkRawBT, 30000);
+    const interval = setInterval(checkRawBT, 10000);
 
     return () => {
       subscription.unsubscribe();
@@ -73,12 +78,12 @@ export default function PrinterBridge() {
           {isConnected ? (
               <>
                 <Wifi size={12} className="text-green-500" />
-                <span className="text-[10px] text-green-500 font-bold">RAWBT CONECTADO</span>
+                <span className="text-[10px] text-green-500 font-bold uppercase tracking-tighter">Directo (Sin Carteles)</span>
               </>
           ) : (
               <>
                 <WifiOff size={12} className="text-red-400" />
-                <span className="text-[10px] text-red-400 font-bold uppercase">RawBT no detectado</span>
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">Vía App (Con Carteles)</span>
               </>
           )}
         </div>
@@ -86,8 +91,8 @@ export default function PrinterBridge() {
       
       <p className="text-[9px] text-gray-400 leading-tight">
         {isActive 
-          ? 'Esta tablet imprimirá automáticamente los nuevos pedidos.' 
-          : 'La impresión automática está desactivada en este dispositivo.'}
+          ? 'Impresión automática activa.' 
+          : 'Impresión desactivada.'}
       </p>
     </div>
   );
