@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { printerService } from '../services/printerService';
 import { Printer, Wifi, WifiOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PrinterBridge() {
   const [isActive, setIsActive] = useState(() => {
