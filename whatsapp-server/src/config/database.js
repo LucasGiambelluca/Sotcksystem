@@ -54,11 +54,12 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 // --- Redis Connection ---
 const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
     enableReadyCheck: false,
+    enableOfflineQueue: false,
     retryStrategy(times) {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
+        if (times > 3) return null; // stop retrying after 3 attempts
+        return Math.min(times * 50, 2000);
     }
 });
 

@@ -345,7 +345,7 @@ export class OrderNotificationListener {
           template_delivered: waConfigRaw['template_delivered' as any],
           template_cancelled: waConfigRaw['template_cancelled' as any],
           template_ready: waConfigRaw['template_ready' as any],
-          template_out_delivery: waConfigRaw['template_out_delivery' as any],
+          template_transit: waConfigRaw['template_transit' as any] || waConfigRaw['template_out_delivery' as any],
           template_picked_up: waConfigRaw['template_picked_up' as any]
       };
 
@@ -359,8 +359,8 @@ export class OrderNotificationListener {
           template = waConfig?.template_preparation || DEFAULT_TEMPLATES.IN_PREPARATION;
           break;
         case 'IN_TRANSIT':
-        case 'SHIPPED': {
-          // Treat transit/shipped as delivery notification, BUT check if it's a pickup
+        case 'SHIPPED':
+        case 'OUT_FOR_DELIVERY': {
           const dtLower = (order.delivery_type || '').toLowerCase();
           const adLower = (order.delivery_address || '').toLowerCase();
           const isPickup = dtLower === 'pickup' || 
@@ -372,25 +372,8 @@ export class OrderNotificationListener {
           if (isPickup) {
             template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
           } else {
-            // Wait for PICKED_UP
-            return;
-          }
-          break;
-        }
-        case 'OUT_FOR_DELIVERY': {
-          const dtLower = (order.delivery_type || '').toLowerCase();
-          const adLower = (order.delivery_address || '').toLowerCase();
-          const isPickup = dtLower === 'pickup' || 
-                         dtLower.includes('retiro') || 
-                         dtLower.includes('local') || 
-                         adLower.includes('retiro') || 
-                         adLower.includes('local');
-
-          if (isPickup) {
-            template = waConfig?.template_ready || DEFAULT_TEMPLATES.READY_FOR_PICKUP;
-          } else {
-            // Only send when PICKED_UP
-            return;
+            // Priority: Transit template, then default
+            template = waConfig?.template_transit || DEFAULT_TEMPLATES.OUT_FOR_DELIVERY;
           }
           break;
         }
