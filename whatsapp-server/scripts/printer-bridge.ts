@@ -30,12 +30,23 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_KEY || ''
 );
 
-const PRINTER_TYPE: 'USB' | 'NETWORK' = (process.env.PRINTER_TYPE as any) || 'USB';
-const PRINTER_IP = process.env.PRINTER_IP || '192.168.1.100';
+let PRINTER_TYPE: 'USB' | 'NETWORK' = 'USB';
+let PRINTER_IP = '192.168.1.100';
 const PRINTER_PORT = 9100;
 
 console.log('🚀 [PrinterBridge v3] Arrancando...');
-console.log(`📡 Modo: ${PRINTER_TYPE} ${PRINTER_TYPE === 'NETWORK' ? `(${PRINTER_IP})` : ''}`);
+
+async function updatePrinterConfig() {
+    try {
+        const { data } = await supabase.from('printer_config').select('printer_connection_type, printer_ip').limit(1).maybeSingle();
+        if (data) {
+            PRINTER_TYPE = data.printer_connection_type || 'USB';
+            PRINTER_IP = data.printer_ip || '192.168.1.100';
+        }
+    } catch (e) {
+        console.error('[Bridge] Error actualizando config desde BD:', e);
+    }
+}
 
 async function printViaNetwork(job: any): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -188,6 +199,8 @@ async function printJob(job: any) {
     console.log(`📄 Imprimiendo pedido #${job.order_id?.slice(0, 8)}...`);
 
     try {
+        await updatePrinterConfig();
+        console.log(`📡 Modo Activo: ${PRINTER_TYPE} ${PRINTER_TYPE === 'NETWORK' ? `(${PRINTER_IP})` : ''}`);
         const buffer = Buffer.from(job.raw_content, 'base64');
 
         if (PRINTER_TYPE === 'USB') {

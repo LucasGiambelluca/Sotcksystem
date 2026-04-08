@@ -41,6 +41,8 @@ export default function Settings() {
     print_logo: boolean;
     logo_url: string | null;
     print_shipping_fee: boolean;
+    printer_connection_type: 'USB' | 'NETWORK';
+    printer_ip: string;
   } | null>(null);
 
   
@@ -289,6 +291,8 @@ export default function Settings() {
           print_logo: printerConfig.print_logo,
           logo_url: printerConfig.logo_url,
           print_shipping_fee: printerConfig.print_shipping_fee,
+          printer_connection_type: printerConfig.printer_connection_type,
+          printer_ip: printerConfig.printer_ip,
           updated_at: new Date().toISOString()
         })
         .eq('id', printerConfig.id);
@@ -1421,6 +1425,45 @@ export default function Settings() {
                       />
                     </div>
                   </div>
+
+                  {/* Conexion Impresora */}
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mt-6">
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-900 text-sm">Conexión local (Printer Bridge)</h3>
+                      <p className="text-xs text-gray-500">Configura cómo se conecta tu PC a la impresora en el local.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo de Conexión</label>
+                          <select 
+                            value={printerConfig.printer_connection_type || 'USB'}
+                            onChange={(e) => setPrinterConfig({...printerConfig, printer_connection_type: e.target.value as any})}
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                          >
+                              <option value="USB">Cable USB Directo</option>
+                              <option value="NETWORK">Wi-Fi / Red Local (Network)</option>
+                          </select>
+                        </div>
+
+                        {printerConfig.printer_connection_type === 'NETWORK' && (
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Dirección IP de la Impresora</label>
+                                <input 
+                                    type="text"
+                                    value={printerConfig.printer_ip || ''}
+                                    onChange={(e) => setPrinterConfig({...printerConfig, printer_ip: e.target.value})}
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: 192.168.1.100"
+                                />
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    La IP que tiene conectada tu impresora en el Wi-Fi actual del local.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
