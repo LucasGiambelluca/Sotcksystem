@@ -9,24 +9,28 @@ export const printerService = {
     try {
       const RAWBT_URL = 'http://localhost:40213/print';
       
-      // Ajustamos el body al formato exacto que espera el servidor de RawBT
-      // Algunos requieren { "base64": "..." } otros solo el string
+      // Convertimos el base64 de vuelta a un Array de bytes (binario)
+      const binaryString = window.atob(base64Content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Enviamos CUALQUIER dato binario directo al cuerpo de la petición
       const response = await fetch(RAWBT_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/octet-stream',
         },
-        body: JSON.stringify({
-          base64: base64Content
-        })
+        body: bytes
       });
 
       if (response.ok) {
         return true;
       }
       
-      console.warn('Fallo el fetch directo a RawBT, intentando via Intent URL...');
-      window.location.href = `rawbt:base64:${base64Content}`;
+      console.warn('Fallo el fetch binario, probando con esquema rawbt:');
+      window.location.href = `rawbt:base64,${base64Content}`; // Usamos coma que es mas estandar en intents
       return true;
     } catch (error) {
       console.error('Error enviando a RawBT:', error);
