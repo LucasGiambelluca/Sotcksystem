@@ -1,5 +1,4 @@
 import { supabase } from '../supabaseClient';
-import { toast } from 'sonner';
 
 export const printerService = {
   /**
