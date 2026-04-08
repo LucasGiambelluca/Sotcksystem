@@ -10,21 +10,26 @@ import Jimp from 'jimp';
 export class PrinterService {
     private static COLUMN_WIDTH = 42; // Standard for 80mm (Font A)
 
-    /**
-     * Downloads an image, converts it to B/W raster, and returns ESC/POS bytes.
-     */
     private static async processLogo(url: string): Promise<number[] | null> {
         try {
+            logger.info(`[PrinterService] Processing logo from URL: ${url}`);
             const image = await Jimp.read(url);
             
-            // 384px is the standard dot width for 80mm printers
+            if (!image) {
+                logger.error('[PrinterService] Jimp could not read the image.');
+                return null;
+            }
+
+            // Standard for 80mm
             image.resize(384, Jimp.AUTO);
             image.greyscale();
-            image.contrast(0.8);
+            image.contrast(0.9); // Increase contrast for thermal printing
 
             const width = image.bitmap.width;
             const height = image.bitmap.height;
             const widthBytes = Math.ceil(width / 8);
+
+            logger.info(`[PrinterService] Logo processed: ${width}x${height} (${widthBytes} bytes wide)`);
 
             // GS v 0 0 xL xH yL yH d1...dk
             const commands: number[] = [
@@ -39,9 +44,8 @@ export class PrinterService {
                     for (let bit = 0; bit < 8; bit++) {
                         const pixelX = x * 8 + bit;
                         if (pixelX < width) {
-                            const color = Jimp.intToRGBA(image.getPixelColor(pixelX, y));
-                            // If average brightness is < 128, consider it black
-                            const brightness = (color.r + color.g + color.b) / 3;
+                            const rgba = Jimp.intToRGBA(image.getPixelColor(pixelX, y));
+                            const brightness = (rgba.r + rgba.g + rgba.b) / 3;
                             if (brightness < 128) {
                                 byte |= (1 << (7 - bit));
                             }
@@ -52,8 +56,8 @@ export class PrinterService {
             }
 
             return commands;
-        } catch (err) {
-            console.error('[PrinterService] Error processing logo image:', err);
+        } catch (err: any) {
+            logger.error(`[PrinterService] Error processing logo: ${err.message}`);
             return null;
         }
     }

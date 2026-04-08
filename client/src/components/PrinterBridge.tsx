@@ -52,6 +52,15 @@ export default function PrinterBridge() {
     };
   }, [isActive]);
 
+  const testConnection = async () => {
+    // Comando ESC/POS para un "Beep" (si la impresora lo soporta) o un pequeño avance
+    const testBytes = new Uint8Array([0x1B, 0x40, 0x1B, 0x64, 0x02]); 
+    const success = await printerService.printToRawBT(window.btoa(String.fromCharCode(...testBytes)));
+    if (success) {
+      toast.success('Conexión probada. Si no salió cartel, ¡está OK!');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-2 p-4 bg-dark-bg/50 rounded-xl border border-white/5 mb-4">
       <div className="flex items-center justify-between">
@@ -74,18 +83,26 @@ export default function PrinterBridge() {
       </div>
       
       {isActive && (
-        <div className="flex items-center gap-2 mt-1">
-          {isConnected ? (
-              <>
-                <Wifi size={12} className="text-green-500" />
-                <span className="text-[10px] text-green-500 font-bold uppercase tracking-tighter">Directo (Sin Carteles)</span>
-              </>
-          ) : (
-              <>
-                <WifiOff size={12} className="text-red-400" />
-                <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">Vía App (Con Carteles)</span>
-              </>
-          )}
+        <div className="flex flex-col gap-2 mt-1">
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+                <>
+                  <Wifi size={12} className="text-green-500" />
+                  <span className="text-[10px] text-green-500 font-bold uppercase tracking-tighter">Directo (Sin Carteles)</span>
+                </>
+            ) : (
+                <>
+                  <WifiOff size={12} className="text-red-400" />
+                  <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">Vía App (Con Carteles)</span>
+                </>
+            )}
+          </div>
+          <button 
+            onClick={testConnection}
+            className="text-[10px] bg-white/5 hover:bg-white/10 text-gray-300 py-1 rounded border border-white/10 transition-colors uppercase font-bold"
+          >
+            Probar Conexión
+          </button>
         </div>
       )}
       
