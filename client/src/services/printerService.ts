@@ -7,17 +7,17 @@ export const printerService = {
    */
   async printToRawBT(base64Content: string): Promise<boolean> {
     try {
-      // RawBT por defecto escucha en el puerto 40213 para peticiones HTTP
       const RAWBT_URL = 'http://localhost:40213/print';
       
+      // Ajustamos el body al formato exacto que espera el servidor de RawBT
+      // Algunos requieren { "base64": "..." } otros solo el string
       const response = await fetch(RAWBT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          data: base64Content,
-          type: 'base64'
+          base64: base64Content
         })
       });
 
@@ -25,7 +25,6 @@ export const printerService = {
         return true;
       }
       
-      // Si falla el fetch directo (por Mixed Content), probamos con el Intent URL (fallback)
       console.warn('Fallo el fetch directo a RawBT, intentando via Intent URL...');
       window.location.href = `rawbt:base64:${base64Content}`;
       return true;
