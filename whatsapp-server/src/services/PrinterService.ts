@@ -12,26 +12,27 @@ export class PrinterService {
 
     private static async processLogo(url: string): Promise<number[] | null> {
         try {
-            logger.info(`[PrinterService] Processing logo from URL: ${url}`);
+            console.log(`[PRINTER-LOG] Starting processLogo for URL: ${url}`);
             const image = await Jimp.read(url);
             
             if (!image) {
-                logger.error('[PrinterService] Jimp could not read the image.');
+                console.error('[PRINTER-LOG] ERROR: Jimp could not read the image.');
                 return null;
             }
+
+            console.log(`[PRINTER-LOG] Image loaded. Original size: ${image.bitmap.width}x${image.bitmap.height}`);
 
             // Standard for 80mm
             image.resize(384, Jimp.AUTO);
             image.greyscale();
-            image.contrast(0.9); // Increase contrast for thermal printing
+            image.contrast(0.9);
 
             const width = image.bitmap.width;
             const height = image.bitmap.height;
             const widthBytes = Math.ceil(width / 8);
 
-            logger.info(`[PrinterService] Logo processed: ${width}x${height} (${widthBytes} bytes wide)`);
+            console.log(`[PRINTER-LOG] Image resized: ${width}x${height} (${widthBytes} bytes wide)`);
 
-            // GS v 0 0 xL xH yL yH d1...dk
             const commands: number[] = [
                 0x1D, 0x76, 0x30, 0x00,
                 widthBytes & 0xFF, (widthBytes >> 8) & 0xFF,
@@ -55,24 +56,25 @@ export class PrinterService {
                 }
             }
 
+            console.log(`[PRINTER-LOG] Logo processing COMPLETE. Command length: ${commands.length}`);
             return commands;
         } catch (err: any) {
-            logger.error(`[PrinterService] Error processing logo: ${err.message}`);
+            console.error(`[PRINTER-LOG] CRITICAL ERROR processLogo: ${err.message}`);
             return null;
         }
     }
 
-    /**
-     * Enqueues a printer job for a specific order.
-     */
     static async queueOrderTicket(orderId: string): Promise<boolean> {
         try {
+            console.log(`[PRINTER-LOG] --- RECEIVED PRINT REQUEST for order: ${orderId} ---`);
             // 1. Get Printer Config
             const { data: config } = await supabase
                 .from('printer_config')
                 .select('*')
                 .limit(1)
                 .maybeSingle();
+
+            console.log(`[PRINTER-LOG] Config loaded. Print Logo: ${config?.print_logo}`);
 
             // 2. Get Order
             const { data: order, error } = await supabase
@@ -90,11 +92,14 @@ export class PrinterService {
                 .single();
 
             if (error || !order) {
-                logger.error('[PrinterService] Order not found:', error);
+                console.error('[PRINTER-LOG] ERROR: Order not found:', error);
                 return false;
             }
 
+            console.log(`[PRINTER-LOG] Order ${order.order_number} loaded. Generating ESC/POS...`);
             const rawContent = await this.generateEscPos(order, config);
+            console.log(`[PRINTER-LOG] ESC/POS generated. Total length: ${rawContent.length} bytes`);
+            
             const base64Content = Buffer.from(rawContent).toString('base64');
 
             const { error: queueError } = await supabase
@@ -107,14 +112,14 @@ export class PrinterService {
                 });
 
             if (queueError) {
-                logger.error('[PrinterService] Error enqueuing ticket:', queueError);
+                console.error('[PRINTER-LOG] ERROR inserting to queue:', queueError);
                 return false;
             }
 
-            logger.info(`[PrinterService] Ticket enqueued for order #${order.order_number}`);
+            console.log(`[PRINTER-LOG] SUCCESS: Job stored in print_queue for order #${order.order_number}`);
             return true;
-        } catch (err) {
-            logger.error('[PrinterService] Unexpected error:', err);
+        } catch (err: any) {
+            console.error('[PRINTER-LOG] UNEXPECTED CRITICAL ERROR:', err);
             return false;
         }
     }
