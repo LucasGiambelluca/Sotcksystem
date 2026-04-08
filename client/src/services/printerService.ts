@@ -6,38 +6,39 @@ export const printerService = {
    * @param base64Content Contenido del ticket en Base64 (comandos ESC/POS)
    */
   async printToRawBT(base64Content: string): Promise<boolean> {
-    try {
-      const RAWBT_URL = 'http://localhost:40213/print';
-      
-      // Convertimos el base64 de vuelta a un Array de bytes (binario)
-      const binaryString = window.atob(base64Content);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      // Enviamos CUALQUIER dato binario directo al cuerpo de la petición
-      const response = await fetch(RAWBT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-        },
-        body: bytes
-      });
+    return new Promise((resolve) => {
+      try {
+        const WS_URL = 'ws://localhost:40213';
+        const socket = new WebSocket(WS_URL);
 
-      if (response.ok) {
-        return true;
+        socket.onopen = () => {
+          console.log('📡 Conectado a RawBT via WebSocket');
+          // Convertimos a binario
+          const binaryString = window.atob(base64Content);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          // Enviamos los bytes directamente
+          socket.send(bytes);
+          
+          // Cerramos despues de un pequeño delay
+          setTimeout(() => {
+            socket.close();
+            resolve(true);
+          }, 500);
+        };
+
+        socket.onerror = (error) => {
+          console.error('❌ Error de WebSocket con RawBT:', error);
+          // Fallback al metodo antiguo si el socket falla
+          window.location.href = `rawbt:base64,${base64Content}`;
+          resolve(true);
+        };
+      } catch (e) {
+        resolve(false);
       }
-      
-      console.warn('Fallo el fetch binario, probando con esquema rawbt:');
-      window.location.href = `rawbt:base64,${base64Content}`; // Usamos coma que es mas estandar en intents
-      return true;
-    } catch (error) {
-      console.error('Error enviando a RawBT:', error);
-      // Fallback final
-      window.location.href = `rawbt:base64:${base64Content}`;
-      return true;
-    }
+    });
   },
 
   /**
