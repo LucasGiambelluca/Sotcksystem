@@ -467,7 +467,7 @@ export default function KitchenDashboard() {
     const handlePrintOrder = async (orderId: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            const finalEndpoint = '/eldelirio-api/api/printer/print/' + orderId;
+            const finalEndpoint = `${window.location.origin}/eldelirio-api/api/printer/print/${orderId}`;
 
             console.log('[Printer] Enqueuing to:', finalEndpoint);
 

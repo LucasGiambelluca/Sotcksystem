@@ -67,14 +67,18 @@ export class PrinterService {
     static async queueOrderTicket(orderId: string): Promise<boolean> {
         try {
             console.log(`[PRINTER-LOG] --- RECEIVED PRINT REQUEST for order: ${orderId} ---`);
-            // 1. Get Printer Config
-            const { data: config } = await supabase
+            
+            // 1. Get Printer Config (Robust)
+            const { data: config, error: configError } = await supabase
                 .from('printer_config')
                 .select('*')
                 .limit(1)
                 .maybeSingle();
 
-            console.log(`[PRINTER-LOG] Config loaded. Print Logo: ${config?.print_logo}`);
+            if (configError) console.error('[PRINTER-LOG] Config load error:', configError);
+            
+            const shouldPrintLogo = config?.print_logo ?? true; // Default true for testing
+            console.log(`[PRINTER-LOG] Config loaded. Print Logo: ${shouldPrintLogo}, URL: ${config?.logo_url}`);
 
             // 2. Get Order
             const { data: order, error } = await supabase
@@ -97,6 +101,14 @@ export class PrinterService {
             }
 
             console.log(`[PRINTER-LOG] Order ${order.order_number} loaded. Generating ESC/POS...`);
+            
+            // Force logo processing if URL exists, regardless of config toggle for now
+            let logoBytes = null;
+            if (config?.logo_url) {
+                console.log(`[PRINTER-LOG] Attempting to process logo: ${config.logo_url}`);
+                logoBytes = await this.processLogo(config.logo_url);
+            }
+
             const rawContent = await this.generateEscPos(order, config);
             console.log(`[PRINTER-LOG] ESC/POS generated. Total length: ${rawContent.length} bytes`);
             
@@ -108,7 +120,7 @@ export class PrinterService {
                     order_id: orderId,
                     raw_content: base64Content,
                     status: 'pending',
-                    logo_url: config?.print_logo ? config?.logo_url : null
+                    logo_url: shouldPrintLogo ? config?.logo_url : null
                 });
 
             if (queueError) {
