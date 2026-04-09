@@ -155,9 +155,10 @@ export class PrinterService {
             ESC, 0x74, 0x10,    // Code page 16 (WPC1252/Latin 1)
         ];
 
-        // --- NEW: LOGO PROCESSING ---
-        if (config?.print_logo && config?.logo_url) {
+        // --- NEW: LOGO PROCESSING (FORZADO PARA PRUEBAS) ---
+        if (config?.logo_url) {
             try {
+                console.log(`[PRINTER-LOG] Forzando impresión de logo: ${config.logo_url}`);
                 const logoBytes = await this.processLogo(config.logo_url);
                 if (logoBytes) {
                     commands.push(ESC, 0x61, 0x01); // Center
