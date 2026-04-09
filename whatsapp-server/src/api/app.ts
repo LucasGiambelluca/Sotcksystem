@@ -18,6 +18,9 @@ const app = express();
 
 // --- Debug Logger ---
 app.use((req, _res, next) => {
+    if (req.url.includes('printer')) {
+        console.log(`[PRINTER-DEBUG] HIT DETECTED: ${req.method} ${req.url}`);
+    }
     console.log(`[HTTP] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
     next();
 });
