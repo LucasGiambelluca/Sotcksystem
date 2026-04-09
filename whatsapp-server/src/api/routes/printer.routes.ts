@@ -59,4 +59,22 @@ router.patch('/config', async (req, res) => {
     }
 });
 
+router.get('/test-logo', async (req, res) => {
+    try {
+        const { data: config } = await supabase.from('printer_config').select('logo_url').limit(1).maybeSingle();
+        const url = config?.logo_url || 'https://zmwzwdgmjrlxtwcwxhhn.supabase.co/storage/v1/object/public/system/logos/eldelirio.png';
+        
+        console.log(`🚨 [PRINTER-LOG] Manual Logo Test Request for URL: ${url}`);
+        const result = await PrinterService['processLogo'](url); // Use bracket notation for private static if needed, but here it's accessible
+        
+        if (result) {
+            res.json({ success: true, message: 'Logo processed successfully', length: result.length });
+        } else {
+            res.status(500).json({ success: false, message: 'Logo processing returned null. Check server logs.' });
+        }
+    } catch (err: any) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 export default router;

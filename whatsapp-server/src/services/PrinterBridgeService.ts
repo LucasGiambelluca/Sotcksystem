@@ -43,7 +43,12 @@ export class PrinterBridgeService {
         const printerType = (process.env.PRINTER_TYPE as any) || 'USB';
         const printerIp = process.env.PRINTER_IP || '192.168.1.100';
 
-        logger.info(`🚀 [PrinterBridge] Starting automated queue worker...`);
+        // Polling de respaldo cada 10 segundos por si el Realtime falla (como está pasando ahora)
+        setInterval(() => {
+            this.processPending();
+        }, 10000);
+
+        logger.info('🚀 [PrinterBridge] Starting automated queue worker... (with fallback polling)');
         logger.info(`📡 [PrinterBridge] Mode: ${printerType} ${printerType === 'NETWORK' ? `(${printerIp})` : ''}`);
 
         // 1. Subscribe to Realtime inserts
