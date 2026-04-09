@@ -13,8 +13,29 @@ import systemRoutes from './routes/system.routes';
 import printerRoutes from './routes/printer.routes';
 import { whatsappClient } from '../infrastructure/whatsapp/WhatsAppClient';
 import { LocationController } from '../controllers/LocationController';
+import { PrinterService } from '../services/PrinterService';
+import { supabase } from '../config/database';
 
 const app = express();
+
+// --- Public Diagnostic ---
+app.get('/test-logo', async (req, res) => {
+    try {
+        const { data: config } = await supabase.from('printer_config').select('logo_url').limit(1).maybeSingle();
+        const url = config?.logo_url || 'https://zmwzwdgmjrlxtwcwxhhn.supabase.co/storage/v1/object/public/system/logos/eldelirio.png';
+        
+        console.log(`🚨 [LOGO-TEST-PUBLIC] Testing URL: ${url}`);
+        const result = await (PrinterService as any).processLogo(url);
+        
+        if (result) {
+            res.json({ success: true, message: 'Logo processed successfully', length: result.length, url });
+        } else {
+            res.status(500).json({ success: false, message: 'Logo processing returned null. Check server logs.', url });
+        }
+    } catch (err: any) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 // --- Debug Logger ---
 app.use((req, _res, next) => {
