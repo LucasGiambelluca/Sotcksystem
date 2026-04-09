@@ -27,21 +27,28 @@ export default function PrinterBridge() {
     });
 
     const checkRawBT = async () => {
-      try {
-        const WS_URL = 'ws://localhost:40213';
-        const socket = new WebSocket(WS_URL);
-        
-        socket.onopen = () => {
-          setIsConnected(true);
-          socket.close();
-        };
-        
-        socket.onerror = () => {
-          setIsConnected(false);
-        };
-      } catch (e) {
-        setIsConnected(false);
+      const ports = ['127.0.0.1', 'localhost'];
+      let found = false;
+
+      for (const host of ports) {
+        if (found) break;
+        try {
+          const socket = new WebSocket(`ws://${host}:40213`);
+          
+          socket.onopen = () => {
+            setIsConnected(true);
+            found = true;
+            socket.close();
+          };
+          
+          // Esperamos un poquito a ver si conecta
+          await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+          // Falló este intento
+        }
       }
+      
+      if (!found) setIsConnected(false);
     };
 
     checkRawBT();
