@@ -466,14 +466,8 @@ export default function KitchenDashboard() {
 
     const handlePrintOrder = async (orderId: string) => {
         try {
-            // En despliegues unificados, usamos la ruta relativa para evitar lios de dominios
-            const apiUrl = import.meta.env.VITE_API_URL || '';
             const { data: { session } } = await supabase.auth.getSession();
-            
-            // Si la URL empieza con http, la usamos. Si no, asumimos que es relativa al dominio actual.
-            const finalEndpoint = apiUrl.startsWith('http') 
-                ? `${apiUrl}/api/printer/print/${orderId}`
-                : `/eldelirio-api/api/printer/print/${orderId}`;
+            const finalEndpoint = '/eldelirio-api/api/printer/print/' + orderId;
 
             console.log('[Printer] Enqueuing to:', finalEndpoint);
 
