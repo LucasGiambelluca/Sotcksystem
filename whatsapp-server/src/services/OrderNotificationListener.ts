@@ -345,11 +345,16 @@ export class OrderNotificationListener {
       }
 
       // --- MULTI-BOT PROTECTION ---
-      const orderBotId = order.chat_context?.bot_id || order.metadata?.bot_id;
+      const orderBotId = (order.chat_context as any)?.bot_id || order.metadata?.bot_id;
       const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
       if (orderBotId && myBotId && orderBotId !== myBotId) {
-          logger.info(`[OrderNotificationListener] 🛡️ Ignoring order ${orderId} - Belongs to Bot ID: ${orderBotId} (My ID: ${myBotId})`);
+          logger.info(`🚫 [OrderNotificationListener] Ignorando pedido #${orderId.slice(0,8)}: pertenece al bot ${orderBotId} (yo soy ${myBotId})`);
+          return;
+      }
+
+      if (!orderBotId) {
+          logger.warn(`⚠️ [OrderNotificationListener] Pedido #${orderId.slice(0,8)} no tiene bot_id. Ignorando por seguridad para evitar cruces.`);
           return;
       }
       // ----------------------------
