@@ -29,6 +29,7 @@ services:
         - VITE_API_URL=${VITE_API_URL}
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+        - VITE_APP_SLUG=${VITE_APP_SLUG:-eldelirio}
     container_name: stock-app
     env_file:
       - .env
@@ -38,6 +39,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - CATALOG_SLUG=${CATALOG_SLUG:-eldelirio}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
