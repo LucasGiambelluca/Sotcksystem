@@ -1,0 +1,65 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    container_name: eldelirio-app
+    env_file:
+      - .env
+    ports:
+      - "3002:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - CATALOG_SLUG=${CATALOG_SLUG:-eldelirio}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - BAILEYS_SESSION_PATH=/app/sessions/auth_info_baileys
+      - BAILEYS_STORE_PATH=/app/sessions/baileys_store.json
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+      - WHATSAPP_CLOUD_TOKEN=${WHATSAPP_CLOUD_TOKEN:-}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+    volumes:
+      - baileys_sessions:/app/sessions
+      - backend_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - eldelirio-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: eldelirio-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - eldelirio-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+volumes:
+  baileys_sessions:
+  backend_logs:
+  redis_data:
+
+networks:
+  eldelirio-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
