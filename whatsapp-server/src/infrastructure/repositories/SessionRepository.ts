@@ -6,6 +6,25 @@ export class SessionRepository {
   private readonly HISTORY_TABLE = 'flow_executions_history';
 
   /**
+   * Find an active session without creating one
+   */
+  async findActiveSession(sessionId: string): Promise<Session | null> {
+    const finalSessionId = sessionId.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    const { data } = await supabase
+      .from(this.TABLE)
+      .select('*')
+      .eq('session_id', finalSessionId)
+      .in('status', ['active', 'waiting_input'])
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      return Session.fromJSON(data[0]);
+    }
+    return null;
+  }
+
+  /**
    * Get or create session - ATOMIC
    */
   async getOrCreate(
@@ -17,29 +36,18 @@ export class SessionRepository {
   ): Promise<Session> {
     const finalSessionId = sessionId.replace('@s.whatsapp.net', '').replace('@c.us', '');
 
-    // 1. Try to find existing active session
-    const { data: existingData } = await supabase
-      .from(this.TABLE)
-      .select('*')
-      .eq('session_id', finalSessionId)
-      .in('status', ['active', 'waiting_input'])
-      .order('updated_at', { ascending: false })
-      .limit(1);
-    
-    const existing = existingData && existingData.length > 0 ? existingData[0] : null;
+    const existing = await this.findActiveSession(finalSessionId);
 
     if (existing) {
-      const session = Session.fromJSON(existing);
-      
       // Check expiration (optional, 30 min in the plan)
       const expirationMs = 30 * 60 * 1000;
-      if (Date.now() - session.lastActivity.getTime() > expirationMs) {
+      if (Date.now() - existing.lastActivity.getTime() > expirationMs) {
         console.log(`[SessionRepo] Archiving expired session: ${finalSessionId}`);
         await this.archive(finalSessionId, 'expired');
         return this.createNew(finalSessionId, userPhone, flowId, initialContext, startNodeId);
       }
       
-      return session;
+      return existing;
     }
 
     return this.createNew(finalSessionId, userPhone, flowId, initialContext, startNodeId);

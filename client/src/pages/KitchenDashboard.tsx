@@ -230,6 +230,8 @@ export default function KitchenDashboard() {
         setShiftLoading(false);
     }, []);
 
+    const [newOrdersToNotify, setNewOrdersToNotify] = useState<Order[]>([]);
+    
     useEffect(() => {
         fetchOrders();
 
@@ -247,25 +249,32 @@ export default function KitchenDashboard() {
         });
         
         const channel = supabase
-            .channel('public:orders:kitchen_live') // Use a unique channel name
+            .channel('public:orders:kitchen_live')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-                console.log('[KitchenDashboard] Realtime change detected:', payload.eventType, (payload.new as any)?.id);
+                console.log('[KitchenDashboard] Realtime change:', payload.eventType, (payload.new as any)?.id);
                 
-                // If it's a new order or a status update we care about
-                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                    if (payload.eventType === 'INSERT') playNotification();
-                    // Delay slightly to ensure items are committed
-                    setTimeout(fetchOrders, 1000);
-                }
-            })
-            .subscribe((status) => {
-                console.log('[KitchenDashboard] Realtime subscription:', status);
-                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                    // toast.error('Error de conexión en tiempo real. Reintentando...');
-                }
-            });
+                // 1. Play Sound
+                playNotification();
 
-        // Fallback polling (every 20s) in case realtime fails
+                // 2. If it's a NEW ORDER (INSERT), show the POPUP
+                if (payload.eventType === 'INSERT') {
+                    const newOrder = payload.new as any;
+                    const normalized: Order = {
+                        id: newOrder.id,
+                        order_number: newOrder.order_number,
+                        created_at: newOrder.created_at,
+                        status: 'pending',
+                        total_amount: newOrder.total_amount,
+                        items: [],
+                        client_name: newOrder.chat_context?.pushName || 'Nuevo Cliente',
+                    };
+                    setNewOrdersToNotify(prev => [...prev, normalized]);
+                }
+
+                setTimeout(fetchOrders, 1000);
+            })
+            .subscribe();
+
         const interval = setInterval(fetchOrders, 20000);
 
         return () => { 
@@ -644,6 +653,42 @@ export default function KitchenDashboard() {
                     </button>
                 ))}
             </div>
+
+            {/* ── NEW ORDER POPUP (MODAL) ── */}
+            {newOrdersToNotify.length > 0 && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border-4 border-orange-500 animate-in zoom-in-95 duration-300">
+                        <div className="bg-gradient-to-br from-orange-500 to-red-600 p-8 text-white text-center">
+                            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                                <Package size={40} />
+                            </div>
+                            <h2 className="text-4xl font-black mb-2 tracking-tighter">¡NUEVO PEDIDO!</h2>
+                            <p className="text-orange-100 font-bold uppercase tracking-widest text-sm">Entró una orden de WhatsApp</p>
+                        </div>
+                        <div className="p-8 text-center bg-white">
+                            <div className="mb-6">
+                                <p className="text-gray-400 text-xs font-bold uppercase mb-1">Cliente</p>
+                                <h3 className="text-3xl font-black text-gray-900 leading-tight">
+                                    {newOrdersToNotify[0].client_name}
+                                </h3>
+                                <p className="text-orange-500 font-mono font-bold mt-2">
+                                    #{newOrdersToNotify[0].order_number || newOrdersToNotify[0].id.slice(0,5)}
+                                </p>
+                            </div>
+                            
+                            <button 
+                                onClick={() => {
+                                    setNewOrdersToNotify(prev => prev.slice(1));
+                                    enableSound();
+                                }}
+                                className="w-full py-5 bg-[#1e293b] text-white rounded-2xl font-black text-xl shadow-xl shadow-slate-200 active:scale-95 transition-all hover:bg-slate-800"
+                            >
+                                ✅ ENTENDIDO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── ORDER CARDS ── */}
             <main className="flex-1 overflow-y-auto p-3 space-y-3 pb-28">

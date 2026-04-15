@@ -52,7 +52,9 @@ export class OrderValidatorExecutor implements NodeExecutor {
             const price = item.price || 0;
             const lineTotal = price * qty;
             total += lineTotal;
-            summaryText += `• ${qty}x ${item.name} — $${lineTotal}\n`;
+            // Normalize H/F suffixes to uppercase for professional look
+            const displayName = item.name.replace(/ ([hf])$/i, (m, p1) => ' ' + p1.toUpperCase());
+            summaryText += `• ${qty}x ${displayName} — $${lineTotal}\n`;
             if (item.notes) summaryText += `  _(Notas: ${item.notes})_\n`;
         }
 

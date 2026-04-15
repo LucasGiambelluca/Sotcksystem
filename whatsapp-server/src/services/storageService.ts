@@ -3,8 +3,29 @@ import { supabase } from '../config/database';
 export class StorageService {
     private bucket = 'chat-media';
 
+    async ensureBucket(): Promise<boolean> {
+        try {
+            const { data: buckets } = await this.supabase.storage.listBuckets();
+            const exists = buckets?.some(b => b.name === this.bucket);
+            
+            if (!exists) {
+                console.log(`[StorageService] Creating bucket: ${this.bucket}`);
+                const { error } = await this.supabase.storage.createBucket(this.bucket, {
+                    public: true,
+                    fileSizeLimit: 10485760 // 10MB
+                });
+                if (error) throw error;
+            }
+            return true;
+        } catch (err) {
+            console.error('[StorageService] Bucket Error:', err);
+            return false;
+        }
+    }
+
     async uploadMedia(phone: string, buffer: Buffer, mimeType: string): Promise<string | null> {
         try {
+            await this.ensureBucket();
             const ext = this.getExtension(mimeType);
             const filename = `${phone}/${Date.now()}.${ext}`;
 

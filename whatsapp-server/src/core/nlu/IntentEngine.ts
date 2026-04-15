@@ -11,6 +11,7 @@ export interface ParsedEntities {
 
 export const INTENT_PATTERNS = {
     ORDER: [
+        /(?:quería|queria|quisiera|me gustaría|podría|hago|hacer|hacerte|hacerle)\s+(?:hacer|pedir|comprar|un|tu|el|un)\s*(?:pedido|compra|orden)?/i,
         /(?:quiero|mandame|pedi|pido|traeme|una|unas|dos|tres|cuatro|cinco)\s+(.+)/i,
         /(?:sumame|agregame|mete|poné|pone|anota|anotame)\s+(.+)/i,
         /(?:para (?:comer|llevar)|delivery|para aca|retiro)/i,

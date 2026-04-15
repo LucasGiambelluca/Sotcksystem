@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { PhoneUtils } from '../../utils/phoneUtils';
 import { logger } from '../../utils/logger';
 
 class RedisPersistenceService {
@@ -60,6 +61,26 @@ class RedisPersistenceService {
         const key = `checkpoint:${phone}`;
         const data = await this.getRaw(key);
         return data ? JSON.parse(data) : null;
+    }
+
+    async getHistory(phone: string, limit: number = 10): Promise<any[]> {
+        try {
+            const { supabase } = require('../../config/database');
+            const { data } = await supabase
+                .from('whatsapp_messages')
+                .select('text, from_me, created_at')
+                .eq('phone', PhoneUtils.normalize(phone))
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            
+            return (data || []).reverse().map((m: any) => ({
+                role: m.from_me ? 'assistant' : 'user',
+                content: m.text
+            }));
+        } catch (e: any) {
+            logger.error(`[RedisPersistence] getHistory failed: ${e.message}`);
+            return [];
+        }
     }
 
     async deleteCheckpoint(phone: string): Promise<void> {

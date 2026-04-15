@@ -20,6 +20,7 @@ export class PrinterBridgeService {
     private static instance: PrinterBridgeService;
     private isRunning = false;
     private processingLock = false;
+    private lastQueueWasEmpty = false;
 
     private constructor() {}
 
@@ -81,12 +82,16 @@ export class PrinterBridgeService {
                 .order('created_at', { ascending: true });
 
             if (pendingJobs && pendingJobs.length > 0) {
+                this.lastQueueWasEmpty = false;
                 logger.info(`📋 [PrinterBridge] Processing ${pendingJobs.length} pending jobs in queue...`);
                 for (const job of pendingJobs) {
                     await this.processJob(job);
                 }
             } else {
-                logger.info('✅ [PrinterBridge] Queue is empty. Waiting for new jobs.');
+                if (!this.lastQueueWasEmpty) {
+                    logger.info('✅ [PrinterBridge] Queue is empty. Waiting for new jobs.');
+                    this.lastQueueWasEmpty = true;
+                }
             }
         } catch (error) {
             logger.error('❌ [PrinterBridge] Error processing pending jobs:', error);

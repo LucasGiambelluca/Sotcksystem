@@ -113,12 +113,12 @@ export class LocationService {
         const forbiddenZones = activeZones.filter(z => !z.allow_delivery);
         for (const zone of forbiddenZones) {
             if (zone.zone_type === 'polygon' && this.isPointInPolygon(clientLocation, zone.polygon)) {
-                return { zone, distance_km: null, allowed: false, error: `Lo sentimos, no realizamos envíos a la zona de ${zone.name} por razones de seguridad.` };
+                return { zone, distance_km: null, allowed: false, error: `Lamentablemente no llegamos con el delivery a la zona de ${zone.name}, pero ¡no te quedes con las ganas! Podés pedirlo para retirar por el local.` };
             }
             if (zone.zone_type === 'radius' && storeLocation && zone.max_radius_km) {
                 const dist = this.calculateHaversineDistance(storeLocation, clientLocation);
                 if (dist <= zone.max_radius_km) {
-                    return { zone, distance_km: dist, allowed: false, error: `La zona ${zone.name} está excluida de repartos.` };
+                    return { zone, distance_km: dist, allowed: false, error: `Por el momento no cubrimos repartos en ${zone.name}, pero podés realizar tu pedido para retirar por el local.` };
                 }
             }
         }
@@ -168,9 +168,7 @@ export class LocationService {
                 zone: null, 
                 distance_km: distanceKm,
                 allowed: false,
-                error: distanceKm 
-                    ? `Estás a ${distanceKm.toFixed(1)}km, fuera de nuestro radio de entrega.`
-                    : 'Tu ubicación no coincide con ninguna zona de envío habilitada.'
+                error: `Lamentablemente estás a ${distanceKm?.toFixed(1) || 'varios'} km y no llegamos hasta ahí con el delivery, pero si querés podés pedir para retirar por el local.`
             };
         }
 

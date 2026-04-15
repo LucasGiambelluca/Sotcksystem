@@ -66,8 +66,14 @@ router.get('/webhook', (req: Request, res: Response) => {
 // 2. Message Event Handling (POST)
 router.post('/webhook', verifySignature, async (req: Request, res: Response) => {
     const body = req.body;
+    
+    console.log('\n----------------------------------------');
+    console.log('📩 [WEBHOOK-INCOMING] Mensaje recibido de Meta!');
+    console.log(`   - Path: ${req.originalUrl}`);
+    console.log(`   - Body: ${JSON.stringify(body).substring(0, 400)}`);
+    console.log('----------------------------------------\n');
 
-    // ACK Meta immediately to stop any retry timers
+    // ACK Meta immediately
     res.sendStatus(200);
 
     if (body.object === 'whatsapp_business_account') {
@@ -147,6 +153,24 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
                         } else if (message.type === 'image') {
                             text = message.image.caption || '_MEDIA_RECEIVED_';
                             context._receivedFile = { url: message.image.id, mimeType: message.image.mime_type, isOfficialId: true };
+                        } else if (message.type === 'audio') {
+                            logger.info(`[OfficialWA] Processing audio note from ${phone}...`);
+                            try {
+                                const audioBuffer = await officialWhatsAppClient.downloadMedia(message.audio.id);
+                                const { AIService } = require('../../services/AIService');
+                                const transcription = await AIService.transcribe(audioBuffer, 'voice.ogg');
+                                
+                                if (transcription) {
+                                    text = transcription;
+                                    logger.info(`[OfficialWA] Audio transcribed: "${text}"`);
+                                    context._isAudio = true;
+                                } else {
+                                    text = '_AUDIO_RECEIVED_';
+                                }
+                            } catch (audioErr: any) {
+                                logger.error(`[OfficialWA] Failed to process audio: ${audioErr.message}`);
+                                text = '_AUDIO_ERROR_';
+                            }
                         }
 
                         if (text) {

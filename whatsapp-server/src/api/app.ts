@@ -144,7 +144,8 @@ import whatsappWebhooks from './routes/whatsapp.webhooks';
 // --- External Services & WhatsApp specific routes ---
 app.use('/api/groups', groupsRoutes);
 app.use('/api', whatsappRoutes);  // Limiter disabled temporarily
-app.use('/api/official/:botId?', whatsappWebhooks); // Official Webhook endpoint (Supports /api/official/[ID]/webhook)
+app.use('/api/official', whatsappWebhooks); // Direct webhook: /api/official/webhook
+app.use('/api/official/:botId', whatsappWebhooks); // Bot-specific webhook: /api/official/:botId/webhook
 app.use('/api', systemRoutes);
 
 // --- STATIC FRONTEND SERVING (Unified Container) ---

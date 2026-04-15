@@ -18,7 +18,7 @@ async function improveFlow() {
             type: 'pollNode',
             position: { x: 500, y: 600 },
             data: { 
-                question: "❌ Lo sentimos, no realizamos envíos a esa ubicación por razones de seguridad o distancia.\n\n¿Qué preferís hacer?",
+                question: "❌ Lo sentimos, no llegamos a esa ubicación con el delivery.\n\n¿Qué preferís hacer?",
                 options: ["📍 Intentar con otra dirección", "🏠 Retirar en el local"],
                 variable: "retry_option"
             }

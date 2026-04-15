@@ -1,16 +1,20 @@
-import 'dotenv/config';
+import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import app from './api/app';
 import { whatsappClient } from './infrastructure/whatsapp/WhatsAppClient';
 import { stockCronService } from './services/StockCronService';
 import { orderNotificationListener } from './services/OrderNotificationListener';
 import { logisticsNotificationListener } from './services/LogisticsNotificationListener';
 import { PrinterBridgeService } from './services/PrinterBridgeService';
+import { sessionCleanupService } from './services/SessionCleanupService';
 
 const PORT = process.env.PORT || 3001;
 
 async function bootstrap() {
     // 1. Start Server
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
         console.log(`🚀 Server running on port ${PORT}`);
     });
 

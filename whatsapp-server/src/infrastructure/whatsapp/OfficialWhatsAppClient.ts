@@ -1,11 +1,12 @@
 import axios from 'axios';
+import { PhoneUtils } from '../../utils/phoneUtils';
 import { supabase } from '../../config/database';
 import { logger } from '../../utils/logger';
 
 export class OfficialWhatsAppClient {
     private accessToken: string;
     private phoneNumberId: string;
-    private apiVersion: string = 'v22.0';
+    private apiVersion: string = 'v25.0';
 
     constructor() {
         this.accessToken = process.env.WHATSAPP_CLOUD_TOKEN || '';
@@ -24,7 +25,9 @@ export class OfficialWhatsAppClient {
     }
 
     async sendMessage(to: string, message: any): Promise<any> {
-        const cleanTo = to.replace(/[^0-9]/g, '');
+        if (!this.isConfigured()) return;
+
+        const cleanTo = PhoneUtils.normalize(to);
         
         // Normalize Argentine numbers for Meta API: 54 + 9 + area + number -> 54 + area + number
         let apiTo = cleanTo;
@@ -91,6 +94,34 @@ export class OfficialWhatsAppClient {
                 payload: message 
             });
             throw error;
+        }
+    }
+
+    async downloadMedia(mediaId: string): Promise<Buffer> {
+        if (!this.accessToken) throw new Error('Official WA Access Token not configured');
+
+        try {
+            // 1. Get media URL from Meta
+            logger.debug(`[OfficialWA] Fetching media info for ID: ${mediaId}`);
+            const metaUrlResponse = await axios.get(`https://graph.facebook.com/${this.apiVersion}/${mediaId}`, {
+                headers: { 'Authorization': `Bearer ${this.accessToken}` }
+            });
+
+            const mediaUrl = metaUrlResponse.data?.url;
+            if (!mediaUrl) throw new Error('Could not retrieve media URL from Meta response');
+
+            // 2. Download binary data from the provided URL
+            logger.debug(`[OfficialWA] Downloading media content from Meta URL`);
+            const mediaResponse = await axios.get(mediaUrl, {
+                headers: { 'Authorization': `Bearer ${this.accessToken}` },
+                responseType: 'arraybuffer'
+            });
+
+            return Buffer.from(mediaResponse.data);
+        } catch (error: any) {
+            const errorData = error.response?.data || error.message;
+            logger.error(`[OfficialWA] Error downloading media ${mediaId}`, { error: errorData });
+            throw new Error(`Media download failed: ${error.message}`);
         }
     }
 
