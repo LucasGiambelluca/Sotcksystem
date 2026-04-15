@@ -1,14 +1,7 @@
 import { Handle, Position } from 'reactflow';
 import { Zap } from 'lucide-react';
 
-interface WebhookNodeProps {
-  data: {
-    label?: string;
-  };
-  selected: boolean;
-}
-
-export default function WebhookNode({ data, selected }: WebhookNodeProps) {
+export default function WebhookNode({ selected }: any) {
   return (
     <div className={`bg-white rounded-xl shadow-lg border-2 ${selected ? 'border-amber-500' : 'border-amber-200'} p-4 min-w-[180px]`}>
       <div className="flex items-center gap-2 mb-2">
