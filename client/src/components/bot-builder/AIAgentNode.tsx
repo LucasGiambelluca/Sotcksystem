@@ -1,33 +1,7 @@
 import { Handle, Position } from 'reactflow';
 import { Bot, Database } from 'lucide-react';
 
-interface AIAgentNodeProps {
-  data: {
-    label?: string;
-    possible_intents?: string;
-    output_variable?: string;
-    enable_interception?: boolean;
-    confidence_threshold?: number;
-    system_prompt?: string;
-  };
-  selected: boolean;
-}
-
-const INTENT_COLORS: Record<string, string> = {
-  'pedido': 'bg-green-100 text-green-700',
-  'consulta': 'bg-blue-100 text-blue-700',
-  'saludo': 'bg-yellow-100 text-yellow-700',
-  'soporte': 'bg-orange-100 text-orange-700',
-  'cancelar': 'bg-red-100 text-red-700',
-  'confirmar': 'bg-emerald-100 text-emerald-700',
-  'rechazar': 'bg-red-100 text-red-700',
-};
-
 export default function AIAgentNode({ data, selected }: any) {
-  const intents = (data.possible_intents || 'pedido,consulta,saludo,checkout,cancelar,desconocido')
-    .split(',')
-    .map((s: any) => s.trim())
-    .filter(Boolean);
 
   return (
     <div className={`bg-white rounded-2xl shadow-xl border-2 ${selected ? 'border-fuchsia-500 ring-4 ring-fuchsia-50' : 'border-fuchsia-200'} p-4 min-w-[320px] transition-all`}>
