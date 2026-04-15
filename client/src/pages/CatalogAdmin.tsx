@@ -68,8 +68,7 @@ export default function CatalogAdmin() {
       // 1. THE MOST BASIC SELECT POSSIBLE (No joins)
       const { data: itemsData, error: itemsError } = await supabase
         .from('catalog_items')
-        .select('*')
-        .eq('is_active', true);
+        .select('*');
       
       if (itemsError) throw itemsError;
 
@@ -94,7 +93,7 @@ export default function CatalogAdmin() {
       console.error('Critical LoadItems Error:', err);
       toast.error('Error al sincronizar con categorías');
       // Final fallback
-      const { data } = await supabase.from('catalog_items').select('*').eq('is_active', true);
+      const { data } = await supabase.from('catalog_items').select('*');
       if (data) setItems(data as CatalogItem[]);
     } finally {
       setLoading(false);

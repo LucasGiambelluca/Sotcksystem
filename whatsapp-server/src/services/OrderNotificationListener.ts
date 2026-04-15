@@ -194,8 +194,8 @@ export class OrderNotificationListener {
             const lookback = new Date(Date.now() - windowMs).toISOString();
             const { data: recentOrders } = await supabase
                 .from('orders')
-                .select('id, status, created_at')
-                .gt('created_at', lookback)
+                .select('id, status, updated_at')
+                .gt('updated_at', lookback)
                 .not('status', 'eq', 'PENDING');
 
             if (recentOrders && recentOrders.length > 0) {
@@ -335,7 +335,7 @@ export class OrderNotificationListener {
       const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
       if (orderBotId && myBotId && orderBotId !== myBotId) {
-          logger.info(`[OrderNotificationListener] 🛡️ Ignoring order ${orderId} - Belongs to Bot ID: ${orderBotId}`);
+          logger.info(`[OrderNotificationListener] 🛡️ Ignoring order ${orderId} - Belongs to Bot ID: ${orderBotId} (My ID: ${myBotId})`);
           return;
       }
       // ----------------------------
@@ -371,6 +371,7 @@ export class OrderNotificationListener {
           break;
         case 'IN_TRANSIT':
         case 'SHIPPED':
+        case 'ENVIADO':
         case 'OUT_FOR_DELIVERY': {
           const dtLower = (order.delivery_type || '').toLowerCase();
           const adLower = (order.delivery_address || '').toLowerCase();
@@ -415,10 +416,10 @@ Hola {clientName}, el cadete está en la puerta de tu domicilio con tu pedido. �
           break;
       }
 
-      console.log(`[OrderNotificationListener] Selected template:`, !!template ? "Found" : "NOT FOUND");
+      console.log(`[OrderNotificationListener] Final Template Selection:`, !!template ? "VALID" : "EMPTY");
 
-      if (!template) {
-         logger.info(`⚠️ [OrderNotificationListener] No template found for status: ${newStatus}`);
+      if (!template || template.trim() === '') {
+         logger.info(`⚠️ [OrderNotificationListener] No template found/set for status: ${newStatus} (Skipping WhatsApp)`);
          return;
       }
 
@@ -436,7 +437,12 @@ Hola {clientName}, el cadete está en la puerta de tu domicilio con tu pedido. �
       const message = formatMessage(template, notificationData);
 
       // 5. Send via WhatsApp
-      console.log(`📤 [OrderNotificationListener] Sending notification to ${phone}...`);
+      console.log(`\n--- 📤 SENDING NOTIFICATION ---`);
+      console.log(`To: ${phone}`);
+      console.log(`Status: ${newStatus}`);
+      console.log(`Content:\n${message}`);
+      console.log(`-------------------------------\n`);
+
       await whatsappClient.sendMessage(phone, { text: message });
       console.log(`✅ [OrderNotificationListener] Notification sent for order ${orderId}`);
 

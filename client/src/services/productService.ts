@@ -107,24 +107,30 @@ export const catalogCategoryService = {
 // This queries catalog_items, NOT products (raw material inventory).
 
 export const catalogItemService = {
-  async getAll() {
-    const { data, error } = await supabase
+  async getAll(onlyActive = true) {
+    let query = supabase
       .from('catalog_items')
       .select('*, catalog_category:catalog_categories(*)')
-      .eq('is_active', true)
       .order('sort_order', { ascending: true });
     
+    if (onlyActive) {
+      query = query.eq('is_active', true);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     
-    // Manual secondary sort by category order if needed, or we rely on the join
-    // But better to use SQL ordering if possible.
-    // Let's refine the order to be by category sort_order then item sort_order
-    const { data: orderedData, error: orderError } = await supabase
+    let complexQuery = supabase
       .from('catalog_items')
       .select('*, catalog_category!inner(*)')
-      .eq('is_active', true)
       .order('sort_order', { foreignTable: 'catalog_categories', ascending: true })
       .order('sort_order', { ascending: true });
+
+    if (onlyActive) {
+      complexQuery = complexQuery.eq('is_active', true);
+    }
+
+    const { data: orderedData, error: orderError } = await complexQuery;
 
     if (!orderError && orderedData) return orderedData as CatalogItem[];
 

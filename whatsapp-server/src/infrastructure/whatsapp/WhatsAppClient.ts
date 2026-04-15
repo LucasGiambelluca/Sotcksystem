@@ -2,6 +2,8 @@ import 'dotenv/config';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion, downloadMediaMessage } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode';
+import { PhoneUtils } from '../../utils/phoneUtils';
+import { logger } from '../../utils/logger';
 import { supabase } from '../../config/database';
 import fs from 'fs';
 import path from 'path';
@@ -40,6 +42,7 @@ class WhatsAppClient {
     // Anti-ban state
     private sendMutex = new Mutex();
     private userSendHistory: Map<string, MessageHistory> = new Map();
+    private lastMessages: Map<string, number> = new Map();
     private cleanupInterval: NodeJS.Timeout | null = null;
 
     public getSock() {
@@ -254,7 +257,8 @@ class WhatsAppClient {
                 if (msg.key.remoteJid === 'status@broadcast') continue;
 
                 const remoteJid = msg.key.remoteJid || '';
-                let phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+                // Use centralized normalization
+                const phone = PhoneUtils.normalize(remoteJid);
                 const pushName = msg.pushName || 'Usuario';
                 const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${remoteJid}`;
                 
@@ -288,16 +292,28 @@ class WhatsAppClient {
                     text = '_LOCATION_RECEIVED_';
                 }
                 
-                if (msg.message.imageMessage || msg.message.documentMessage) {
+                if (msg.message.imageMessage || msg.message.documentMessage || msg.message.audioMessage) {
                     console.log(`[Media] Receiving media from ${phone}...`);
                     try {
                         const buffer = await downloadMediaMessage(msg, 'buffer', { });
-                        const mimeType = msg.message.imageMessage ? msg.message.imageMessage.mimetype : msg.message.documentMessage.mimetype;
-                        const publicUrl = await storageService.uploadMedia(phone, buffer as Buffer, mimeType);
+                        const audioMsg = msg.message.audioMessage;
+                        const mimeType = msg.message.imageMessage ? msg.message.imageMessage.mimetype : 
+                                       (msg.message.documentMessage ? msg.message.documentMessage.mimetype : 
+                                       (audioMsg ? audioMsg.mimetype || 'audio/ogg' : ''));
                         
+                        const publicUrl = await storageService.uploadMedia(phone, buffer as Buffer, mimeType);
                         if (publicUrl) {
-                            fileContext = { _receivedFile: { url: publicUrl, mimeType: mimeType, size: (buffer as Buffer).length } };
-                            text = msg.message.imageMessage?.caption || msg.message.documentMessage?.caption || '_MEDIA_RECEIVED_'; 
+                            fileContext = { 
+                                _isAudio: !!audioMsg,
+                                _receivedFile: { url: publicUrl, mimeType: mimeType, size: (buffer as Buffer).length }
+                            };
+                            
+                            if (audioMsg) {
+                                text = '_AUDIO_RECEIVED_';
+                                console.log(`[Audio] Audio received from ${phone}, uploaded to: ${publicUrl}`);
+                            } else {
+                                text = msg.message.imageMessage?.caption || msg.message.documentMessage?.caption || '_MEDIA_RECEIVED_'; 
+                            }
                         }
                     } catch (err) {
                         console.error('[Media] Error processing media:', err);
@@ -310,7 +326,7 @@ class WhatsAppClient {
 
                 try {
                     // Save inbound message
-                    await this.saveInboundMessageDB(phone, pushName, text, fileContext ? 'image' : 'text', msg.key?.id);
+                    await this.saveInboundMessageDB(phone, pushName, text, fileContext?._isAudio ? 'audio' : (fileContext ? 'image' : 'text'), msg.key?.id);
 
                     console.log(`[PID:${PID}] Routing message from ${phone}...`);
                     const responses = await ConversationRouter.processMessage(phone, text, pushName, fileContext || {});
@@ -326,56 +342,65 @@ class WhatsAppClient {
         });
     }
 
-    public async sendMessage(to: string, message: { text: string }): Promise<void> {
+    public async sendMessage(to: string, content: any, options: any = {}) {
         if (officialWhatsAppClient.isConfigured()) {
-            await officialWhatsAppClient.sendMessage(to, message);
+            await officialWhatsAppClient.sendMessage(to, content);
             return;
         }
 
         if (!this.sock) {
-            console.error('Socket not initialized');
+            logger.warn('[WhatsAppClient] Cannot send message: socket not connected');
             return;
         }
 
-        const jid = to.includes('@s.whatsapp.net') || to.includes('@g.us') || to.includes('@status')
-            ? to 
-            : `${to}@s.whatsapp.net`;
+        const jid = PhoneUtils.toJid(to);
 
-        // Bot loop detection mechanism
+        // Anti-ban: check for message loops
         const now = Date.now();
-        const history = this.userSendHistory.get(jid) || { count: 0, firstMessageAt: now };
-        
+        if (!this.userSendHistory.has(jid)) {
+            this.userSendHistory.set(jid, { count: 0, firstMessageAt: now });
+        }
+        const history = this.userSendHistory.get(jid)!;
+
         if (now - history.firstMessageAt > BOT_LOOP_WINDOW_MS) {
-            history.count = 1;
+            history.count = 0;
             history.firstMessageAt = now;
         } else {
             history.count++;
             if (history.count > BOT_LOOP_THRESHOLD) {
-                console.warn(`[Anti-Ban] Bot loop detected for ${jid}. Dropping outbound message.`);
-                return; // Drop message to break loop
+                logger.warn(`[Anti-Ban] Bot loop detected for ${jid}. Dropping outbound message.`);
+                return;
             }
         }
-        this.userSendHistory.set(jid, history);
 
-        // Enqueue sending to prevent rapid bursts
+        // Wait in queue to prevent rapid bursts
         await this.sendMutex.runExclusive(async () => {
+            const antiBanDelay = Math.floor(Math.random() * (MAX_SEND_DELAY - MIN_SEND_DELAY + 1)) + MIN_SEND_DELAY;
+            await new Promise(resolve => setTimeout(resolve, antiBanDelay));
+
             try {
-                if (message.text) {
-                    await this.simulateTyping(jid, message.text.length);
+                // Anti-flooding: skip duplicates sent very fast
+                if (content.text) {
+                    const messageHash = `${jid}:${content.text}`;
+                    const lastSend = this.lastMessages.get(messageHash);
+                    if (lastSend && (now - lastSend) < 500) {
+                        logger.warn(`[Anti-Ban] Duplicate message detected for ${jid}. Skipping.`);
+                        return;
+                    }
+                    this.lastMessages.set(messageHash, now);
+                    
+                    // Simulate typing for realism
+                    await this.simulateTyping(jid, content.text.length);
                 }
 
-                const sentMsg = await this.sock.sendMessage(jid, message);
-                console.log(`[Anti-Ban] Message sent to ${jid}`);
-                
-                if (sentMsg && message.text) {
-                    await this.saveOutboundMessageDB(jid, message.text, 'text', sentMsg.key?.id);
-                }
+                logger.info(`[Anti-Ban] Message sent to ${jid}`);
+                const sentMsg = await this.sock.sendMessage(jid, content, options);
 
-                // Pause before processing the next message in queue
-                const sendDelayMs = Math.floor(Math.random() * (MAX_SEND_DELAY - MIN_SEND_DELAY + 1) + MIN_SEND_DELAY);
-                await new Promise(resolve => setTimeout(resolve, sendDelayMs));
+                if (sentMsg && content.text) {
+                    await this.saveOutboundMessageDB(to, content.text, 'text', sentMsg.key?.id);
+                }
             } catch (error) {
-                console.error(`Failed to send message to ${jid}:`, error);
+                logger.error(`[WhatsAppClient] Error sending message to ${jid}:`, error);
             }
         });
     }
@@ -494,8 +519,7 @@ class WhatsAppClient {
 
     private async saveOutboundMessageDB(phone: string, text: string, type: 'text' | 'image' | 'poll' | 'document' = 'text', wa_id: string = '') {
         try {
-            let cleanPhone = phone.replace(/[\s\-\+\(\)]/g, '');
-            cleanPhone = cleanPhone.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '');
+            const cleanPhone = PhoneUtils.normalize(phone);
             
             let { data: convo } = await supabase.from('whatsapp_conversations').select('id').eq('phone', cleanPhone).maybeSingle();
             
@@ -526,10 +550,9 @@ class WhatsAppClient {
         }
     }
 
-    private async saveInboundMessageDB(phone: string, contactName: string, text: string, type: 'text' | 'image' | 'poll' | 'document' = 'text', wa_id: string = '') {
+    private async saveInboundMessageDB(phone: string, contactName: string, text: string, type: 'text' | 'image' | 'poll' | 'document' | 'audio' = 'text', wa_id: string = '') {
         try {
-            let cleanPhone = phone.replace(/[\s\-\+\(\)]/g, '');
-            cleanPhone = cleanPhone.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '');
+            const cleanPhone = PhoneUtils.normalize(phone);
             
             let { data: convo } = await supabase.from('whatsapp_conversations').select('id, unread_count').eq('phone', cleanPhone).maybeSingle();
             
