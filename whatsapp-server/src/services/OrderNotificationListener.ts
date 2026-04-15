@@ -194,12 +194,17 @@ export class OrderNotificationListener {
             const lookback = new Date(Date.now() - windowMs).toISOString();
             const { data: recentOrders } = await supabase
                 .from('orders')
-                .select('id, status, updated_at')
+                .select('id, status, updated_at, chat_context')
                 .gt('updated_at', lookback)
                 .not('status', 'eq', 'PENDING');
 
             if (recentOrders && recentOrders.length > 0) {
+                const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
                 for (const order of recentOrders) {
+                    // Isolation check
+                    const orderBotId = (order.chat_context as any)?.bot_id;
+                    if (orderBotId && myBotId && orderBotId !== myBotId) continue;
+
                     const lastProcessed = this.processedChanges.get(order.id);
                     if (lastProcessed !== order.status) {
                         logger.info(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
@@ -220,12 +225,17 @@ export class OrderNotificationListener {
             const lookback = new Date(Date.now() - windowMs).toISOString();
             const { data: newOrders } = await supabase
                 .from('orders')
-                .select('id, channel, status')
+                .select('id, channel, status, chat_context')
                 .eq('status', 'PENDING')
                 .gt('created_at', lookback);
 
             if (newOrders && newOrders.length > 0) {
+                const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
                 for (const order of newOrders) {
+                    // Isolation check: Only process if it belongs to this bot
+                    const orderBotId = (order.chat_context as any)?.bot_id;
+                    if (orderBotId && myBotId && orderBotId !== myBotId) continue;
+
                     if (!this.processedNewOrders.has(order.id)) {
                         logger.info(`[INSERT-Polling] Detectada nueva orden no procesada: ${order.id} (${order.channel})`);
                         this.processedNewOrders.add(order.id);
