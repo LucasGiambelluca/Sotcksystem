@@ -27,7 +27,15 @@ import { IntentResolverExecutor } from './IntentResolverExecutor';
 import { OrderValidatorExecutor } from './OrderValidatorExecutor';
 import { ClearCartExecutor } from './ClearCartExecutor';
 import { ProductSearchExecutor } from './ProductSearchExecutor';
-
+import { AudioToTextExecutor } from './AudioToTextExecutor';
+import { AIAgentExecutor } from './AIAgentExecutor';
+import { MediaTypeDetectorExecutor } from './MediaTypeDetectorExecutor';
+import { WebhookExecutor } from './WebhookExecutor';
+import { BufferMemoryExecutor } from './BufferMemoryExecutor';
+import { KeywordExecutor } from './KeywordExecutor';
+import { SwitchExecutor } from './SwitchExecutor';
+import { TextSplitterExecutor } from './TextSplitterExecutor';
+import { ArraySwitchExecutor } from './ArraySwitchExecutor';
 
 export class NodeExecutorFactory {
   private executors = new Map<string, NodeExecutor>();
@@ -60,6 +68,17 @@ export class NodeExecutorFactory {
     this.register('orderValidatorNode', new OrderValidatorExecutor());
     this.register('clearCartNode', new ClearCartExecutor());
     this.register('productSearchNode', new ProductSearchExecutor());
+    this.register('audioTranscriberNode', new AudioToTextExecutor());
+    this.register('audioToTextNode', new AudioToTextExecutor());
+    this.register('aiAgentNode', new AIAgentExecutor());
+    this.register('mediaTypeDetectorNode', new MediaTypeDetectorExecutor());
+    this.register('mediaDetectorNode', new MediaTypeDetectorExecutor());
+    this.register('webhookNode', new WebhookExecutor());
+    this.register('bufferMemoryNode', new BufferMemoryExecutor());
+    this.register('keywordNode', new KeywordExecutor());
+    this.register('switchNode', new SwitchExecutor());
+    this.register('textSplitterNode', new TextSplitterExecutor());
+    this.register('arraySwitchNode', new ArraySwitchExecutor());
 
     
     // Start / Input nodes

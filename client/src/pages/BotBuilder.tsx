@@ -46,6 +46,15 @@ import LocationValidatorNode from '../components/bot-builder/LocationValidatorNo
 import OrderValidatorNode from '../components/bot-builder/OrderValidatorNode';
 import ClearCartNode from '../components/bot-builder/ClearCartNode';
 import ProductSearchNode from '../components/bot-builder/ProductSearchNode';
+import AudioTranscriberNode from '../components/bot-builder/AudioTranscriberNode';
+import AIAgentNode from '../components/bot-builder/AIAgentNode';
+import MediaTypeDetectorNode from '../components/bot-builder/MediaTypeDetectorNode';
+import WebhookNode from '../components/bot-builder/WebhookNode';
+import BufferMemoryNode from '../components/bot-builder/BufferMemoryNode';
+import KeywordNode from '../components/bot-builder/KeywordNode';
+import SwitchNode from '../components/bot-builder/SwitchNode';
+import TextSplitterNode from '../components/bot-builder/TextSplitterNode';
+import ArraySwitchNode from '../components/bot-builder/ArraySwitchNode';
 
 // Register custom node types
 const nodeTypes = {
@@ -75,6 +84,16 @@ const nodeTypes = {
   orderValidatorNode: OrderValidatorNode,
   clearCartNode: ClearCartNode,
   productSearchNode: ProductSearchNode,
+  audioTranscriberNode: AudioTranscriberNode,
+  aiAgentNode: AIAgentNode,
+  mediaTypeDetectorNode: MediaTypeDetectorNode,
+  mediaDetectorNode: MediaTypeDetectorNode,
+  webhookNode: WebhookNode,
+  bufferMemoryNode: BufferMemoryNode,
+  keywordNode: KeywordNode,
+  switchNode: SwitchNode,
+  textSplitterNode: TextSplitterNode,
+  arraySwitchNode: ArraySwitchNode,
 };
 
 const initialNodes: Node[] = [
@@ -148,7 +167,6 @@ export default function BotBuilder() {
           onChange: (text: string) => updateNodeData(n.id, { text }),
           onChangeQuestion: (q: string) => updateNodeData(n.id, { question: q }),
           onChangeVariable: (v: string) => updateNodeData(n.id, { variable: v }),
-          onChangeValue: (v: string) => updateNodeData(n.id, { expectedValue: v }),
           onChangeOptions: (o: string[]) => updateNodeData(n.id, { options: o }),
           onChangeSaveField: (f: string) => updateNodeData(n.id, { saveField: f }),
           onChangeFlow: (f: string) => updateNodeData(n.id, { flowId: f }),
@@ -172,9 +190,13 @@ export default function BotBuilder() {
           onChangePossibleIntents: (i: string) => updateNodeData(n.id, { possible_intents: i }),
           onChangeFallbackMessage: (m: string) => updateNodeData(n.id, { fallback_message: m }),
           onChangeMaxRetries: (r: number) => updateNodeData(n.id, { max_retries: r }),
+          onChangeOutputVariable: (v: string) => updateNodeData(n.id, { output_variable: v }),
+          onChangeInputVariable: (v: string) => updateNodeData(n.id, { inputVariable: v }),
+          onChangeThreshold: (v: number) => updateNodeData(n.id, { threshold: v }),
           onChangeContextVariables: (c: string[]) => updateNodeData(n.id, { context_variables: c }),
-          onChangeFailNodeId: (f: string) => updateNodeData(n.id, { failNodeId: f }),
-          onChangeQuery: (q: string) => updateNodeData(n.id, { query: q }),
+          onChangeKeywords: (k: any[]) => updateNodeData(n.id, { keywords: k }),
+          onChangeCases: (c: any[]) => updateNodeData(n.id, { cases: c }),
+          onChangeValue: (key: string, val: any) => updateNodeData(n.id, { [key]: val }),
           onDelete: () => deleteNode(n.id),
         }
       };
@@ -246,10 +268,10 @@ export default function BotBuilder() {
             showTyping: type === 'timerNode' ? true : undefined,
             systemPrompt: type === 'groqNode' ? 'Sos un asistente virtual para una rotisería.' : undefined,
             prompt: type === 'groqNode' ? 'Analizá este mensaje: {{respuesta}}' : undefined,
-            variable: type === 'questionNode' || type === 'pollNode' || type === 'mediaUploadNode' || type === 'stockCheckNode' || type === 'groqNode' || type === 'intentResolverNode' ? (type === 'mediaUploadNode' ? 'file_url' : type === 'stockCheckNode' ? 'stock_result' : type === 'groqNode' ? 'ai_response' : type === 'intentResolverNode' ? 'intent_clasificado' : 'respuesta') : undefined,
+            variable: type === 'questionNode' || type === 'pollNode' || type === 'mediaUploadNode' || type === 'stockCheckNode' || type === 'groqNode' || type === 'intentResolverNode' ? (type === 'mediaUploadNode' ? 'file_url' : type === 'stockCheckNode' ? 'stock_result' : type === 'groqNode' ? 'ai_response' : type === 'intentResolverNode' ? 'intent_clasificado' : 'respuesta') : type === 'arraySwitchNode' ? 'split_words' : undefined,
             temperature: type === 'groqNode' ? 0.7 : undefined,
             silent: type === 'groqNode' ? false : undefined,
-            possible_intents: type === 'intentResolverNode' ? 'delivery, retiro, cancelar, no_entendido' : undefined,
+            possible_intents: type === 'intentResolverNode' ? 'delivery, retiro, cancelar, no_entendido' : type === 'aiAgentNode' ? 'pedido,consulta,saludo,soporte,cancelar' : undefined,
             max_retries: type === 'intentResolverNode' ? 2 : undefined,
             fallback_message: type === 'intentResolverNode' ? 'No te entendí bien. ¿Podrías expresarlo con otras palabras?' : undefined,
             context_variables: type === 'intentResolverNode' ? [] : undefined,
@@ -257,13 +279,24 @@ export default function BotBuilder() {
             failNodeId: type === 'locationValidatorNode' ? '' : undefined,
             message: type === 'orderValidatorNode' ? '🛒 *Confirma tu pedido:*' : type === 'clearCartNode' ? '🧹 Carrito vaciado.' : type === 'productSearchNode' ? '🔍 Resultados de búsqueda:' : undefined,
             query: type === 'productSearchNode' ? '' : undefined,
+            // Audio Transcriber defaults
+            language: type === 'audioTranscriberNode' ? 'es' : undefined,
+            output_variable: type === 'audioTranscriberNode' ? 'transcripcion' : type === 'aiAgentNode' ? 'agent_intent' : type === 'mediaTypeDetectorNode' ? 'media_type' : undefined,
+            source_variable: type === 'textSplitterNode' ? 'transcripcion' : undefined,
+            target_variable: type === 'textSplitterNode' ? 'split_words' : undefined,
+            // AI Agent defaults
+            confidence_threshold: type === 'aiAgentNode' ? 0.8 : undefined,
+            enable_interception: type === 'aiAgentNode' ? true : undefined,
+            generate_response: type === 'aiAgentNode' ? true : undefined,
+            // Media Type Detector defaults
+            audio_handle: type === 'mediaTypeDetectorNode' ? 'audio' : undefined,
+            text_handle: type === 'mediaTypeDetectorNode' ? 'text' : undefined,
             
             // Callbacks
             onDelete: () => deleteNode(newNode.id),
             onChange: (text: string) => updateNodeData(newNode.id, { text }),
             onChangeQuestion: (q: string) => updateNodeData(newNode.id, { question: q }),
             onChangeVariable: (v: string) => updateNodeData(newNode.id, { variable: v }),
-            onChangeValue: (v: string) => updateNodeData(newNode.id, { expectedValue: v }),
             onChangeOptions: (o: string[]) => updateNodeData(newNode.id, { options: o }),
             onChangeFlow: (f: string) => updateNodeData(newNode.id, { flowId: f }),
             onChangeAction: (a: string) => updateNodeData(newNode.id, { action: a }),
@@ -288,8 +321,9 @@ export default function BotBuilder() {
             onChangeFallbackMessage: (m: string) => updateNodeData(newNode.id, { fallback_message: m }),
             onChangeMaxRetries: (r: number) => updateNodeData(newNode.id, { max_retries: r }),
             onChangeContextVariables: (c: string[]) => updateNodeData(newNode.id, { context_variables: c }),
-            onChangeFailNodeId: (f: string) => updateNodeData(newNode.id, { failNodeId: f }),
-            onChangeQuery: (q: string) => updateNodeData(newNode.id, { query: q }),
+            onChangeKeywords: (k: any[]) => updateNodeData(newNode.id, { keywords: k }),
+            onChangeCases: (c: any[]) => updateNodeData(newNode.id, { cases: c }),
+            onChangeValue: (key: string, val: any) => updateNodeData(newNode.id, { [key]: val }),
         },
       };
 
@@ -304,7 +338,17 @@ export default function BotBuilder() {
     
     // Clean up nodes data before saving
     const cleanNodes = flow.nodes.map((n: any) => {
-        const { onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, onChangePrompt, onChangeSystemPrompt, onChangeTemperature, onChangeSilent, onChangePossibleIntents, onChangeFallbackMessage, onChangeMaxRetries, onChangeContextVariables, onChangeFailNodeId, onChangeQuery, ...restData } = n.data;
+        const { 
+            onChange, onChangeQuestion, onChangeVariable, onChangeValue, onChangeOptions, 
+            onChangeSaveField, onChangeFlow, onDelete, onChangeAction, onChangeProductVar, 
+            onChangeQtyVar, onChangeDetailVar, onChangeDuration, onChangeShowTyping, 
+            onChangeReportType, onChangePriority, onChangeMessage, onChangeMediaUrl, 
+            onChangeCaption, onChangeMediaType, onChangeFileName, onChangeMimeType, 
+            onChangePrompt, onChangeSystemPrompt, onChangeTemperature, onChangeSilent, 
+            onChangePossibleIntents, onChangeFallbackMessage, onChangeMaxRetries, 
+            onChangeContextVariables, onChangeFailNodeId, onChangeQuery, onChangeKeywords, 
+            onChangeCases, ...restData 
+        } = n.data;
         return { ...n, data: restData };
     });
 

@@ -8,6 +8,7 @@ import { SessionRepository } from '../../infrastructure/repositories/SessionRepo
 import { nodeExecutorFactory } from '../executors/NodeExecutorFactory';
 import { Session } from '../domain/Session';
 import { redisPersistence } from '../../infrastructure/persistence/RedisPersistenceService';
+import { PhoneUtils } from '../../utils/phoneUtils';
 import { ConfigurationService } from '../../services/ConfigurationService';
 
 export class FlowEngine {
@@ -28,8 +29,8 @@ export class FlowEngine {
      * Entry point for messages. Routes to the appropriate session queue.
      */
     async processMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
-        const remoteJid = context.remoteJid || (phone.includes('@') ? phone : `${phone}@s.whatsapp.net`);
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const remoteJid = context.remoteJid || PhoneUtils.toJid(phone);
+        const cleanPhone = PhoneUtils.normalize(phone);
         const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
         
         let queue = this.sessionQueues.get(sessionId);
@@ -46,8 +47,8 @@ export class FlowEngine {
      */
     private async executeMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
         const startTime = Date.now();
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
-        const remoteJid = context.remoteJid || (cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`);
+        const cleanPhone = PhoneUtils.normalize(phone);
+        const remoteJid = context.remoteJid || PhoneUtils.toJid(phone);
         const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
 
         logger.info(`[FlowEngine] Processing message in queue`, { sessionId, text: messageText.substring(0, 50) });
@@ -131,14 +132,18 @@ export class FlowEngine {
 
         try {
             const cleanMessage = messageText.trim().toLowerCase();
-            const cleanPhone = phone.replace(/[^0-9]/g, '');
-            const sessionId = `1to1:${cleanPhone}`;
-            const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
+            // cleanPhone and sessionId are already calculated correctly above
+            // Use them consistently below
 
             const accumulatedMessages: any[] = [];
             const previousNodeId = session?.currentNodeId || null;
 
+            // If no session exists, we must resolve the flow
             if (!session) {
+                if (session) {
+                    // This case should be rare now that Router doesn't create PENDING sessions
+                    logger.info(`[FlowEngine] Re-resolving session for ${sessionId}`);
+                }
                 let flowId = options.flowId;
                 let flow = null;
 
@@ -158,7 +163,24 @@ export class FlowEngine {
                 }
 
                 if (!flow) {
-                    return { currentStateDefinition: { message_template: '❌ No entendí. Escríbí "hola" para ver las opciones.' } };
+                    // --- WEBHOOK HOOK FALLBACK (Phase 5) ---
+                    // If no trigger word matches, look for a flow that starts with a 'webhookNode'
+                    const { data: webhookFlows } = await this.db.from('flows')
+                        .select('id, nodes, name')
+                        .eq('is_active', true);
+                    
+                    const hookFlow = webhookFlows?.find((f: any) => 
+                        f.nodes?.some((n: any) => n.type === 'webhookNode')
+                    );
+
+                    if (hookFlow) {
+                        logger.info(`[FlowEngine] No trigger match, but found Webhook flow: "${hookFlow.name}". Starting it.`);
+                        flow = hookFlow;
+                    } else {
+                        // No trigger match and no webhook flow → delegate back to Router for AI-powered Smart Start
+                        logger.info(`[FlowEngine] No flow matched trigger "${messageText.substring(0, 40)}" and no Webhook flow found. Delegating to AI.`);
+                        return { currentStateDefinition: { message_template: null, _no_flow_match: true } };
+                    }
                 }
                 
                 flowId = flow.id;
@@ -180,25 +202,50 @@ export class FlowEngine {
                     logger.error(`[FlowEngine] Error building business context: ${e.message}`);
                 }
 
+                // --- DYNAMIC START NODE (Webhook priority) ---
+                const { data: flowData } = await this.db.from('flows').select('nodes').eq('id', flowId).single();
+                const webhookNode = flowData?.nodes?.find((n: any) => n.type === 'webhookNode');
+                const effectiveStartNodeId = options.startNodeId || webhookNode?.id || 'start';
+
                 session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId, {
-                    variables: { global: { ...context, ...businessContext, pushName: context.pushName || 'Cliente', phoneNumber: phone, chatJid: remoteJid, phone: phone, startedAt: new Date().toISOString() } },
+                    variables: { 
+                        global: { 
+                            ...context, 
+                            ...businessContext, 
+                            pushName: context.pushName || 'Cliente', 
+                            phoneNumber: phone, 
+                            chatJid: remoteJid, 
+                            phone: phone, 
+                            startedAt: new Date().toISOString(),
+                            user_message: messageText,
+                            _is_audio: context?._isAudio || false
+                        } 
+                    },
                     metadata: { flowId: flowId, flowVersion: 1, entryPoint: flowId === options.flowId ? 'manual' : 'trigger' }
-                }, options.startNodeId || 'start');
+                }, effectiveStartNodeId);
                 
                 const expirationDate = new Date();
                 expirationDate.setHours(expirationDate.getHours() + 2);
                 session.getContext().metadata.expiresAt = expirationDate;
                 
                 if (!(options.startNodeId && options.startNodeId !== 'start')) {
-                    const { data: startFlow } = await this.db.from('flows').select('nodes').eq('id', flowId).single();
-                    const startNode = startFlow?.nodes?.find((n: any) => n.id === session.currentNodeId);
-                    if (!(startNode && ['intentResolverNode', 'groqNode', 'questionNode'].includes(startNode.type))) {
+                    const nodes = flowData?.nodes || [];
+                    const startNode = nodes.find((n: any) => n.id === session.currentNodeId);
+                    if (!(startNode && ['intentResolverNode', 'groqNode', 'questionNode', 'webhookNode'].includes(startNode.type))) {
                         await this.handleInput(session, this.normalizeInput(messageText));
                     }
                 }
             } else {
                 if (session.status === 'waiting_input') {
                     await this.handleInput(session, this.normalizeInput(messageText));
+                    
+                    // IF INTELLIGENT ESCAPE TRIGGERED: Abort this chain and return special flag 
+                    // so the Router starts over from the Start Hook.
+                    if ((session as any)._exitToAI) {
+                        logger.info(`[FlowEngine] [EXIT_AI] Signal received. Terminating flow to allow Global AI routing.`);
+                        return { currentStateDefinition: { message_template: null, _restart_ai: true, _aiResult: (session as any)._aiResult } };
+                    }
+
                     if ((session as any)._pendingMessages) {
                         accumulatedMessages.push(...(session as any)._pendingMessages);
                         delete (session as any)._pendingMessages;
@@ -279,7 +326,8 @@ export class FlowEngine {
                     if (exactIndex !== -1) {
                         index = exactIndex;
                     } else {
-                        // AI-Powered Semantic Matching
+                        // 🔥 IA DESACTIVADA 🔥 Semántica y Dios desactivados.
+                        /*
                         try {
                             const { AIExtractor } = require('../nlu/AIExtractor');
                             const aiIndex = await AIExtractor.resolveMenuOption(input, options);
@@ -290,17 +338,35 @@ export class FlowEngine {
                         } catch (e) {
                             logger.error('[FlowEngine] Error resolving semantic poll input', e);
                         }
+                        */
                     }
                 }
 
                 if (index >= 0 && index < options.length) {
                     processedInput = options[index];
                     session.setVariable(`${varName}_index`, (index + 1).toString());
-                    // Set specific handle for routing (React Flow handle ID)
                     session.setVariable(`_poll_selected_handle_${currentNode.id}`, `option-${index}`);
-                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}" (Index: ${index + 1}, Handle: option-${index})`);
+                    logger.info(`[FlowEngine] [INPUT] Resolved poll input "${input}" to "${processedInput}"`);
                 } else {
-                    // INVALID INPUT: Re-prompt the user instead of advancing
+                    // --- INTELLIGENT ESCAPE (Phase 5) DESACTIVADO ---
+                    /*
+                    try {
+                        const { AIExtractor } = require('../nlu/AIExtractor');
+                        const aiResult = await AIExtractor.analyze(input);
+                        
+                        if (aiResult && aiResult.intent !== 'unknown' && aiResult.confidence > 0.6) {
+                            logger.info(`[FlowEngine] [ESCAPE] Input "${input}" matched intent "${aiResult.intent}". Breaking flow for AI processing.`);
+                            await this.sessionRepository.forceReset(session.userPhone);
+                            (session as any)._exitToAI = true;
+                            (session as any)._aiResult = aiResult;
+                            return; 
+                        }
+                    } catch (e) {
+                        logger.error('[FlowEngine] Escape check failed', e);
+                    }
+                    */
+
+                    // INVALID INPUT: Fallback to re-prompt
                     logger.info(`[FlowEngine] [INPUT] Invalid poll response: "${input}". Re-prompting user.`);
                     const optionLines = options.map((opt: string, i: number) => {
                         const cleanOpt = opt.replace(/^\d+[\s.)-]*\s*/, '');
@@ -508,7 +574,7 @@ export class FlowEngine {
         // OR if the node is NOT a branching node.
         if (!edge) {
             const node = (flow.nodes || []).find((n: any) => n.id === currentNodeId);
-            const isBranchingNode = ['pollNode', 'conditionNode', 'locationValidatorNode', 'orderValidatorNode'].includes(node?.type || '');
+            const isBranchingNode = ['pollNode', 'conditionNode', 'locationValidatorNode', 'orderValidatorNode', 'arraySwitchNode', 'switchNode'].includes(node?.type || '');
             
             if (!handle || !isBranchingNode) {
                 edge = edges.find((e: any) => e.source === currentNodeId);
@@ -521,40 +587,57 @@ export class FlowEngine {
     }
 
     private async findFlowByTrigger(text: string): Promise<FlowDefinition | null> {
-        const cleanText = text.trim().toLowerCase();
+        const cleanText = (text || '').trim().toLowerCase();
+        
+        // 1. Fetch all active flows to perform a smart match in memory
         const { data, error } = await this.db
             .from('flows')
             .select('id, name, trigger_word, is_active')
-            .eq('is_active', true)
-            .or(`trigger_word.ilike.${cleanText},trigger_word.ilike.%${cleanText}%`);
+            .eq('is_active', true);
 
         if (error || !data || data.length === 0) return null;
         
-        // 1. Try to find an exact trigger match
-        const exactMatches = data.filter((f: any) => 
-            f.trigger_word?.toLowerCase().split(',').map((t: string) => t.trim()).includes(cleanText)
-        );
+        // 2. Try EXACT match first
+        const exactMatch = data.find((f: any) => {
+            if (!f.trigger_word) return false;
+            const triggers = f.trigger_word.toLowerCase().split(',').map((t: string) => t.trim());
+            return triggers.includes(cleanText);
+        });
+        if (exactMatch) return exactMatch;
 
-        if (exactMatches.length > 0) {
-            // Priority for common triggers (hola, menu): prefer flows with "bienv" or "welcome" in the name
-            if (['hola', 'menu', 'menú', 'inicio'].includes(cleanText)) {
-                const prioritized = exactMatches.find((f: any) => 
-                    f.name.toLowerCase().includes('bienv') || 
-                    f.name.toLowerCase().includes('welcome')
-                );
-                if (prioritized) return prioritized;
-            }
-            return exactMatches[0];
+        // 3. Try PARTIAL match (if message contains the trigger word)
+        const partialMatch = data.find((f: any) => {
+            if (!f.trigger_word || f.trigger_word === '*') return false;
+            const triggers = f.trigger_word.toLowerCase().split(',').map((t: string) => t.trim());
+            return triggers.some((t: string) => cleanText.includes(t) && t.length > 2); // Avoid matching tiny words
+        });
+        if (partialMatch) return partialMatch;
+
+        // 4. ✨ WILDCARD / CATCH-ALL match (* or empty string) ✨
+        // Any flow with no trigger word, or an asterisk, is considered a catch-all.
+        const wildcardMatch = data.find((f: any) => {
+            if (!f.trigger_word) return true; // Empty string or null is a catch-all
+            const triggers = f.trigger_word.split(',').map((t: string) => t.trim());
+            return triggers.includes('*') || triggers.includes('');
+        });
+        
+        if (wildcardMatch) {
+            logger.info(`[FlowEngine] No specific trigger match for "${cleanText}". Routing to Catch-all flow: "${wildcardMatch.name}" (*)`);
+            return wildcardMatch;
         }
 
-        return data[0]; // Fallback to partial match
+        // 5. Final Fallback: Return null.
+        // We do NOT return 'Tomar Pedido' anymore. If there is no exact match, partial match, or catch-all,
+        // we shouldn't force the user into a flow they didn't ask for.
+        logger.info(`[FlowEngine] No active flow matches "${cleanText}", and no valid catch-all found.`);
+        return null;
     }
 
     /**
      * Resuelve el voto de una encuesta comparando el hash recibido con las opciones del nodo actual.
      */
     async resolvePollVote(phone: string, voteHashStr: string): Promise<string | null> {
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const cleanPhone = PhoneUtils.normalize(phone);
         const sessionId = `1to1:${cleanPhone}`;
         
         // 1. Get execution
@@ -642,8 +725,8 @@ export class FlowEngine {
     }
 
     async resumeSession(phone: string, context: any = {}): Promise<any> {
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
-        const remoteJid = context.remoteJid || `${cleanPhone}@s.whatsapp.net`;
+        const cleanPhone = PhoneUtils.normalize(phone);
+        const remoteJid = context.remoteJid || PhoneUtils.toJid(phone);
         const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
         
         const { data: existing } = await this.db.from('flow_executions')

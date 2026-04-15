@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
-import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search, Brain, MapPin, Trash2 } from 'lucide-react';
+import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search, Brain, MapPin, Trash2, Mic, Bot, Zap, Database, Scissors, Spline } from 'lucide-react';
 
 const nodeItems = [
+  { type: 'webhookNode', icon: Zap, label: 'Hook / Inicio', desc: 'Gatillo de entrada.', bg: 'bg-amber-100', text: 'text-amber-600' },
+  { type: 'mediaTypeDetectorNode', icon: Mic, label: 'Detector Media', desc: '¿Audio o Texto?', bg: 'bg-violet-100', text: 'text-violet-600' },
+  { type: 'keywordNode', icon: Search, label: 'Keyword Switch', desc: 'Busca palabras clave y ramifica.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  { type: 'switchNode', icon: GitFork, label: 'Switch Universal', desc: 'Ramifica según valor de variable.', bg: 'bg-amber-100', text: 'text-amber-600' },
+  { type: 'bufferMemoryNode', icon: Database, label: 'Pila Memoria', desc: 'Historial de chat para IA.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  { type: 'aiAgentNode', icon: Bot, label: 'Agente / Cerebro', desc: 'IA con Catálogo + Memoria.', bg: 'bg-fuchsia-100', text: 'text-fuchsia-600' },
   { type: 'messageNode', icon: MessageSquare, label: 'Mensaje', desc: 'Envía un texto simple.', bg: 'bg-blue-100', text: 'text-blue-600' },
   { type: 'questionNode', icon: HelpCircle, label: 'Pregunta', desc: 'Espera una respuesta.', bg: 'bg-yellow-100', text: 'text-yellow-600' },
   { type: 'pollNode', icon: BarChart2, label: 'Encuesta', desc: 'Opciones múltiples.', bg: 'bg-purple-100', text: 'text-purple-600' },
@@ -27,6 +33,11 @@ const nodeItems = [
   { type: 'groqNode', icon: Brain, label: 'Cerebro IA', desc: 'Usa IA (Groq) para responder o analizar.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
   { type: 'productSearchNode', icon: Search, label: 'Buscador IA', desc: 'Buscador con menú.', bg: 'bg-blue-100', text: 'text-blue-600' },
   { type: 'clearCartNode', icon: Trash2, label: 'Vaciar Carrito', desc: 'Limpia el pedido.', bg: 'bg-red-100', text: 'text-red-600' },
+  { type: 'audioTranscriberNode', icon: Mic, label: 'Audio → Texto', desc: 'Transcribe notas de voz.', bg: 'bg-violet-100', text: 'text-violet-600' },
+  { type: 'mediaTypeDetectorNode', icon: Mic, label: 'Detector Media', desc: 'Audio o Texto? Ramifica.', bg: 'bg-violet-100', text: 'text-violet-600' },
+  { type: 'aiAgentNode', icon: Bot, label: 'Agente IA', desc: 'Cerebro central: catálogo + historial + carrito.', bg: 'bg-fuchsia-100', text: 'text-fuchsia-600' },
+  { type: 'textSplitterNode', icon: Scissors, label: 'Split de Texto', desc: 'Convierte texto/audio en array de palabras.', bg: 'bg-stone-100', text: 'text-stone-600' },
+  { type: 'arraySwitchNode', icon: Spline, label: 'Switch Array Palabras', desc: 'Busca palabra exacta en el split.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
 ];
 
 export default function Sidebar() {
