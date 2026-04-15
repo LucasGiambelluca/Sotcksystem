@@ -79,7 +79,10 @@ export class OrderService {
                 delivery_date: deliveryDate ? new Date(deliveryDate).toISOString() : null,
                 payment_method: paymentMethod,
                 delivery_type: deliveryType || 'DELIVERY',
-                chat_context: chatContext || {}
+                chat_context: {
+                    ...(chatContext || {}),
+                    bot_id: process.env.WHATSAPP_PHONE_NUMBER_ID
+                }
             })
             .select()
             .single();

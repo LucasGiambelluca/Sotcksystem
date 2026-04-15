@@ -237,7 +237,11 @@ export class OrderNotificationListener {
                         const appConfig = await ConfigurationService.getFullConfig();
                         if (appConfig.auto_accept_orders) {
                             logger.info(`🤖 [INSERT-Polling] Auto-aceptando pedido #${order.id.slice(0,8)}`);
-                            await supabase.from('orders').update({ status: 'IN_PREPARATION' }).eq('id', order.id);
+                            const { error: updErr } = await supabase.from('orders').update({ status: 'IN_PREPARATION' }).eq('id', order.id);
+                            if (!updErr) {
+                                // Forzamos el procesado de la notificación inmediatamente después de auto-aceptar
+                                await this.handleStatusChange(order.id, 'IN_PREPARATION');
+                            }
                         }
                     }
                 }
