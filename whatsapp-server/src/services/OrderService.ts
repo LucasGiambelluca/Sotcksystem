@@ -81,7 +81,8 @@ export class OrderService {
                 delivery_type: deliveryType || 'DELIVERY',
                 chat_context: {
                     ...(chatContext || {}),
-                    bot_id: process.env.WHATSAPP_PHONE_NUMBER_ID
+                    bot_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
+                    catalog_slug: process.env.CATALOG_SLUG
                 }
             })
             .select()

@@ -221,20 +221,46 @@ export class OrderNotificationListener {
     // POLLING FALLBACK PARA NUEVAS ORDENES (si falla Realtime INSERT)
     setInterval(async () => {
         try {
-            const windowMs = 300000; // 5 minutos
-            const lookback = new Date(Date.now() - windowMs).toISOString();
+            // Heartbeat check for auditing
+            // logger.info('[INSERT-Polling] Rechecking pending orders...');
+            
             const { data: newOrders } = await supabase
                 .from('orders')
                 .select('id, channel, status, chat_context')
-                .eq('status', 'PENDING')
-                .gt('created_at', lookback);
+                .eq('status', 'PENDING');
 
             if (newOrders && newOrders.length > 0) {
                 const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+                const mySlug = process.env.CATALOG_SLUG; // e.g. 'eldelirio' o 'elpollocomilon'
+
                 for (const order of newOrders) {
                     // Isolation check: Only process if it belongs to this bot
                     const orderBotId = (order.chat_context as any)?.bot_id;
-                    if (orderBotId && myBotId && orderBotId !== myBotId) continue;
+                    const orderSlug = (order.chat_context as any)?.catalog_slug;
+                    const orderBusiness = (order.chat_context as any)?.catalog_business_name;
+                    
+                    // Lógica SMART de aislamiento:
+                    let isMyOrder = false;
+
+                    // 1. Si el bot_id coincide, es mío 100%
+                    if (myBotId && orderBotId && orderBotId === myBotId) {
+                        isMyOrder = true;
+                    } 
+                    // 2. Si no hay bot_id pero el slug coincide, es mío
+                    else if (mySlug && orderSlug && orderSlug === mySlug) {
+                        isMyOrder = true;
+                    }
+                    // 3. Si no hay nada pero el nombre de negocio coincide (parcial)
+                    else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) {
+                        isMyOrder = true;
+                    }
+                    // 4. Si es local y no hay un bot oficial configurado, procesamos igual para pruebas
+                    else if (!myBotId && !orderBotId) {
+                        isMyOrder = true;
+                    }
+
+                    // Si no es mío y estamos en el VPS (myBotId existe), lo ignoramos
+                    if (myBotId && !isMyOrder) continue;
 
                     if (!this.processedNewOrders.has(order.id)) {
                         logger.info(`[INSERT-Polling] Detectada nueva orden no procesada: ${order.id} (${order.channel})`);
@@ -344,17 +370,27 @@ export class OrderNotificationListener {
         return;
       }
 
-      // --- MULTI-BOT PROTECTION ---
+      // --- SMART MULTI-BOT PROTECTION ---
       const orderBotId = (order.chat_context as any)?.bot_id || order.metadata?.bot_id;
+      const orderSlug = (order.chat_context as any)?.catalog_slug;
+      const orderBusiness = (order.chat_context as any)?.catalog_business_name;
+      
       const myBotId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const mySlug = process.env.CATALOG_SLUG;
 
-      if (orderBotId && myBotId && orderBotId !== myBotId) {
-          logger.info(`🚫 [OrderNotificationListener] Ignorando pedido #${orderId.slice(0,8)}: pertenece al bot ${orderBotId} (yo soy ${myBotId})`);
+      let isMyOrder = false;
+      if (myBotId && orderBotId && orderBotId === myBotId) isMyOrder = true;
+      else if (mySlug && orderSlug && orderSlug === mySlug) isMyOrder = true;
+      else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) isMyOrder = true;
+      else if (!myBotId && !orderBotId) isMyOrder = true; // Local dev fallback
+
+      if (myBotId && !isMyOrder) {
+          logger.info(`🚫 [OrderNotificationListener] Ignorando notificación para #${orderId.slice(0,8)}: no pertenece a mi instancia (${mySlug || myBotId})`);
           return;
       }
 
-      if (!orderBotId) {
-          logger.warn(`⚠️ [OrderNotificationListener] Pedido #${orderId.slice(0,8)} no tiene bot_id. Ignorando por seguridad para evitar cruces.`);
+      if (!isMyOrder) {
+          logger.warn(`⚠️ [OrderNotificationListener] Pedido #${orderId.slice(0,8)} no pudo ser validado como propio. Saltando notificación por seguridad.`);
           return;
       }
       // ----------------------------
