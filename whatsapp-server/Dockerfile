@@ -6,21 +6,27 @@ WORKDIR /app
 # Native deps needed by Baileys (libsignal, sharp, etc.)
 RUN apk add --no-cache python3 make g++ libc6-compat git
 
-COPY package.json package-lock.json ./
+# Habilitar pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml ./
 
 # Install ALL deps (dev included) for the build step
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 # ==================== STAGE 2: Builder ====================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Habilitar pnpm en builder también
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Compile TypeScript → dist/
-RUN npm run build
+RUN pnpm run build
 
 # ==================== STAGE 3: Production deps only ====================
 FROM node:20-alpine AS prod-deps
@@ -28,11 +34,12 @@ FROM node:20-alpine AS prod-deps
 WORKDIR /app
 
 RUN apk add --no-cache python3 make g++ libc6-compat git
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install ONLY production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
+RUN pnpm install --prod --frozen-lockfile
 
 # ==================== STAGE 4: Runner ====================
 FROM node:20-alpine AS runner
