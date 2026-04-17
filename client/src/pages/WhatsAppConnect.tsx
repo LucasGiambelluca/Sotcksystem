@@ -53,7 +53,6 @@ export default function WhatsAppConnect() {
   const [savingWelcome, setSavingWelcome] = useState(false);
   
   // Embedded Signup
-  const [isSdkLoaded, setIsSdkLoaded] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
 
   useEffect(() => {
