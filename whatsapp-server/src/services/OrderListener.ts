@@ -158,15 +158,21 @@ export class OrderListener {
     const newStatus = newOrder.status;
     const now = Date.now();
 
-    // MEJORA V2.9: Throttling de Realtime/Polling (Evitar ráfagas en < 2s)
+    logger.debug(`[OrderListener] handleChange para ${newOrder.order_number}: ${oldStatus} -> ${newStatus}`);
+
+    // MEJORA V2.9: Throttling de Realtime/Polling
     const throttleKey = `${orderId}:${newStatus}`;
     const last = this.lastProcessed.get(throttleKey) || 0;
     if (now - last < 2000) {
+        logger.debug(`[OrderListener] Throttling: Omitiendo evento repetido para ${newOrder.order_number}:${newStatus}`);
         return;
     }
     this.lastProcessed.set(throttleKey, now);
 
-    if (!this.isMyOrder(newOrder)) return;
+    if (!this.isMyOrder(newOrder)) {
+        logger.debug(`[OrderListener] No es mi orden: ${newOrder.order_number}`);
+        return;
+    }
     if (newStatus === oldStatus && oldStatus !== null) return;
 
     // Actualizar cache local
@@ -177,10 +183,12 @@ export class OrderListener {
         const buf = this.orderBuffer.get(orderId)!;
         clearTimeout(buf.timer);
         if (!buf.states.includes(newStatus)) buf.states.push(newStatus);
-        buf.order = { ...buf.order, ...newOrder }; // Combinar datos
-        buf.timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
+        buf.order = { ...buf.order, ...newOrder };
+        logger.debug(`[OrderListener] Buffer actualizado para ${newOrder.order_number}: ${buf.states.join(', ')}`);
+        buf.timer = setTimeout(() => this.flushBuffer(orderId), 1000); // Reducido a 1s
     } else {
-        const timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
+        logger.debug(`[OrderListener] Nuevo buffer creado para ${newOrder.order_number}: [${newStatus}]`);
+        const timer = setTimeout(() => this.flushBuffer(orderId), 1000); // Reducido a 1s
         this.orderBuffer.set(orderId, { timer, states: [newStatus], order: newOrder });
     }
   }
@@ -230,22 +238,19 @@ export class OrderListener {
 
     // Consolidar si hay ráfaga (>1 nuevo estado detectado)
     if (toSend.length > 1) {
-        // MEJORA V2.7: Si el estado final es DELIVERED, lo separamos de la ráfaga de tránsito
-        // para asegurar que ambos mensajes se envíen.
-        if (finalStatus === 'DELIVERED' || finalStatus === 'COMPLETED' || finalStatus === 'CANCELLED') {
+        logger.info(`[OrderListener] ráfaga detectada para ${order.order_number}: ${toSend.join(' -> ')}`);
+        // MEJORA V2.7: Separar DELIVERED
+        if (finalStatus === 'DELIVERED' || finalStatus === 'COMPLETED' || finalStatus === 'CANCELLED' || finalStatus.includes('ENTREGADO')) {
             const intermediateStates = toSend.filter(s => s !== finalStatus);
             if (intermediateStates.length > 0) {
-                logger.info(`[OrderListener] Enviando hitos intermedios antes de ${finalStatus}: ${intermediateStates.join(', ')}`);
                 const intermediateMsg = await this.buildConsolidatedMessage(order, intermediateStates);
                 if (intermediateMsg) {
                     await this.enqueueNotification(order, intermediateStates[intermediateStates.length-1], intermediateMsg, 10);
                 }
             }
-            // Ahora enviar el estado final individualmente
             const { message: finalMsg, priority } = await this.buildNotification({...order, status: finalStatus}, null);
             if (finalMsg) await this.enqueueNotification(order, finalStatus, finalMsg, priority);
         } else {
-            logger.info(`[OrderListener] Consolidando ${toSend.length} estados para ${order.order_number}: ${toSend.join(', ')}`);
             const message = await this.buildConsolidatedMessage(order, toSend);
             if (message) {
                 await this.enqueueNotification(order, finalStatus, message, 10);
@@ -255,9 +260,13 @@ export class OrderListener {
             }
         }
     } else {
-        // Enviar individualmente
+        logger.info(`[OrderListener] Procesando estado individual para ${order.order_number}: ${finalStatus}`);
         const { message, priority } = await this.buildNotification({...order, status: finalStatus}, null);
-        if (message) await this.enqueueNotification(order, finalStatus, message, priority);
+        if (message) {
+            await this.enqueueNotification(order, finalStatus, message, priority);
+        } else {
+            logger.warn(`[OrderListener] No se generó mensaje para estado ${finalStatus} (#${order.order_number})`);
+        }
     }
   }
 
