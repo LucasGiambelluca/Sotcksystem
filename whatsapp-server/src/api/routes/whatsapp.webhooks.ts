@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger';
 import conversationRouter from '../../core/engine/conversation.router';
 import { officialWhatsAppClient } from '../../infrastructure/whatsapp/OfficialWhatsAppClient';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 // In-memory deduplication (stores message IDs for 10 minutes)
 const processedMessageIds = new Set<string>();
@@ -13,20 +13,14 @@ const DEDUPLICATION_TIMEOUT = 10 * 60 * 1000;
 /**
  * Middleware to verify X-Hub-Signature-256
  */
-const verifySignature = (req: Request, res: Response, next: Function) => {
-    const signature = req.headers['x-hub-signature-256'] as string;
-    const appSecret = (process.env.WHATSAPP_APP_SECRET || '').trim();
-
     // Support bypass for debugging or if secret is missing
     if (!appSecret || process.env.BYPASS_SIGNATURE === 'true') {
-        if (process.env.BYPASS_SIGNATURE === 'true' && signature) {
-            // Only log once per request if needed, but for now just proceed
-        }
+        console.log(`[Webhook] Signature bypass active. appSecret: ${!!appSecret}, BYPASS: ${process.env.BYPASS_SIGNATURE}`);
         return next();
     }
 
     if (!signature) {
-        logger.warn('[Webhook] Missing X-Hub-Signature-256 header.');
+        console.log('[Webhook] Missing X-Hub-Signature-256 header.');
         return res.sendStatus(401);
     }
 
@@ -41,10 +35,11 @@ const verifySignature = (req: Request, res: Response, next: Function) => {
         .digest('hex');
 
     if (signatureHash !== expectedHash) {
-        logger.warn(`[Webhook] Invalid Signature.\n  - Received: ${signatureHash}\n  - Expected: ${expectedHash}`);
+        console.log(`[Webhook] Invalid Signature.\n  - Received: ${signatureHash}\n  - Expected: ${expectedHash}`);
         return res.sendStatus(401);
     }
 
+    console.log('[Webhook] Signature verified OK.');
     next();
 };
 

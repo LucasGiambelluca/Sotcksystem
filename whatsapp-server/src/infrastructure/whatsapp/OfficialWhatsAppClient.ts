@@ -82,6 +82,7 @@ export class OfficialWhatsAppClient {
             appSecret: process.env.WHATSAPP_APP_SECRET || '',
             verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || 'SotckSystemToken2026',
         };
+        logger.info(`[OfficialWA] Loaded credentials from .env. Token valid: ${!!this.credentials.accessToken}, PhoneID: ${this.credentials.phoneNumberId}`);
         this.lastCredentialFetch = now;
         return this.credentials;
     }
@@ -107,7 +108,10 @@ export class OfficialWhatsAppClient {
 
     async sendMessage(to: string, message: any): Promise<any> {
         const creds = await this.loadCredentials();
-        if (!creds.accessToken || !creds.phoneNumberId) return;
+        if (!creds.accessToken || !creds.phoneNumberId) {
+            logger.error('[OfficialWA] Cannot send message: Missing credentials', { token: !!creds.accessToken, phoneId: !!creds.phoneNumberId });
+            return;
+        }
 
         const cleanTo = PhoneUtils.normalize(to);
         
