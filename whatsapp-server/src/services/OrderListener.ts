@@ -101,7 +101,7 @@ export class OrderListener {
         if (error) throw error;
 
         if (orders && orders.length > 0) {
-          logger.debug(`[OrderListener] Polling cycle: ${orders.length} órdenes con actividad en los últimos 2 min.`);
+          logger.info(`[OrderListener] Polling cycle: Found ${orders.length} orders with activity in last 2m`);
           for (const order of orders) {
             const previousStatus = this.lastStatusCheck.get(order.id);
             const isNewOrder = !previousStatus && order.status;
@@ -143,7 +143,7 @@ export class OrderListener {
     const newStatus = newOrder.status;
     const now = Date.now();
 
-    logger.debug(`[OrderListener] handleChange para ${newOrder.order_number}: ${oldStatus} -> ${newStatus}`);
+    logger.info(`[OrderListener] Detected order ${newOrder.order_number} change: ${oldStatus} -> ${newStatus}`);
 
     // MEJORA V2.9: Throttling de Realtime/Polling
     const throttleKey = `${orderId}:${newStatus}`;
@@ -155,7 +155,7 @@ export class OrderListener {
     this.lastProcessed.set(throttleKey, now);
 
     if (!this.isMyOrder(newOrder)) {
-        logger.debug(`[OrderListener] No es mi orden: ${newOrder.order_number}`);
+        logger.info(`[OrderListener] Skipping order ${newOrder.order_number} (Not for this bot/slug)`);
         return;
     }
     if (newStatus === oldStatus && oldStatus !== null) return;
