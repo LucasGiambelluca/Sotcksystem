@@ -1,6 +1,7 @@
 // src/infrastructure/queue/QueueManager.ts
 
 import { Queue, Job } from 'bullmq';
+import Redis from 'ioredis';
 import { BotContext } from '../../core/BotContext';
 import { logger } from '../../utils/logger';
 import { RedisDedup } from '../deduplication/RedisDedup';
@@ -44,11 +45,7 @@ export class QueueManager {
     
     const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
     this.queues.set('main', new Queue(name, {
-      connection: { 
-        host: process.env.REDIS_HOST || '127.0.0.1',
-        port: Number(process.env.REDIS_PORT) || 6379,
-        maxRetriesPerRequest: null 
-      },
+      connection: new Redis(redisUrl, { maxRetriesPerRequest: null }) as any,
       defaultJobOptions: {
         removeOnComplete: 100,
         removeOnFail: 50,

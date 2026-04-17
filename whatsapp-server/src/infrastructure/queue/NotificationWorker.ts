@@ -1,6 +1,7 @@
 // src/infrastructure/queue/NotificationWorker.ts
 
 import { Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
 import { BotContext } from '../../core/BotContext';
 import { logger } from '../../utils/logger';
 import { QueueManager, NotificationJob } from './QueueManager';
@@ -26,11 +27,7 @@ export class NotificationWorker {
       this.context.queueName('notifications'),
       this.processJob.bind(this),
       {
-        connection: { 
-          host: process.env.REDIS_HOST || '127.0.0.1',
-          port: Number(process.env.REDIS_PORT) || 6379,
-          maxRetriesPerRequest: null 
-        },
+        connection: new Redis(redisUrl, { maxRetriesPerRequest: null }) as any,
         concurrency: this.context.config.maxConcurrentJobs || 3,
         limiter: {
           max: this.context.config.messagesPerMinute || 80,
