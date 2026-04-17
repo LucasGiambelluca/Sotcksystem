@@ -19,10 +19,17 @@ export interface AppConfig {
     auto_print: boolean;
     auto_accept_orders: boolean;
     checkout_message: string;
-    sileo_api_key?: string | null;
+    sileo_api_key: string | null;
+    whatsapp_phone: string | null;
     
-    // Metadata
-    whatsapp_phone?: string | null;
+    // WhatsApp Templates
+    template_confirmed?: string;
+    template_preparation?: string;
+    template_transit?: string;
+    template_delivered?: string;
+    template_cancelled?: string;
+    template_ready?: string;
+    template_arrived?: string;
 }
 
 export class ConfigurationService {
@@ -77,7 +84,15 @@ export class ConfigurationService {
                 auto_accept_orders: wConfig?.auto_accept_orders || false,
                 checkout_message: wConfig?.checkout_message || '¡Gracias por tu pedido!',
                 sileo_api_key: wConfig?.sileo_api_key || null,
-                whatsapp_phone: bConfig?.whatsapp_phone || wConfig?.whatsapp_phone || null
+                whatsapp_phone: bConfig?.whatsapp_phone || wConfig?.whatsapp_phone || null,
+
+                template_confirmed: wConfig?.template_confirmed,
+                template_preparation: wConfig?.template_preparation,
+                template_transit: wConfig?.template_transit || wConfig?.template_out_delivery,
+                template_delivered: wConfig?.template_delivered,
+                template_cancelled: wConfig?.template_cancelled,
+                template_ready: wConfig?.template_ready,
+                template_arrived: wConfig?.template_arrived
             };
 
             this.cache = mergedConfig;
@@ -98,7 +113,9 @@ export class ConfigurationService {
                 shipping_policy: 'smart',
                 auto_print: false,
                 auto_accept_orders: false,
-                checkout_message: 'Gracias por tu pedido'
+                checkout_message: '¡Gracias por tu pedido!',
+                sileo_api_key: null,
+                whatsapp_phone: null
             };
         }
     }

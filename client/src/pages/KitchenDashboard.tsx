@@ -374,7 +374,16 @@ export default function KitchenDashboard() {
         let dbStatus = mapLocalToDBStatus(newStatus);
         
         try {
-            await updateOrderStatus(orderId, dbStatus as any);
+            const updates: any = { status: dbStatus };
+            if (dbStatus === 'OUT_FOR_DELIVERY' || dbStatus === 'IN_TRANSIT') {
+                updates.out_at = new Date().toISOString();
+            } else if (dbStatus === 'DELIVERED') {
+                updates.delivered_at = new Date().toISOString();
+            } else if (dbStatus === 'READY' || dbStatus === 'READY_FOR_PICKUP') {
+                updates.ready_at = new Date().toISOString();
+            }
+            
+            await supabase.from('orders').update(updates).eq('id', orderId);
         } catch (error) {
             console.error('Error updating status:', error);
             fetchOrders();
@@ -394,7 +403,10 @@ export default function KitchenDashboard() {
             // Still update local state/orders for the dashboard
             await supabase
                 .from('orders')
-                .update({ status: 'IN_TRANSIT' })
+                .update({ 
+                    status: 'IN_TRANSIT',
+                    out_at: new Date().toISOString()
+                })
                 .eq('id', orderId);
 
             toast.success('Cadete asignado y misión creada');

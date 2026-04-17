@@ -29,7 +29,7 @@ export class OrderListener {
    */
   start(): void {
     this.startRealtime();
-    this.startPolling(30000); // Polling cada 30 segundos como red de seguridad
+    this.startPolling(15000); // Polling cada 15 segundos (más frecuente para evitar gaps)
     logger.info(`[${this.context.config.botId}] Listener de órdenes INICIADO (Realtime + Polling 30s).`);
   }
 
@@ -81,7 +81,7 @@ export class OrderListener {
         const { data: orders, error } = await supabase
           .from('orders')
           .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, updated_at, chat_context, phone, client_id, order_number')
-          .or(`and(updated_at.gte.${this.lastPollTime}),and(created_at.gte.${this.lastPollTime},created_at.lte.${now}),and(assigned_at.gte.${fiveMinutesAgo}),and(started_at.gte.${fiveMinutesAgo}),and(ready_at.gte.${fiveMinutesAgo}),and(out_at.gte.${fiveMinutesAgo}),and(delivered_at.gte.${fiveMinutesAgo}),and(cancelled_at.gte.${fiveMinutesAgo})`)
+          .or(`updated_at.gte.${this.lastPollTime},created_at.gte.${this.lastPollTime},out_at.gte.${fiveMinutesAgo},delivered_at.gte.${fiveMinutesAgo}`)
           .order('created_at', { ascending: true });
 
         if (error) throw error;
@@ -156,15 +156,21 @@ export class OrderListener {
 
     let isMyOrder = false;
 
-    // Lógica de aislamiento (igual que OrderNotificationListener)
-    if (myBotId && orderBotId && orderBotId === myBotId) {
+    // 1. Si el slug coincide, es mío (aunque venga del panel Admin sin bot_id)
+    if (mySlug && orderSlug && orderSlug === mySlug) {
       isMyOrder = true;
-    } else if (mySlug && orderSlug && orderSlug === mySlug) {
+    } 
+    // 2. Si el bot_id coincide, es mío 100%
+    else if (myBotId && orderBotId && orderBotId === myBotId) {
       isMyOrder = true;
-    } else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) {
+    }
+    // 3. Fallback: El nombre del negocio contiene mi slug
+    else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) {
       isMyOrder = true;
-    } else if (!myBotId && !orderBotId) {
-      isMyOrder = true; // Local dev fallback
+    }
+    // 4. Dev mode fallback
+    else if (!myBotId && !orderBotId && !mySlug) {
+      isMyOrder = true;
     }
 
     // Si no es mi pedido, ignorar
@@ -176,7 +182,7 @@ export class OrderListener {
     if (newStatus === oldStatus && oldOrder !== null) return;
 
     // 2. Determinar tipo y prioridad de notificación
-    const { type, priority, message } = this.buildNotification(newOrder, oldStatus);
+    const { type, priority, message } = await this.buildNotification(newOrder, oldStatus);
     if (!message) return;
 
     // 3. Deduplicación (Prevenir re-procesamiento cruzado)
@@ -203,58 +209,97 @@ export class OrderListener {
   }
 
   /**
-   * Lógica de negocio para mapear estados a mensajes y prioridades.
+   * Lógica de negocio para mapear estados a mensajes y prioridades utilizando ConfigurationService.
    */
-  private buildNotification(order: any, oldStatus: string | null): {
+  private async buildNotification(order: any, oldStatus: string | null): Promise<{
     type: 'order_new' | 'status_change';
     priority: number;
-    message: string;
-  } {
+    message: string | null;
+  }> {
     const isNew = oldStatus === null || oldStatus === undefined;
     const status = order.status;
-    const orderNumber = order.order_number || '#???';
+    const orderNumber = order.order_number || order.id.slice(0, 8);
 
-    // Mapeo básico de estados
-    const templates: Record<string, string> = {
-      'PENDING': `✅ Pedido recibido! Número: ${orderNumber}. Te avisamos cuando esté listo.`,
-      'CONFIRMED': `✅ Pedido ${orderNumber} ha sido CONFIRMADO. ¡Gracias!`,
-      'IN_PREPARATION': `👨‍🍳 Tu pedido ${orderNumber} está en preparación.`,
-      'READY_FOR_PICKUP': `🎉 ¡Tu pedido ${orderNumber} está listo para retirar!`,
-      'OUT_FOR_DELIVERY': `🛵 ¡Tu pedido ${orderNumber} ya salió hacia tu domicilio!`,
-      'DELIVERED': `✅ Pedido ${orderNumber} entregado. ¡Buen provecho!`,
-      'CANCELLED': `❌ Lo sentimos, tu pedido ${orderNumber} ha sido cancelado.`,
-      'IN_TRANSIT': `🛵 Tu pedido ${orderNumber} está en camino.`,
-      'READY': `🎉 ¡Tu pedido ${orderNumber} está listo!`
-    };
+    const { ConfigurationService } = require('./ConfigurationService');
+    const appConfig = await ConfigurationService.getFullConfig();
 
-    const deliveryType = (order.delivery_type || '').toLowerCase();
-    const isPickup = deliveryType.includes('retiro') || deliveryType.includes('pickup') || deliveryType.includes('local');
+    const dtLower = (order.delivery_type || '').toLowerCase();
+    const adLower = (order.delivery_address || '').toLowerCase();
+    const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || adLower.includes('retiro') || adLower.includes('local');
+
+    let template = '';
+    const clientName = order.client?.name || order.chat_context?.pushName || 'Cliente';
+    const deliveryAddress = order.delivery_address || '';
+
+    switch (status) {
+      case 'PENDING':
+        template = `✅ Pedido recibido! Número: {orderId}. Te avisamos cuando esté listo.`;
+        break;
+      case 'CONFIRMED':
+        template = appConfig.template_confirmed || `✅ Pedido {orderId} ha sido CONFIRMADO. ¡Gracias!`;
+        break;
+      case 'IN_PREPARATION':
+        template = appConfig.template_preparation || `👨‍🍳 Tu pedido {orderId} está en preparación.`;
+        break;
+      case 'IN_TRANSIT':
+      case 'OUT_FOR_DELIVERY':
+      case 'SHIPPED':
+        if (isPickup) {
+          template = appConfig.template_ready || `🎉 ¡Tu pedido {orderId} está listo para retirar!`;
+        } else {
+          template = appConfig.template_transit || appConfig.template_out_delivery || `🛵 ¡Tu pedido {orderId} ya salió hacia tu domicilio!`;
+        }
+        break;
+      case 'READY':
+      case 'READY_FOR_PICKUP':
+        template = appConfig.template_ready || `🎉 ¡Tu pedido {orderId} está listo!`;
+        break;
+      case 'DELIVERED':
+        template = appConfig.template_delivered || `✅ Pedido {orderId} entregado. ¡Buen provecho!`;
+        await this.createInternalNotification(order);
+        break;
+      case 'CANCELLED':
+        template = appConfig.template_cancelled || `❌ Lo sentimos, tu pedido {orderId} ha sido cancelado.`;
+        break;
+      case 'ARRIVED':
+        template = appConfig.template_arrived || `🔔 ¡Llegó tu pedido!\nEl cadete está en la puerta.`;
+        break;
+    }
+
+    if (!template) {
+        return { type: isNew ? 'order_new' : 'status_change', priority: 20, message: null };
+    }
+
+    let message = template
+      .replace(/\{clientName\}/g, clientName)
+      .replace(/\{orderId\}/g, orderNumber)
+      .replace(/\{deliveryAddress\}/g, deliveryAddress);
 
     let type: 'order_new' | 'status_change' = isNew ? 'order_new' : 'status_change';
-    let priority = 20; // Default: Cambios de estado
-    let message = templates[status];
+    let priority = 20;
 
-    // Lógica inteligente para estados de "salida" o "listo"
-    if (status === 'IN_TRANSIT' || status === 'OUT_FOR_DELIVERY' || status === 'SHIPPED') {
-      if (isPickup) {
-        message = `🎉 ¡Tu pedido ${orderNumber} ya está listo para que pases a retirarlo por el local!`;
-      } else {
-        message = `🛵 ¡Tu pedido ${orderNumber} ya salió hacia tu domicilio! Preparate para recibirlo.`;
-      }
-    }
-
-    if (!message) {
-      message = templates[status] || `Tu pedido ${orderNumber} cambió a: ${status}`;
-    }
-
-    // Los pedidos nuevos y salidas a delivery tienen alta prioridad (menor número en BullMQ)
     if (isNew) {
-        priority = 10;
-    } else if (status === 'OUT_FOR_DELIVERY' || status === 'READY_FOR_PICKUP') {
-      priority = 5; // Máxima prioridad
+      priority = 10;
+    } else if (status === 'OUT_FOR_DELIVERY' || status === 'READY_FOR_PICKUP' || status === 'IN_TRANSIT') {
+      priority = 5;
     }
 
     return { type, priority, message };
+  }
+
+  private async createInternalNotification(order: any) {
+    try {
+      logger.info(`[OrderListener] Creando notificación interna para el comercio...`);
+      await supabase.from('notifications').insert({
+        title: '✅ Entrega Confirmada',
+        message: `El pedido #${order.order_number || order.id.slice(0, 8)} de ${order.client?.name || order.phone} ha sido entregado.`,
+        type: 'DELIVERY_CONFIRMED',
+        metadata: { orderId: order.id, orderNumber: order.order_number, botId: this.context.config.botId },
+        read: false
+      });
+    } catch (err: any) {
+      logger.error(`[OrderListener] Error creating internal notification: ${err.message}`);
+    }
   }
 
   /**
