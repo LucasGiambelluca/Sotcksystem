@@ -13,6 +13,10 @@ const DEDUPLICATION_TIMEOUT = 10 * 60 * 1000;
 /**
  * Middleware to verify X-Hub-Signature-256
  */
+const verifySignature = (req: Request, res: Response, next: Function) => {
+    const signature = req.headers['x-hub-signature-256'] as string;
+    const appSecret = (process.env.WHATSAPP_APP_SECRET || '').trim();
+
     // Support bypass for debugging or if secret is missing
     if (!appSecret || process.env.BYPASS_SIGNATURE === 'true') {
         console.log(`[Webhook] Signature bypass active. appSecret: ${!!appSecret}, BYPASS: ${process.env.BYPASS_SIGNATURE}`);
