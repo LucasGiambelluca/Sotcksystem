@@ -208,7 +208,6 @@ export class OrderNotificationListener {
                     const lastProcessed = this.processedChanges.get(order.id);
                     if (lastProcessed !== order.status) {
                         logger.info(`[OrderPolling] Detectado cambio vía polling para ${order.id}: ${order.status}`);
-                        this.processedChanges.set(order.id, order.status);
                         await this.handleStatusChange(order.id, order.status);
                     }
                 }
