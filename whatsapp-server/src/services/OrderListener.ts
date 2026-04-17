@@ -151,24 +151,24 @@ export class OrderListener {
   }
 
   /**
-   * Procesa un cambio detectado en la base de datos con buffering para evitar ráfagas.
+   * Procesa un cambio detectado con buffering.
    */
   private async handleChange(newOrder: any, oldStatus: string | null): Promise<void> {
     const orderId = newOrder.id;
     const newStatus = newOrder.status;
 
-    // 0. Aislamiento
     if (!this.isMyOrder(newOrder)) return;
-
-    // 1. Evitar redundancia si el status no cambió
     if (newStatus === oldStatus && oldStatus !== null) return;
 
-    // 2. Buffering: Esperar un momento antes de disparar para agrupar cambios rápidos
+    // Actualizar cache local
+    this.lastStatusCheck.set(orderId, newStatus);
+
+    // Buffering inteligente
     if (this.orderBuffer.has(orderId)) {
         const buf = this.orderBuffer.get(orderId)!;
         clearTimeout(buf.timer);
         if (!buf.states.includes(newStatus)) buf.states.push(newStatus);
-        buf.order = newOrder; // Tomar la foto más nueva
+        buf.order = { ...buf.order, ...newOrder }; // Combinar datos
         buf.timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
     } else {
         const timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
@@ -200,31 +200,40 @@ export class OrderListener {
     const { states, order } = buf;
     const finalStatus = states[states.length - 1];
 
-    // Detectar si nos salteamos estados importantes (Replay logic)
-    const milestones = ['CONFIRMED', 'IN_PREPARATION', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    // Replay logic Mejorado: Forzar hitos obligatorios
+    const milestones = ['CONFIRMED', 'IN_PREPARATION', 'OUT_FOR_DELIVERY'];
     const toSend = [...states];
-
-    // Si el estado final es avanzado, chequear timestamps para ver qué nos salteamos
+    
+    // Si llegamos a DELIVERED pero nos falta algún hito intermedio, lo inyectamos
     if (finalStatus === 'DELIVERED' || finalStatus === 'COMPLETED') {
-        if (!toSend.includes('OUT_FOR_DELIVERY') && !toSend.includes('IN_TRANSIT')) {
-            if (order.out_at || order.assigned_at) {
-                logger.info(`[OrderListener] Detectado salto de 'Enviado' para ${order.order_number}. Replay activado.`);
-                toSend.splice(toSend.length - 1, 0, 'OUT_FOR_DELIVERY');
+        for (const m of milestones) {
+            if (!toSend.includes(m)) {
+                // Si el hito no está en la ráfaga actual, verificar si se envió antes (via Dedup)
+                const dedupKey = `order:${orderId}:${m}`;
+                const alreadySent = await RedisDedup.isDuplicate(this.context, dedupKey, 300);
+                if (!alreadySent) {
+                    logger.info(`[OrderListener] Hito '${m}' faltante detectado para ${order.order_number}. Replay inyectado.`);
+                    toSend.splice(toSend.length - 1, 0, m);
+                }
             }
         }
     }
 
-    // Si hay muchos estados, consolidar el mensaje para que sea profesional
-    if (toSend.length > 2) {
-        logger.info(`[OrderListener] Consolidando ráfaga de estados para ${order.order_number}: ${toSend.join(' -> ')}`);
+    // Consolidar si hay ráfaga (>1 nuevo estado detectado)
+    if (toSend.length > 1) {
+        logger.info(`[OrderListener] Consolidando ${toSend.length} estados para ${order.order_number}: ${toSend.join(', ')}`);
         const message = await this.buildConsolidatedMessage(order, toSend);
-        if (message) await this.enqueueNotification(order, finalStatus, message, 10);
-    } else {
-        // Enviar individualmente los estados pendientes
-        for (const status of toSend) {
-            const { message, priority } = await this.buildNotification({...order, status}, null);
-            if (message) await this.enqueueNotification(order, status, message, priority);
+        if (message) {
+            await this.enqueueNotification(order, finalStatus, message, 10);
+        } else {
+            // Fallback: enviar el último si no hay template consolidado
+            const { message: singleMsg } = await this.buildNotification({...order, status: finalStatus}, null);
+            if (singleMsg) await this.enqueueNotification(order, finalStatus, singleMsg, 10);
         }
+    } else {
+        // Enviar individualmente
+        const { message, priority } = await this.buildNotification({...order, status: finalStatus}, null);
+        if (message) await this.enqueueNotification(order, finalStatus, message, priority);
     }
   }
 
@@ -247,15 +256,22 @@ export class OrderListener {
   private async buildConsolidatedMessage(order: any, states: string[]): Promise<string | null> {
     const finalStatus = states[states.length - 1];
     const orderNumber = order.order_number || order.id.slice(0, 8);
+    const clientName = order.chat_context?.pushName || 'Cliente';
     
     if (finalStatus === 'IN_PREPARATION') {
-        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\nTu pedido ha sido confirmado y ya se encuentra en cocina para su preparación. 👨‍🍳`;
+        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\n¡Buenas noticias ${clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
     }
-    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT') {
-        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\nTu pedido ya está listo y acaba de salir hacia tu domicilio. 🛵`;
+    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY')) {
+        let msg = `🚚 *Actualización de tu pedido #${orderNumber}*\r\n\r\n`;
+        if (finalStatus === 'DELIVERED') {
+            msg += `¡Tu pedido ya fue entregado! Disfrutalo mucho. 🎉`;
+        } else {
+            msg += `¡Buenas noticias! Tu pedido ya está listo y salió hacia tu domicilio. 🛵`;
+        }
+        return msg;
     }
     if (finalStatus === 'DELIVERED') {
-        return `✅ *Pedido #${orderNumber} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Que lo disfrutes. 🎉`;
+        return `✅ *Pedido #${orderNumber} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Gracias por confiar en nosotros. 🎉`;
     }
     return null;
   }

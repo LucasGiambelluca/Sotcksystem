@@ -274,8 +274,10 @@ export const logisticsV2Service = {
         const { error: ordersError } = await supabase
           .from('orders')
           .update({ 
-              assigned_to: cadeteId, 
-              assigned_at: new Date().toISOString() 
+               status: 'OUT_FOR_DELIVERY',
+               assigned_to: cadeteId, 
+               assigned_at: new Date().toISOString(),
+               out_at: new Date().toISOString() 
           })
           .eq('id', orderId);
         
@@ -389,7 +391,8 @@ export const logisticsV2Service = {
           .update({ 
               status: 'OUT_FOR_DELIVERY',
               assigned_to: cadeteId,
-              assigned_at: new Date().toISOString()
+              assigned_at: new Date().toISOString(),
+              out_at: new Date().toISOString()
           })
           .in('id', orderIds);
 
