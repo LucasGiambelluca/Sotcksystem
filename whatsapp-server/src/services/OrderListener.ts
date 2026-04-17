@@ -5,6 +5,7 @@ import { BotContext } from '../core/BotContext';
 import { QueueManager, NotificationJob } from '../infrastructure/queue/QueueManager';
 import { logger } from '../utils/logger';
 import { RedisDedup } from '../infrastructure/deduplication/RedisDedup';
+import { ConfigurationService } from './ConfigurationService';
 
 /**
  * Listener de órdenes v2.2.
@@ -19,6 +20,7 @@ export class OrderListener {
   private lastPollTime: string = new Date(Date.now() - 60000).toISOString();
   private lastStatusCheck: Map<string, string> = new Map(); // Cache de estados para detectar cambios
   private orderBuffer: Map<string, { timer: NodeJS.Timeout, states: string[], order: any }> = new Map();
+  private lastProcessed: Map<string, number> = new Map(); // MEJORA V2.9: Throttling
   private readonly DEBOUNCE_MS = 3000;
 
   private readonly STATUS_SEQUENCE = [
@@ -154,6 +156,15 @@ export class OrderListener {
   private async handleChange(newOrder: any, oldStatus: string | null): Promise<void> {
     const orderId = newOrder.id;
     const newStatus = newOrder.status;
+    const now = Date.now();
+
+    // MEJORA V2.9: Throttling de Realtime/Polling (Evitar ráfagas en < 2s)
+    const throttleKey = `${orderId}:${newStatus}`;
+    const last = this.lastProcessed.get(throttleKey) || 0;
+    if (now - last < 2000) {
+        return;
+    }
+    this.lastProcessed.set(throttleKey, now);
 
     if (!this.isMyOrder(newOrder)) return;
     if (newStatus === oldStatus && oldStatus !== null) return;
@@ -294,7 +305,6 @@ export class OrderListener {
     const orderNumber = order.order_number || order.id.slice(0, 8);
     const isPickup = this.detectPickup(order);
 
-    const { ConfigurationService } = require('./ConfigurationService');
     const appConfig = await ConfigurationService.getFullConfig();
     const clientName = order.client?.name || order.chat_context?.pushName || 'Cliente';
     const deliveryAddress = order.delivery_address || '';
@@ -319,7 +329,7 @@ export class OrderListener {
                 .replace(/\{orderId\}/g, orderNumber)
                 .replace(/\{clientName\}/g, clientName);
         } else {
-            const template = appConfig.template_transit || appConfig.template_out_delivery || `🚚 *Pedido #{orderId} en camino*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo y salió hacia tu domicilio: {deliveryAddress}. 🛵`;
+            const template = appConfig.template_transit || `🚚 *Pedido #{orderId} en camino*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo y salió hacia tu domicilio: {deliveryAddress}. 🛵`;
             return template
                 .replace(/\{orderId\}/g, orderNumber)
                 .replace(/\{clientName\}/g, clientName)
@@ -348,7 +358,6 @@ export class OrderListener {
     const status = order.status;
     const orderNumber = order.order_number || order.id.slice(0, 8);
 
-    const { ConfigurationService } = require('./ConfigurationService');
     const appConfig = await ConfigurationService.getFullConfig();
 
     const dtLower = (order.delivery_type || '').toLowerCase();
@@ -375,7 +384,7 @@ export class OrderListener {
         if (isPickup) {
           template = appConfig.template_ready || `🎉 ¡Tu pedido {orderId} está listo para retirar!`;
         } else {
-          template = appConfig.template_transit || appConfig.template_out_delivery || `🛵 ¡Tu pedido {orderId} ya salió hacia tu domicilio!`;
+          template = appConfig.template_transit || `🛵 ¡Tu pedido {orderId} ya salió hacia tu domicilio!`;
         }
         break;
       case 'READY':
