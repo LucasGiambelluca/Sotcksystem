@@ -16,8 +16,22 @@ export class OrderListener {
   private queueManager: QueueManager;
   private realtimeChannel: any;
   private pollingInterval?: NodeJS.Timeout;
-  private lastPollTime: string = new Date(Date.now() - 60000).toISOString(); // Empezar desde 1 min atrás
+  private lastPollTime: string = new Date(Date.now() - 60000).toISOString();
   private lastStatusCheck: Map<string, string> = new Map(); // Cache de estados para detectar cambios
+  private orderBuffer: Map<string, { timer: NodeJS.Timeout, states: string[], order: any }> = new Map();
+  private readonly DEBOUNCE_MS = 3000;
+
+  private readonly STATUS_SEQUENCE = [
+    'PENDING',
+    'CONFIRMED',
+    'IN_PREPARATION',
+    'READY',
+    'READY_FOR_PICKUP',
+    'IN_TRANSIT',
+    'OUT_FOR_DELIVERY',
+    'DELIVERED',
+    'COMPLETED'
+  ];
 
   constructor(context: BotContext, queueManager: QueueManager) {
     this.context = context;
@@ -100,8 +114,7 @@ export class OrderListener {
               await this.handleChange(order, null);
             } else if (statusChanged) {
               logger.info(`[${this.context.config.botId}] Cambio de estado detectado: ${order.order_number} ${previousStatus} -> ${order.status}`);
-              const oldOrderData = { ...order, status: previousStatus };
-              await this.handleChange(order, oldOrderData);
+              await this.handleChange(order, previousStatus);
             }
 
             // Actualizar el cache de estados
@@ -138,15 +151,33 @@ export class OrderListener {
   }
 
   /**
-   * Procesa un cambio detectado en la base de datos.
+   * Procesa un cambio detectado en la base de datos con buffering para evitar ráfagas.
    */
-  private async handleChange(newOrder: any, oldOrder: any | null): Promise<void> {
+  private async handleChange(newOrder: any, oldStatus: string | null): Promise<void> {
     const orderId = newOrder.id;
     const newStatus = newOrder.status;
-    const oldStatus = oldOrder?.status;
 
-    // 0. FILTRADO MANUAL: Verificar si este pedido pertenece a este bot
-    const chatContext = newOrder.chat_context || {};
+    // 0. Aislamiento
+    if (!this.isMyOrder(newOrder)) return;
+
+    // 1. Evitar redundancia si el status no cambió
+    if (newStatus === oldStatus && oldStatus !== null) return;
+
+    // 2. Buffering: Esperar un momento antes de disparar para agrupar cambios rápidos
+    if (this.orderBuffer.has(orderId)) {
+        const buf = this.orderBuffer.get(orderId)!;
+        clearTimeout(buf.timer);
+        if (!buf.states.includes(newStatus)) buf.states.push(newStatus);
+        buf.order = newOrder; // Tomar la foto más nueva
+        buf.timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
+    } else {
+        const timer = setTimeout(() => this.flushBuffer(orderId), this.DEBOUNCE_MS);
+        this.orderBuffer.set(orderId, { timer, states: [newStatus], order: newOrder });
+    }
+  }
+
+  private isMyOrder(order: any): boolean {
+    const chatContext = order.chat_context || {};
     const orderBotId = chatContext.bot_id;
     const orderSlug = chatContext.catalog_slug;
     const orderBusiness = chatContext.catalog_business_name;
@@ -154,58 +185,79 @@ export class OrderListener {
     const myBotId = this.context.config.phoneNumberId;
     const mySlug = this.context.config.catalogSlug;
 
-    let isMyOrder = false;
+    if (mySlug && orderSlug && orderSlug === mySlug) return true;
+    if (myBotId && orderBotId && orderBotId === myBotId) return true;
+    if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) return true;
+    if (!myBotId && !orderBotId && !mySlug) return true;
+    return false;
+  }
 
-    // 1. Si el slug coincide, es mío (aunque venga del panel Admin sin bot_id)
-    if (mySlug && orderSlug && orderSlug === mySlug) {
-      isMyOrder = true;
-    } 
-    // 2. Si el bot_id coincide, es mío 100%
-    else if (myBotId && orderBotId && orderBotId === myBotId) {
-      isMyOrder = true;
+  private async flushBuffer(orderId: string) {
+    const buf = this.orderBuffer.get(orderId);
+    if (!buf) return;
+    this.orderBuffer.delete(orderId);
+
+    const { states, order } = buf;
+    const finalStatus = states[states.length - 1];
+
+    // Detectar si nos salteamos estados importantes (Replay logic)
+    const milestones = ['CONFIRMED', 'IN_PREPARATION', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    const toSend = [...states];
+
+    // Si el estado final es avanzado, chequear timestamps para ver qué nos salteamos
+    if (finalStatus === 'DELIVERED' || finalStatus === 'COMPLETED') {
+        if (!toSend.includes('OUT_FOR_DELIVERY') && !toSend.includes('IN_TRANSIT')) {
+            if (order.out_at || order.assigned_at) {
+                logger.info(`[OrderListener] Detectado salto de 'Enviado' para ${order.order_number}. Replay activado.`);
+                toSend.splice(toSend.length - 1, 0, 'OUT_FOR_DELIVERY');
+            }
+        }
     }
-    // 3. Fallback: El nombre del negocio contiene mi slug
-    else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) {
-      isMyOrder = true;
+
+    // Si hay muchos estados, consolidar el mensaje para que sea profesional
+    if (toSend.length > 2) {
+        logger.info(`[OrderListener] Consolidando ráfaga de estados para ${order.order_number}: ${toSend.join(' -> ')}`);
+        const message = await this.buildConsolidatedMessage(order, toSend);
+        if (message) await this.enqueueNotification(order, finalStatus, message, 10);
+    } else {
+        // Enviar individualmente los estados pendientes
+        for (const status of toSend) {
+            const { message, priority } = await this.buildNotification({...order, status}, null);
+            if (message) await this.enqueueNotification(order, status, message, priority);
+        }
     }
-    // 4. Dev mode fallback
-    else if (!myBotId && !orderBotId && !mySlug) {
-      isMyOrder = true;
-    }
+  }
 
-    // Si no es mi pedido, ignorar
-    if (!isMyOrder) {
-      return;
-    }
-
-    // 1. Evitar redundancia si el status no cambió
-    if (newStatus === oldStatus && oldOrder !== null) return;
-
-    // 2. Determinar tipo y prioridad de notificación
-    const { type, priority, message } = await this.buildNotification(newOrder, oldStatus);
-    if (!message) return;
-
-    // 3. Deduplicación (Prevenir re-procesamiento cruzado)
-    const dedupKey = `order:${orderId}:${newStatus}`;
-    const isDuplicate = await RedisDedup.isDuplicate(this.context, dedupKey, 300); // 5 min TTL
+  private async enqueueNotification(order: any, status: string, message: string, priority: number) {
+    const dedupKey = `order:${order.id}:${status}`;
+    const isDuplicate = await RedisDedup.isDuplicate(this.context, dedupKey, 300);
     if (isDuplicate) return;
 
-    // 4. Encolar en BullMQ
-    const job: NotificationJob = {
-      id: `notif:${orderId}:${newStatus}`,
-      type,
-      phone: newOrder.phone || newOrder.client?.phone,
+    await this.queueManager.enqueue({
+      id: `notif:${order.id}:${status}`,
+      type: 'status_change',
+      phone: order.phone || order.client?.phone,
       message,
-      metadata: {
-        orderId,
-        status: newStatus,
-        oldStatus: oldStatus || undefined,
-      },
-    };
+      metadata: { orderId: order.id, status }
+    }, priority);
+    
+    logger.info(`[${this.context.config.botId}] ✅ Notificación encolada (${status}) -> ${order.order_number}`);
+  }
 
-    await this.queueManager.enqueue(job, priority);
-
-    logger.info(`[${this.context.config.botId}] Notificación encolada (${newStatus}) -> ${orderId}`);
+  private async buildConsolidatedMessage(order: any, states: string[]): Promise<string | null> {
+    const finalStatus = states[states.length - 1];
+    const orderNumber = order.order_number || order.id.slice(0, 8);
+    
+    if (finalStatus === 'IN_PREPARATION') {
+        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\nTu pedido ha sido confirmado y ya se encuentra en cocina para su preparación. 👨‍🍳`;
+    }
+    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT') {
+        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\nTu pedido ya está listo y acaba de salir hacia tu domicilio. 🛵`;
+    }
+    if (finalStatus === 'DELIVERED') {
+        return `✅ *Pedido #${orderNumber} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Que lo disfrutes. 🎉`;
+    }
+    return null;
   }
 
   /**
