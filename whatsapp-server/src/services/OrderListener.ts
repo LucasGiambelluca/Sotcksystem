@@ -219,14 +219,29 @@ export class OrderListener {
 
     // Consolidar si hay ráfaga (>1 nuevo estado detectado)
     if (toSend.length > 1) {
-        logger.info(`[OrderListener] Consolidando ${toSend.length} estados para ${order.order_number}: ${toSend.join(', ')}`);
-        const message = await this.buildConsolidatedMessage(order, toSend);
-        if (message) {
-            await this.enqueueNotification(order, finalStatus, message, 10);
+        // MEJORA V2.7: Si el estado final es DELIVERED, lo separamos de la ráfaga de tránsito
+        // para asegurar que ambos mensajes se envíen.
+        if (finalStatus === 'DELIVERED' || finalStatus === 'COMPLETED' || finalStatus === 'CANCELLED') {
+            const intermediateStates = toSend.filter(s => s !== finalStatus);
+            if (intermediateStates.length > 0) {
+                logger.info(`[OrderListener] Enviando hitos intermedios antes de ${finalStatus}: ${intermediateStates.join(', ')}`);
+                const intermediateMsg = await this.buildConsolidatedMessage(order, intermediateStates);
+                if (intermediateMsg) {
+                    await this.enqueueNotification(order, intermediateStates[intermediateStates.length-1], intermediateMsg, 10);
+                }
+            }
+            // Ahora enviar el estado final individualmente
+            const { message: finalMsg, priority } = await this.buildNotification({...order, status: finalStatus}, null);
+            if (finalMsg) await this.enqueueNotification(order, finalStatus, finalMsg, priority);
         } else {
-            // Fallback: enviar el último si no hay template consolidado
-            const { message: singleMsg } = await this.buildNotification({...order, status: finalStatus}, null);
-            if (singleMsg) await this.enqueueNotification(order, finalStatus, singleMsg, 10);
+            logger.info(`[OrderListener] Consolidando ${toSend.length} estados para ${order.order_number}: ${toSend.join(', ')}`);
+            const message = await this.buildConsolidatedMessage(order, toSend);
+            if (message) {
+                await this.enqueueNotification(order, finalStatus, message, 10);
+            } else {
+                const { message: singleMsg } = await this.buildNotification({...order, status: finalStatus}, null);
+                if (singleMsg) await this.enqueueNotification(order, finalStatus, singleMsg, 10);
+            }
         }
     } else {
         // Enviar individualmente
@@ -291,7 +306,7 @@ export class OrderListener {
             .replace(/\{clientName\}/g, clientName);
     }
 
-    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY') || finalStatus === 'READY' || finalStatus === 'READY_FOR_PICKUP') {
+    if ((finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY') || finalStatus === 'READY' || finalStatus === 'READY_FOR_PICKUP') && finalStatus !== 'DELIVERED') {
         if (isPickup) {
             const template = appConfig.template_ready || `🥡 *Pedido #{orderId} Listo*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo para que lo pases a retirar. ¡Te esperamos! 🎉`;
             return template
