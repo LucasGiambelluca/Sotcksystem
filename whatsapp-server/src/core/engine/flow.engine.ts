@@ -193,7 +193,7 @@ export class FlowEngine {
                     
                     businessContext = {
                         catalog_business_name: appConfig.business_name || 'Tu Negocio',
-                        direccion: appConfig.store_address || '',
+                        business_address: appConfig.store_address || '',
                         horario_negocio: 'Consultar', // Se podría expandir en ConfigurationService si es necesario
                         zona_delivery: appConfig.shipping_policy || 'Consultar zona de cobertura',
                         catalog_summary: products?.map((p: any) => `${p.name} ($${p.price})`).join(', ') || 'Sin productos disponibles'

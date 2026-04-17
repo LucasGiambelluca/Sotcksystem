@@ -129,7 +129,28 @@ export class OfficialWhatsAppClient {
                 payload.text = { body: message };
             } else if (message.interactive) {
                 payload.type = 'interactive';
-                payload.interactive = message.interactive;
+                
+                // Sanitizar títulos de botones porque Meta Cloud API rechaza Markdown en los títulos
+                const sanitizedInteractive = JSON.parse(JSON.stringify(message.interactive));
+                const removeMd = (s: string) => s ? s.replace(/[*_~`]/g, '').trim() : '';
+                
+                if (sanitizedInteractive.action?.buttons) {
+                    sanitizedInteractive.action.buttons.forEach((b: any) => {
+                        if (b.reply?.title) b.reply.title = removeMd(b.reply.title).substring(0, 20);
+                    });
+                }
+                if (sanitizedInteractive.action?.sections) {
+                    sanitizedInteractive.action.sections.forEach((s: any) => {
+                        if (s.title) s.title = removeMd(s.title).substring(0, 24);
+                        if (s.rows) {
+                            s.rows.forEach((r: any) => {
+                                if (r.title) r.title = removeMd(r.title).substring(0, 24);
+                                if (r.description) r.description = removeMd(r.description).substring(0, 72);
+                            });
+                        }
+                    });
+                }
+                payload.interactive = sanitizedInteractive;
             } else if (message.text) {
                 payload.type = 'text';
                 payload.text = { body: message.text };
@@ -147,13 +168,14 @@ export class OfficialWhatsAppClient {
                 };
             } else if (message.poll) {
                 payload.type = 'interactive';
+                const removeMd = (s: string) => s ? s.replace(/[*_~`]/g, '').trim() : '';
                 payload.interactive = {
                     type: 'button',
                     body: { text: message.poll.name },
                     action: {
                         buttons: message.poll.options.slice(0, 3).map((opt: any, idx: number) => ({
                             type: 'reply',
-                            reply: { id: `poll_${idx}`, title: opt.optionName.substring(0, 20) }
+                            reply: { id: `poll_${idx}`, title: removeMd(opt.optionName).substring(0, 20) }
                         }))
                     }
                 };
