@@ -39,6 +39,11 @@ app.get('/test-logo', async (req, res) => {
 
 // --- Debug Logger ---
 app.use((req, _res, next) => {
+    // Strip /eldelirio-api or similar prefixes if they exist
+    if (req.url.startsWith('/eldelirio-api')) {
+        req.url = req.url.replace('/eldelirio-api', '');
+    }
+    
     if (req.url.includes('printer')) {
         console.log(`[PRINTER-DEBUG] HIT DETECTED: ${req.method} ${req.url}`);
     }
