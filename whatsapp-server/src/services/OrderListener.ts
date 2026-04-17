@@ -88,46 +88,31 @@ export class OrderListener {
     this.pollingInterval = setInterval(async () => {
       try {
         const now = new Date().toISOString();
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        // MEJORA V3.1: Ventana de búsqueda más amplia (2 min) para evitar saltos por reloj
+        const searchTime = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
-        // Estrategia: Buscar órdenes recientes o con timestamps de estado recientes
-        // Incluimos delivery_type y delivery_address para detectar Pickup correctamente
         const { data: orders, error } = await supabase
           .from('orders')
           .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, updated_at, chat_context, phone, client_id, order_number, delivery_type, delivery_address')
-          .or(`updated_at.gte.${this.lastPollTime},created_at.gte.${this.lastPollTime},out_at.gte.${fiveMinutesAgo},delivered_at.gte.${fiveMinutesAgo}`)
-          .order('created_at', { ascending: true });
+          .or(`updated_at.gte.${searchTime},created_at.gte.${searchTime},out_at.gte.${tenMinutesAgo},delivered_at.gte.${tenMinutesAgo}`)
+          .order('updated_at', { ascending: true });
 
         if (error) throw error;
 
         if (orders && orders.length > 0) {
-          logger.info(`[${this.context.config.botId}] Polling encontró ${orders.length} órdenes con actividad reciente.`);
-
+          logger.debug(`[OrderListener] Polling cycle: ${orders.length} órdenes con actividad en los últimos 2 min.`);
           for (const order of orders) {
-            // Verificar si es una orden nueva o un cambio de estado
             const previousStatus = this.lastStatusCheck.get(order.id);
             const isNewOrder = !previousStatus && order.status;
             const statusChanged = previousStatus && previousStatus !== order.status;
 
-            if (isNewOrder) {
-              logger.info(`[${this.context.config.botId}] Nueva orden detectada: ${order.order_number} (${order.status})`);
-              await this.handleChange(order, null);
-            } else if (statusChanged) {
-              logger.info(`[${this.context.config.botId}] Cambio de estado detectado: ${order.order_number} ${previousStatus} -> ${order.status}`);
-              await this.handleChange(order, previousStatus);
+            if (isNewOrder || statusChanged) {
+              await this.handleChange(order, previousStatus || null);
             }
-
-            // Actualizar el cache de estados
             this.lastStatusCheck.set(order.id, order.status);
           }
         }
-
-        // Actualizar el tiempo de referencia
-        this.lastPollTime = now;
-
-        // Limpiar cache de órdenes antiguas (más de 24 horas) para evitar memory leaks
-        this.cleanupOldStatusCache();
-
       } catch (err: any) {
         logger.error(`[${this.context.config.botId}] Error en Polling: ${err.message}`);
       }
@@ -195,17 +180,21 @@ export class OrderListener {
 
   private isMyOrder(order: any): boolean {
     const chatContext = order.chat_context || {};
-    const orderBotId = chatContext.bot_id;
-    const orderSlug = chatContext.catalog_slug;
-    const orderBusiness = chatContext.catalog_business_name;
+    const orderBotId = String(chatContext.bot_id || '');
+    const orderSlug = String(chatContext.catalog_slug || '');
+    const orderBusiness = String(chatContext.catalog_business_name || '').toLowerCase();
 
-    const myBotId = this.context.config.phoneNumberId;
-    const mySlug = this.context.config.catalogSlug;
+    const myBotId = String(this.context.config.phoneNumberId || '');
+    const mySlug = String(this.context.config.catalogSlug || '');
 
+    // MEJORA V3.1: Match más robusto (evitar problemas de tipos string/number)
     if (mySlug && orderSlug && orderSlug === mySlug) return true;
     if (myBotId && orderBotId && orderBotId === myBotId) return true;
-    if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) return true;
-    if (!myBotId && !orderBotId && !mySlug) return true;
+    if (orderBusiness && mySlug && orderBusiness.includes(mySlug.toLowerCase())) return true;
+    
+    // Fallback: si no hay bot_id pero el slug coincide (o viceversa)
+    if (!orderBotId && orderSlug === mySlug) return true;
+
     return false;
   }
 
