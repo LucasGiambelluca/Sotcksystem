@@ -80,8 +80,8 @@ export class OrderListener {
         // 2. O tienen timestamps de estado recientes (assigned_at, started_at, etc.)
         const { data: orders, error } = await supabase
           .from('orders')
-          .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, chat_context, phone, client_id, order_number')
-          .or(`and(created_at.gte.${this.lastPollTime},created_at.lte.${now}),and(assigned_at.gte.${fiveMinutesAgo}),and(started_at.gte.${fiveMinutesAgo}),and(ready_at.gte.${fiveMinutesAgo}),and(out_at.gte.${fiveMinutesAgo}),and(delivered_at.gte.${fiveMinutesAgo}),and(cancelled_at.gte.${fiveMinutesAgo})`)
+          .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, updated_at, chat_context, phone, client_id, order_number')
+          .or(`and(updated_at.gte.${this.lastPollTime}),and(created_at.gte.${this.lastPollTime},created_at.lte.${now}),and(assigned_at.gte.${fiveMinutesAgo}),and(started_at.gte.${fiveMinutesAgo}),and(ready_at.gte.${fiveMinutesAgo}),and(out_at.gte.${fiveMinutesAgo}),and(delivered_at.gte.${fiveMinutesAgo}),and(cancelled_at.gte.${fiveMinutesAgo})`)
           .order('created_at', { ascending: true });
 
         if (error) throw error;
