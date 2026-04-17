@@ -256,20 +256,38 @@ export class OrderListener {
   private async buildConsolidatedMessage(order: any, states: string[]): Promise<string | null> {
     const finalStatus = states[states.length - 1];
     const orderNumber = order.order_number || order.id.slice(0, 8);
-    const clientName = order.chat_context?.pushName || 'Cliente';
+    
+    // Detectar Pickup
+    const dtLower = (order.delivery_type || '').toLowerCase();
+    const adLower = (order.delivery_address || '').toLowerCase();
+    const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || adLower.includes('retiro') || adLower.includes('local');
+
+    const { ConfigurationService } = require('./ConfigurationService');
+    const appConfig = await ConfigurationService.getFullConfig();
+    const clientName = order.client?.name || order.chat_context?.pushName || 'Cliente';
     
     if (finalStatus === 'IN_PREPARATION') {
-        return `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\n¡Buenas noticias ${clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
+        const prepMsg = appConfig.template_preparation ? `👨‍🍳 *${appConfig.template_preparation.replace('{orderId}', orderNumber)}*` : `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\n¡Buenas noticias ${clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
+        return prepMsg;
     }
-    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY')) {
-        let msg = `🚚 *Actualización de tu pedido #${orderNumber}*\r\n\r\n`;
-        if (finalStatus === 'DELIVERED') {
-            msg += `¡Tu pedido ya fue entregado! Disfrutalo mucho. 🎉`;
+
+    if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY') || finalStatus === 'READY' || finalStatus === 'READY_FOR_PICKUP') {
+        if (isPickup) {
+            const template = appConfig.template_ready || `🥡 *Pedido #{orderId} Listo*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo para que lo pases a retirar. ¡Te esperamos! 🎉`;
+            return template
+                .replace(/\{orderId\}/g, orderNumber)
+                .replace(/\{clientName\}/g, clientName);
         } else {
-            msg += `¡Buenas noticias! Tu pedido ya está listo y salió hacia tu domicilio. 🛵`;
+            let msg = `🚚 *Actualización de tu pedido #${orderNumber}*\r\n\r\n`;
+            if (finalStatus === 'DELIVERED') {
+                msg += `¡Tu pedido ya fue entregado! Disfrutalo mucho. 🎉`;
+            } else {
+                msg += `¡Buenas noticias! Tu pedido ya está listo y salió hacia tu domicilio. 🛵`;
+            }
+            return msg;
         }
-        return msg;
     }
+
     if (finalStatus === 'DELIVERED') {
         return `✅ *Pedido #${orderNumber} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Gracias por confiar en nosotros. 🎉`;
     }

@@ -50,7 +50,7 @@ export default function NewOrderAlertModal() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const processedIds = useRef<Set<string>>(new Set());
 
-  const fetchAndEnqueue = useCallback(async (orderId?: string) => {
+  const fetchAndEnqueue = useCallback(async (orderId?: string, attempt = 1) => {
     try {
       let query = supabase
         .from('orders')
@@ -73,6 +73,18 @@ export default function NewOrderAlertModal() {
       const orders = Array.isArray(data) ? data : data ? [data] : [];
 
       for (const raw of orders) {
+        const items: IncomingOrderItem[] = (raw as any).order_items?.map((oi: any) => ({
+          name: oi.catalog_items?.name || 'Desconocido',
+          quantity: oi.quantity
+        })) || [];
+
+        // Race condition protection: if we know it's a new order but items are empty, retry once after 2s
+        if (items.length === 0 && orderId && attempt < 2) {
+          console.log(`[NewOrderAlert] Items empty for ${orderId}, retrying in 2s...`);
+          setTimeout(() => fetchAndEnqueue(orderId, attempt + 1), 2000);
+          return;
+        }
+
         if (processedIds.current.has(raw.id)) continue;
         processedIds.current.add(raw.id);
 
@@ -87,11 +99,6 @@ export default function NewOrderAlertModal() {
           || raw.chat_context?.tipo_entrega 
           || raw.chat_context?.delivery_method 
           || null;
-
-        const items: IncomingOrderItem[] = (raw as any).order_items?.map((oi: any) => ({
-          name: oi.catalog_items?.name || 'Desconocido',
-          quantity: oi.quantity
-        })) || [];
 
         const order: IncomingOrder = {
           id: raw.id,
@@ -129,8 +136,8 @@ export default function NewOrderAlertModal() {
           const newOrder = payload.new as any;
           if (newOrder?.channel === 'TABLET') return;
           const newId = newOrder?.id;
-          // Minimal delay to ensure DB transaction committed (Supabase Realtime can sometimes be very fast)
-          setTimeout(() => fetchAndEnqueue(newId), 100);
+          // Increased delay to ensure DB transaction for items is committed
+          setTimeout(() => fetchAndEnqueue(newId), 1500);
         }
       )
       .on(

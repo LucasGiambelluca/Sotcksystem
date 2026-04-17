@@ -248,7 +248,9 @@ export default function Settings() {
           store_city: waConfig.store_city,
           store_province: waConfig.store_province,
           store_country: waConfig.store_country,
-          auto_accept_orders: waConfig.auto_accept_orders
+          auto_accept_orders: waConfig.auto_accept_orders,
+          template_ready: waConfig.template_ready,
+          template_arrived: waConfig.template_arrived
         })
         .eq('id', waConfig.id);
 
