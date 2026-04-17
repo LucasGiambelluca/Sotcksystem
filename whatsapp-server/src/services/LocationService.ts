@@ -183,7 +183,19 @@ export class LocationService {
 
         // Si no hay radios, usamos polígonos ordenados por costo
         eligibleZones.sort((a, b) => a.cost - b.cost);
-        return { zone: eligibleZones[0], distance_km: distanceKm, allowed: true };
+        const finalZone = eligibleZones[0];
+
+        // NEW: If distance is extremely small (within 100m of the store), force 0 cost
+        if (distanceKm !== null && distanceKm < 0.1) {
+            logger.info(`[LocationService] Distance is very small (${distanceKm.toFixed(3)}km). Forcing cost to 0.`);
+            return { 
+                zone: { ...finalZone, cost: 0, name: 'Local/Misma Cuadra' }, 
+                distance_km: distanceKm, 
+                allowed: true 
+            };
+        }
+
+        return { zone: finalZone, distance_km: distanceKm, allowed: true };
     }
 }
 

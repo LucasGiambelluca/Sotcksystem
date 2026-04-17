@@ -230,7 +230,7 @@ export default function KitchenDashboard() {
         setShiftLoading(false);
     }, []);
 
-    const [newOrdersToNotify, setNewOrdersToNotify] = useState<Order[]>([]);
+
     
     useEffect(() => {
         fetchOrders();
@@ -256,20 +256,7 @@ export default function KitchenDashboard() {
                 // 1. Play Sound
                 playNotification();
 
-                // 2. If it's a NEW ORDER (INSERT), show the POPUP
-                if (payload.eventType === 'INSERT') {
-                    const newOrder = payload.new as any;
-                    const normalized: Order = {
-                        id: newOrder.id,
-                        order_number: newOrder.order_number,
-                        created_at: newOrder.created_at,
-                        status: 'pending',
-                        total_amount: newOrder.total_amount,
-                        items: [],
-                        client_name: newOrder.chat_context?.pushName || 'Nuevo Cliente',
-                    };
-                    setNewOrdersToNotify(prev => [...prev, normalized]);
-                }
+                // 2. We no longer show the orange popup here, NewOrderAlertModal handles the blue one system-wide.
 
                 setTimeout(fetchOrders, 1000);
             })
@@ -654,41 +641,7 @@ export default function KitchenDashboard() {
                 ))}
             </div>
 
-            {/* ── NEW ORDER POPUP (MODAL) ── */}
-            {newOrdersToNotify.length > 0 && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border-4 border-orange-500 animate-in zoom-in-95 duration-300">
-                        <div className="bg-gradient-to-br from-orange-500 to-red-600 p-8 text-white text-center">
-                            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                                <Package size={40} />
-                            </div>
-                            <h2 className="text-4xl font-black mb-2 tracking-tighter">¡NUEVO PEDIDO!</h2>
-                            <p className="text-orange-100 font-bold uppercase tracking-widest text-sm">Entró una orden de WhatsApp</p>
-                        </div>
-                        <div className="p-8 text-center bg-white">
-                            <div className="mb-6">
-                                <p className="text-gray-400 text-xs font-bold uppercase mb-1">Cliente</p>
-                                <h3 className="text-3xl font-black text-gray-900 leading-tight">
-                                    {newOrdersToNotify[0].client_name}
-                                </h3>
-                                <p className="text-orange-500 font-mono font-bold mt-2">
-                                    #{newOrdersToNotify[0].order_number || newOrdersToNotify[0].id.slice(0,5)}
-                                </p>
-                            </div>
-                            
-                            <button 
-                                onClick={() => {
-                                    setNewOrdersToNotify(prev => prev.slice(1));
-                                    enableSound();
-                                }}
-                                className="w-full py-5 bg-[#1e293b] text-white rounded-2xl font-black text-xl shadow-xl shadow-slate-200 active:scale-95 transition-all hover:bg-slate-800"
-                            >
-                                ✅ ENTENDIDO
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* ── ORDER CARDS ── */}
             <main className="flex-1 overflow-y-auto p-3 space-y-3 pb-28">
@@ -723,12 +676,17 @@ export default function KitchenDashboard() {
                                 {/* Card Header */}
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="text-gray-400 text-[10px] font-mono font-bold tracking-tighter">ORD# {order.order_number || order.id.slice(0,5)}</span>
-                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${bgBadge}`}>{statusLabel}</span>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="bg-slate-900 text-white text-base font-black px-2.5 py-0.5 rounded-lg shadow-sm">
+                                                #{order.order_number || order.id.slice(0,5)}
+                                            </span>
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${bgBadge}`}>
+                                                {statusLabel}
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-[#0f172a] text-xl font-black leading-tight">
+                                        
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <h3 className="text-[#0f172a] text-xl font-black leading-tight tracking-tight">
                                                 {order.client_name || order.phone || 'Cliente'}
                                             </h3>
                                             <button 
@@ -740,11 +698,23 @@ export default function KitchenDashboard() {
                                                 <span className="text-[10px] font-bold">IMP. COMANDA</span>
                                             </button>
                                         </div>
+
                                         {(order.delivery_address || order.delivery_type) && (
-                                            <p className="text-gray-500 text-xs font-medium mt-0.5 flex items-center gap-1">
-                                                <MapPin size={12} className="text-blue-500" />
-                                                {order.delivery_address || order.delivery_type}
-                                            </p>
+                                            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                                                        <MapPin size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 block -mb-0.5">
+                                                            ENTREGA Y DIRECCIÓN
+                                                        </span>
+                                                        <p className="text-blue-950 text-lg font-black leading-tight">
+                                                            {order.delivery_address || order.delivery_type}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                     <div className="flex flex-col items-end gap-1 shrink-0">

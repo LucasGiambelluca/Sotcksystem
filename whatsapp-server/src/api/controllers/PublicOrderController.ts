@@ -91,7 +91,7 @@ export class PublicOrderController {
             const blocks = distanceKm ? Math.round(distanceKm * 10) : null;
 
             const messageLines = [
-                `*¡NUEVO PEDIDO WEB!*`,
+                `*📦 [ALERTA NEGOCIO] ¡NUEVO PEDIDO WEB!*`,
                 `--------------------------`,
                 `*Cliente:* ${customerName}`,
                 `*Teléfono:* ${phone}`,

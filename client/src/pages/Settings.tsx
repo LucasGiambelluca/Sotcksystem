@@ -128,7 +128,7 @@ export default function Settings() {
 
         const fullAddress = `${waConfig.store_address}, ${cleanStoreCity}, ${cleanStoreProv}, ${cleanStoreCountry}`;
         const API_BASE = import.meta.env.VITE_API_URL || '';
-        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001/api/geocode' : `${API_BASE}/api/geocode`;
+        const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://127.0.0.1:3001/api/geocode' : `${API_BASE}/api/geocode`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',

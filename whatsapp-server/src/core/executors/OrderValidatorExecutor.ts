@@ -40,6 +40,18 @@ export class OrderValidatorExecutor implements NodeExecutor {
             context.tipo_entrega = 'Retiro en local';
             context.delivery_type = 'Retiro en local';
             context.location_validated = true; // Mark as validated to avoid further checks
+            context.shipping_cost = 0; // Force free shipping for pickup
+            // Clear all possible address keys to avoid persistence in catalog URLs
+            context.direccion = '';
+            context.address = '';
+            context.deliveryAddress = '';
+            context.direccion_raw = '';
+            context.domicilio = '';
+            context.dirección = '';
+            context.dirrecion = '';
+            context.direccion_cliente = '';
+            context.direccion_cliente_raw = '';
+            context.zona_delivery = '';
         }
         // ------------------------------------
 
@@ -138,6 +150,17 @@ export class OrderValidatorExecutor implements NodeExecutor {
             updatedContext.tipo_entrega = 'Retiro en local';
             updatedContext.delivery_type = 'Retiro en local';
             updatedContext.location_validated = true;
+            updatedContext.shipping_cost = 0;
+            updatedContext.direccion = '';
+            updatedContext.address = '';
+            updatedContext.deliveryAddress = '';
+            updatedContext.direccion_raw = '';
+            updatedContext.domicilio = '';
+            updatedContext.dirección = '';
+            updatedContext.dirrecion = '';
+            updatedContext.direccion_cliente = '';
+            updatedContext.direccion_cliente_raw = '';
+            updatedContext.zona_delivery = '';
         }
 
         return {

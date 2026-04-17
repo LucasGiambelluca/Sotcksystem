@@ -191,6 +191,14 @@ class WhatsAppClient {
                 this.status = 'WORKING';
                 this.qrCodeData = null;
                 this.reconnectAttempts = 0; // Reset on successful connection
+                
+                // Sync phone number
+                const botJid = this.sock?.user?.id;
+                if (botJid) {
+                    const rawNumber = botJid.split(':')[0].split('@')[0];
+                    const { ConfigurationService } = require('../../services/ConfigurationService');
+                    ConfigurationService.syncBotPhoneNumber(rawNumber).catch(console.error);
+                }
             }
         });
 

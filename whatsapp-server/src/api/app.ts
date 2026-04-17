@@ -148,6 +148,35 @@ app.use('/api/official', whatsappWebhooks); // Direct webhook: /api/official/web
 app.use('/api/official/:botId', whatsappWebhooks); // Bot-specific webhook: /api/official/:botId/webhook
 app.use('/api', systemRoutes);
 
+// --- Notify v2.1 Logistics Webhook ---
+app.post('/api/notify/at-door', async (req, res) => {
+    try {
+        const { notificationService } = require('../services/NotificationService');
+        // Usar el primer bot disponible para procesar la llegada en la puerta
+        // En una arquitectura multi-contenedor, solo habrá uno.
+        const stats = await notificationService.getGlobalStats();
+        const botId = Object.keys(stats)[0];
+        
+        if (!botId) return res.status(503).json({ error: 'No bots registered' });
+
+        const bot = (notificationService as any).bots.get(botId);
+        // Dispatch directly to the bot's queue manager
+        const { orderId, deliveryPersonName } = req.body;
+        
+        await bot.queueManager.enqueue({
+            id: `delivery:${orderId}:${Date.now()}`,
+            type: 'delivery_arrived',
+            phone: req.body.phone, // fallback or from order
+            message: `🏁 ¡${deliveryPersonName || 'El repartidor'} está en la puerta con tu pedido!`,
+            metadata: { orderId, status: 'DELIVERY_AT_DOOR' },
+        }, 1);
+
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- STATIC FRONTEND SERVING (Unified Container) ---
 // Serve static client files under dynamic slug
 const CATALOG_SLUG = process.env.CATALOG_SLUG || 'elpollocomilon';

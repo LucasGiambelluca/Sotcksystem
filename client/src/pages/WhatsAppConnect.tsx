@@ -7,7 +7,7 @@ import {
   activateDemoMode,
 } from '../services/whatsappService';
 import type { WhatsAppSession } from '../types';
-import { ArrowLeft, WifiOff, QrCode, RefreshCw, CheckCircle2, Settings, MessageSquare, Save, Unplug } from 'lucide-react';
+import { ArrowLeft, WifiOff, QrCode, RefreshCw, CheckCircle2, Settings, MessageSquare, Save, Unplug, Cloud, Eye, EyeOff, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WA_SERVER = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -32,19 +32,132 @@ export default function WhatsAppConnect() {
   // Config Form
   const [idInstance, setIdInstance] = useState('default');
   const [apiToken, setApiToken] = useState('internal-key');
-  const [provider, setProvider] = useState<'INTERNAL' | 'GREEN-API' | 'EVOLUTION'>('INTERNAL');
+  const [provider, setProvider] = useState<'INTERNAL' | 'GREEN-API' | 'EVOLUTION' | 'META_OFFICIAL'>('INTERNAL');
   const [customApiUrl, setCustomApiUrl] = useState('');
   const [showConfig, setShowConfig] = useState(false);
+
+  // Meta API Official fields
+  const [metaCloudToken, setMetaCloudToken] = useState('');
+  const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
+  const [metaVerifyToken, setMetaVerifyToken] = useState('SotckSystemToken2026');
+  const [metaTokenPreview, setMetaTokenPreview] = useState('');
+  const [metaConfigured, setMetaConfigured] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [testingMeta, setTestingMeta] = useState(false);
+  const [metaTestResult, setMetaTestResult] = useState<{valid: boolean; phone?: string; error?: string} | null>(null);
+  const [savingMeta, setSavingMeta] = useState(false);
 
   // Welcome Message Config
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [welcomeActive, setWelcomeActive] = useState(false);
   const [savingWelcome, setSavingWelcome] = useState(false);
+  
+  // Embedded Signup
+  const [isSdkLoaded, setIsSdkLoaded] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
 
   useEffect(() => {
     loadSession();
     loadWelcomeConfig();
+    loadMetaConfig();
+    initFacebookSdk();
   }, []);
+
+  function initFacebookSdk() {
+    // @ts-ignore
+    window.fbAsyncInit = function() {
+      // @ts-ignore
+      FB.init({
+        appId: import.meta.env.VITE_META_APP_ID || '', // Needs to be in .env
+        cookie: true,
+        xfbml: true,
+        version: 'v21.0'
+      });
+      setIsSdkLoaded(true);
+    };
+
+    (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) return;
+      js = d.createElement(s); js.id = id;
+      // @ts-ignore
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      // @ts-ignore
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
+  }
+
+  async function launchEmbeddedSignup() {
+    const appId = import.meta.env.VITE_META_APP_ID;
+    const configId = import.meta.env.VITE_META_CONFIG_ID;
+    
+    if (!appId || !configId) {
+      toast.error('Falta configurar VITE_META_APP_ID o VITE_META_CONFIG_ID en el .env del cliente');
+      return;
+    }
+
+    // @ts-ignore
+    if (!window.FB) {
+      toast.error('SDK de Facebook no cargado. Reintentando...');
+      initFacebookSdk();
+      return;
+    }
+
+    setIsSigningUp(true);
+    try {
+      // @ts-ignore
+      FB.login((response) => {
+        if (response.authResponse) {
+          const code = response.authResponse.code;
+          handleMetaSignupCallback(code);
+        } else {
+          toast.error('Cancelaste el inicio de sesión con Facebook o hubo un error.');
+          setIsSigningUp(false);
+        }
+      }, {
+        config_id: configId,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          sessionInfoVersion: '3',
+        }
+      });
+    } catch (e) {
+      toast.error('Ocurrió un error al abrir el popup de Facebook.');
+      setIsSigningUp(false);
+    }
+  }
+
+  async function handleMetaSignupCallback(code: string) {
+    try {
+      // Note: In some SDK versions, WABA and Phone ID are returned in the response object
+      // under a special 'extras' field if using Embedded Signup.
+      // If not, the backend can discover them via GET /me/whatsapp_business_accounts
+      
+      const res = await fetch('/api/embedded-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code, 
+          waba_id: 'auto', // Backend will try to discover if not provided
+          phone_number_id: 'auto' 
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`✅ ¡Conectado con éxito! Número: ${data.phone}`);
+        setMetaConfigured(true);
+        loadSession(); // Reload session to show connected status
+      } else {
+        toast.error(`❌ Error: ${data.error}`);
+      }
+    } catch (err) {
+      toast.error('Falló la conexión con el servidor');
+    } finally {
+      setIsSigningUp(false);
+    }
+  }
 
   async function loadWelcomeConfig() {
     try {
@@ -57,6 +170,77 @@ export default function WhatsAppConnect() {
     } catch {
       // Config not available yet, no problem
     }
+  }
+
+  async function loadMetaConfig() {
+    try {
+      const res = await fetch('/api/meta-config');
+      const data = await res.json();
+      if (data) {
+        setMetaConfigured(data.configured);
+        setMetaPhoneNumberId(data.phone_number_id || '');
+        setMetaVerifyToken(data.verify_token || 'SotckSystemToken2026');
+        setMetaTokenPreview(data.token_preview || '');
+      }
+    } catch {
+      // Config not loaded yet
+    }
+  }
+
+  async function handleTestMeta() {
+    if (!metaCloudToken || !metaPhoneNumberId) {
+      toast.error('Completá Cloud Token y Phone Number ID');
+      return;
+    }
+    setTestingMeta(true);
+    setMetaTestResult(null);
+    try {
+      const res = await fetch('/api/meta-config/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cloud_token: metaCloudToken, phone_number_id: metaPhoneNumberId }),
+      });
+      const result = await res.json();
+      setMetaTestResult(result);
+      if (result.valid) {
+        toast.success(`✅ Credenciales válidas — ${result.phone}`);
+      } else {
+        toast.error(`❌ ${result.error}`);
+      }
+    } catch {
+      toast.error('Error al probar credenciales');
+    }
+    setTestingMeta(false);
+  }
+
+  async function handleSaveMeta() {
+    if (!metaCloudToken || !metaPhoneNumberId) {
+      toast.error('Completá Cloud Token y Phone Number ID');
+      return;
+    }
+    setSavingMeta(true);
+    try {
+      const res = await fetch('/api/meta-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cloud_token: metaCloudToken,
+          phone_number_id: metaPhoneNumberId,
+          verify_token: metaVerifyToken,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Credenciales de Meta guardadas');
+        setMetaConfigured(true);
+        setMetaTokenPreview(metaCloudToken.substring(0, 10) + '...');
+      } else {
+        toast.error(data.error || 'Error guardando');
+      }
+    } catch {
+      toast.error('Error guardando credenciales');
+    }
+    setSavingMeta(false);
   }
 
   async function saveWelcomeConfig() {
@@ -251,7 +435,8 @@ export default function WhatsAppConnect() {
                 onChange={(e) => setProvider(e.target.value as any)}
                 className="w-full p-2 border rounded-md focus:ring-2 focus:ring-primary-500 outline-none"
               >
-                <option value="INTERNAL">Servidor Interno (Gratis / Docker)</option>
+                <option value="INTERNAL">Servidor Interno (QR / Baileys)</option>
+                <option value="META_OFFICIAL">📱 Meta API Oficial (Cloud)</option>
                 <option value="GREEN-API">Green-API (Nube)</option>
                 <option value="EVOLUTION">Evolution API (Externo)</option>
               </select>
@@ -261,6 +446,130 @@ export default function WhatsAppConnect() {
                <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
                   Usando el servidor WhatsApp incluido en Docker (localhost:3001).
                </div>
+            )}
+
+            {provider === 'META_OFFICIAL' && (
+              <div className="space-y-4 animate-in slide-in-from-top-2">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Cloud className="w-5 h-5 text-blue-600" />
+                    <span className="font-semibold text-blue-800">WhatsApp Cloud API (Meta)</span>
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    Conectá directamente con la API oficial de Meta. Necesitás una app en{' '}
+                    <a href="https://developers.facebook.com" target="_blank" rel="noopener" className="underline font-medium">Meta for Developers</a>.
+                  </p>
+                  {metaConfigured && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-green-700 bg-green-50 p-2 rounded">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Configurado — {metaTokenPreview}
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={launchEmbeddedSignup}
+                    disabled={isSigningUp}
+                    className="mt-3 w-full flex items-center justify-center gap-3 py-3 px-4 bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-lg font-bold shadow-sm transition-all animate-pulse-slow"
+                  >
+                    {isSigningUp ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Zap className="w-5 h-5 fill-current" />
+                    )}
+                    {isSigningUp ? 'Conectando...' : 'Vincular con Facebook (Recomendado)'}
+                  </button>
+                  <p className="text-[10px] text-blue-500 mt-2 text-center">
+                    Flujo oficial rápido y seguro • No requiere tokens manuales
+                  </p>
+                </div>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-wider text-gray-400">
+                    <span className="px-2 bg-white">O Configuración Manual</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cloud Token (Access Token)</label>
+                  <div className="relative">
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={metaCloudToken}
+                      onChange={(e) => { setMetaCloudToken(e.target.value); setMetaTestResult(null); }}
+                      placeholder={metaTokenPreview ? `Actual: ${metaTokenPreview}` : 'EAAxxxxxxx...'}
+                      className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Meta for Developers → Tu App → WhatsApp → API Configuration</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number ID</label>
+                  <input
+                    type="text"
+                    value={metaPhoneNumberId}
+                    onChange={(e) => { setMetaPhoneNumberId(e.target.value); setMetaTestResult(null); }}
+                    placeholder="123456789012345"
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">ID del número de teléfono registrado en Meta Business Suite</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Verify Token (para Webhooks)</label>
+                  <input
+                    type="text"
+                    value={metaVerifyToken}
+                    onChange={(e) => setMetaVerifyToken(e.target.value)}
+                    placeholder="SotckSystemToken2026"
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Token que usás en Meta → Webhooks → Verify Token</p>
+                </div>
+
+                {metaTestResult && (
+                  <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
+                    metaTestResult.valid 
+                      ? 'bg-green-50 text-green-800 border border-green-200' 
+                      : 'bg-red-50 text-red-800 border border-red-200'
+                  }`}>
+                    {metaTestResult.valid ? (
+                      <><CheckCircle2 className="w-4 h-4 text-green-600" /> Conexión exitosa — Número: {metaTestResult.phone}</>
+                    ) : (
+                      <><WifiOff className="w-4 h-4 text-red-600" /> Error: {metaTestResult.error}</>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleTestMeta}
+                    disabled={testingMeta || !metaCloudToken || !metaPhoneNumberId}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                  >
+                    {testingMeta ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    {testingMeta ? 'Probando...' : 'Probar Conexión'}
+                  </button>
+                  <button
+                    onClick={handleSaveMeta}
+                    disabled={savingMeta || !metaCloudToken || !metaPhoneNumberId}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                  >
+                    {savingMeta ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {savingMeta ? 'Guardando...' : 'Guardar Credenciales'}
+                  </button>
+                </div>
+              </div>
             )}
 
             {provider === 'EVOLUTION' && (
@@ -277,7 +586,7 @@ export default function WhatsAppConnect() {
               </div>
             )}
 
-            {provider !== 'INTERNAL' && (
+            {(provider === 'GREEN-API' || provider === 'EVOLUTION') && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

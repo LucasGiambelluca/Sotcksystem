@@ -5,10 +5,10 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 import app from './api/app';
 import { whatsappClient } from './infrastructure/whatsapp/WhatsAppClient';
 import { stockCronService } from './services/StockCronService';
-import { orderNotificationListener } from './services/OrderNotificationListener';
-import { logisticsNotificationListener } from './services/LogisticsNotificationListener';
+import { notificationService } from './services/NotificationService';
 import { PrinterBridgeService } from './services/PrinterBridgeService';
 import { sessionCleanupService } from './services/SessionCleanupService';
+import { tokenRefreshJob } from './services/TokenRefreshJob';
 
 const PORT = process.env.PORT || 3001;
 
@@ -18,29 +18,28 @@ async function bootstrap() {
         console.log(`🚀 Server running on port ${PORT}`);
     });
 
-    // 2. Start Services (WhatsApp)
     try {
+        // 🔔 [StockSystem Notify v2.1] - Inicialización de Bots
         const isOfficial = !!(process.env.WHATSAPP_CLOUD_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+        
+        await notificationService.registerBot({
+            botId: process.env.BOT_ID || 'eldelirio',
+            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+            accessToken: process.env.WHATSAPP_CLOUD_TOKEN,
+            catalogSlug: process.env.CATALOG_SLUG || 'eldelirio',
+            maxConcurrentJobs: Number(process.env.MAX_CONCURRENT_JOBS) || 3,
+            messagesPerMinute: Number(process.env.MESSAGES_PER_MINUTE) || 80,
+            isLocal: !isOfficial
+        });
 
         if (isOfficial) {
             console.log(`🚀 [WhatsApp] Using Official Cloud API (No QR needed).`);
-            // The official client doesn't need a .start() loop like Baileys
-            // It works via outgoing HTTP and incoming Webhooks
         } else {
             console.log(`🤖 [WhatsApp] Using Baileys (Legacy QR-code system).`);
             await whatsappClient.start();
-            console.log(`🤖 WhatsApp Client initialized successfully.`);
         }
-        
-        // Start Order Notification Listener
-        orderNotificationListener.start();
-        console.log(`🔔 Order Notification Listener started.`);
-        
-        // Start Courier Arrival Notification Listener
-        logisticsNotificationListener.start();
-        console.log(`🔔 Courier Arrival Notification Listener started.`);
     } catch (error) {
-        console.error('❌ Failed to initialize WhatsApp Client:', error);
+        console.error('❌ [CRITICAL] Failed to initialize Notification System or WhatsApp Client:', error);
     }
 
     // 2b. Start Printer Bridge (Queue worker)
@@ -48,6 +47,7 @@ async function bootstrap() {
 
     // 3. Start Background Jobs
     stockCronService.start();
+    tokenRefreshJob.start();
     console.log('📅 Background cron jobs started.');
 
     // 4. Diagnostic Pulse (Verify 'Tomar Pedido' flow)

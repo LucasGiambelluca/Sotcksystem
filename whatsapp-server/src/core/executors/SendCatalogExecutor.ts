@@ -20,6 +20,9 @@ export class SendCatalogExecutor implements NodeExecutor {
         // Try multiple possible keys for address
         const addr = context.direccion || context.address || context.deliveryAddress;
         if (addr) params.append('address', addr);
+        
+        const method = context.delivery_method || context.delivery_type || context.tipo_pedido;
+        if (method) params.append('delivery_method', method);
 
         const catalogSlug = process.env.CATALOG_SLUG || 'elpollocomilon';
         const catalogUrl = `${baseUrl}/${catalogSlug}/catalog${params.toString() ? '?' + params.toString() : ''}`;
@@ -27,10 +30,22 @@ export class SendCatalogExecutor implements NodeExecutor {
 
         const message = data.customMessage
             ? `${data.customMessage}\n\n👉 ${catalogUrl}`
-            : `¡Mirá nuestro catálogo online! Podés ver todos nuestros productos, elegir lo que querés y hacer tu pedido fácilmente:\n\n👉 ${catalogUrl}`;
+            : `¡Hola! Para ver nuestro menú completo y hacer tu pedido más rápido, tocá el botón de abajo 👇\n\n👉 ${catalogUrl}`;
+
+        const interactiveObj = {
+            type: 'cta_url',
+            body: { text: data.customMessage || "¡Hola! Para ver nuestro menú completo y hacer tu pedido más rápido, tocá el botón de abajo 👇" },
+            action: {
+                name: 'cta_url',
+                parameters: {
+                    display_text: 'Ver Catálogo',
+                    url: catalogUrl
+                }
+            }
+        };
 
         return {
-            messages: [message],
+            messages: [{ text: message, interactive: interactiveObj }],
             wait_for_input: true,
         };
     }

@@ -2,30 +2,112 @@ import axios from 'axios';
 import { PhoneUtils } from '../../utils/phoneUtils';
 import { supabase } from '../../config/database';
 import { logger } from '../../utils/logger';
+import { encryptionService } from '../../services/EncryptionService';
+
+interface MetaCredentials {
+    accessToken: string;
+    phoneNumberId: string;
+    wabaId: string;
+    appSecret: string;
+    verifyToken: string;
+}
 
 export class OfficialWhatsAppClient {
-    private accessToken: string;
-    private phoneNumberId: string;
-    private apiVersion: string = 'v25.0';
+    private credentials: MetaCredentials | null = null;
+    private lastCredentialFetch: number = 0;
+    private readonly CREDENTIAL_CACHE_TTL = 60000; // 60 seconds
+    private apiVersion: string = 'v21.0';
 
-    constructor() {
-        this.accessToken = process.env.WHATSAPP_CLOUD_TOKEN || '';
-        this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+    /**
+     * Lazy-loads credentials from DB first, falls back to .env.
+     * Caches for 60 seconds to avoid hitting DB on every message.
+     */
+    private async loadCredentials(): Promise<MetaCredentials> {
+        const now = Date.now();
+        if (this.credentials && (now - this.lastCredentialFetch < this.CREDENTIAL_CACHE_TTL)) {
+            return this.credentials;
+        }
+
+        try {
+            // 1. Try loading from DB (whatsapp_config table)
+            const { data: configs } = await supabase
+                .from('whatsapp_config')
+                .select(`
+                    meta_cloud_token, 
+                    meta_token_encrypted, 
+                    meta_phone_number_id, 
+                    meta_waba_id,
+                    meta_app_secret, 
+                    meta_verify_token
+                `)
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            const dbConfig = configs && configs.length > 0 ? configs[0] : null;
+
+            if (dbConfig) {
+                let token = dbConfig.meta_cloud_token;
+                
+                // Prioritize encrypted token if available
+                if (dbConfig.meta_token_encrypted) {
+                    try {
+                        token = encryptionService.decrypt(dbConfig.meta_token_encrypted);
+                    } catch (err: any) {
+                        logger.error(`[OfficialWA] Failed to decrypt token: ${err.message}`);
+                    }
+                }
+
+                if (token && dbConfig.meta_phone_number_id) {
+                    this.credentials = {
+                        accessToken: token,
+                        phoneNumberId: dbConfig.meta_phone_number_id,
+                        wabaId: dbConfig.meta_waba_id || '',
+                        appSecret: dbConfig.meta_app_secret || '',
+                        verifyToken: dbConfig.meta_verify_token || 'SotckSystemToken2026',
+                    };
+                    this.lastCredentialFetch = now;
+                    return this.credentials;
+                }
+            }
+        } catch (err: any) {
+            logger.warn(`[OfficialWA] DB credential fetch failed, falling back to .env: ${err.message}`);
+        }
+
+        // 2. Fallback to .env
+        this.credentials = {
+            accessToken: process.env.WHATSAPP_CLOUD_TOKEN || '',
+            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+            wabaId: process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+            appSecret: process.env.WHATSAPP_APP_SECRET || '',
+            verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || 'SotckSystemToken2026',
+        };
+        this.lastCredentialFetch = now;
+        return this.credentials;
     }
 
-    private get baseUrl() {
-        return `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
+    /**
+     * Force reload credentials (e.g., after saving new ones from the panel).
+     */
+    public clearCredentialCache(): void {
+        this.credentials = null;
+        this.lastCredentialFetch = 0;
     }
 
-    private get headers() {
+    private getBaseUrl(phoneNumberId: string) {
+        return `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}`;
+    }
+
+    private getHeaders(accessToken: string) {
         return {
-            'Authorization': `Bearer ${this.accessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
         };
     }
 
     async sendMessage(to: string, message: any): Promise<any> {
-        if (!this.isConfigured()) return;
+        const creds = await this.loadCredentials();
+        if (!creds.accessToken || !creds.phoneNumberId) return;
 
         const cleanTo = PhoneUtils.normalize(to);
         
@@ -45,6 +127,9 @@ export class OfficialWhatsAppClient {
             if (typeof message === 'string') {
                 payload.type = 'text';
                 payload.text = { body: message };
+            } else if (message.interactive) {
+                payload.type = 'interactive';
+                payload.interactive = message.interactive;
             } else if (message.text) {
                 payload.type = 'text';
                 payload.text = { body: message.text };
@@ -77,13 +162,15 @@ export class OfficialWhatsAppClient {
                 payload.text = { body: message.message };
             }
 
-            logger.info(`[OfficialWA] Sending message to ${to}`, { type: payload.type, url: `${this.baseUrl}/messages` });
-            const response = await axios.post(`${this.baseUrl}/messages`, payload, { headers: this.headers });
+            const baseUrl = this.getBaseUrl(creds.phoneNumberId);
+            const headers = this.getHeaders(creds.accessToken);
+
+            logger.info(`[OfficialWA] Sending message to ${to}`, { type: payload.type, url: `${baseUrl}/messages` });
+            const response = await axios.post(`${baseUrl}/messages`, payload, { headers });
             logger.info(`[OfficialWA] Message sent successfully to ${to}. ID: ${response.data.messages[0].id}`);
             
             // Save to DB
             const content = payload.text?.body || payload.image?.caption || payload.document?.caption || '[Media/Poll]';
-            // Save to DB asynchronously to avoid blocking the response
             this.saveOutboundMessageDB(cleanTo, content, payload.type, response.data.messages[0].id)
                 .catch(err => logger.error(`[OfficialWA] Error saving outbound message to DB: ${err.message}`));
 
@@ -98,22 +185,21 @@ export class OfficialWhatsAppClient {
     }
 
     async downloadMedia(mediaId: string): Promise<Buffer> {
-        if (!this.accessToken) throw new Error('Official WA Access Token not configured');
+        const creds = await this.loadCredentials();
+        if (!creds.accessToken) throw new Error('Official WA Access Token not configured');
 
         try {
-            // 1. Get media URL from Meta
             logger.debug(`[OfficialWA] Fetching media info for ID: ${mediaId}`);
             const metaUrlResponse = await axios.get(`https://graph.facebook.com/${this.apiVersion}/${mediaId}`, {
-                headers: { 'Authorization': `Bearer ${this.accessToken}` }
+                headers: { 'Authorization': `Bearer ${creds.accessToken}` }
             });
 
             const mediaUrl = metaUrlResponse.data?.url;
             if (!mediaUrl) throw new Error('Could not retrieve media URL from Meta response');
 
-            // 2. Download binary data from the provided URL
             logger.debug(`[OfficialWA] Downloading media content from Meta URL`);
             const mediaResponse = await axios.get(mediaUrl, {
-                headers: { 'Authorization': `Bearer ${this.accessToken}` },
+                headers: { 'Authorization': `Bearer ${creds.accessToken}` },
                 responseType: 'arraybuffer'
             });
 
@@ -155,8 +241,52 @@ export class OfficialWhatsAppClient {
             logger.error('Failed to save official outbound message to DB:', e);
         }
     }
+
+    /**
+     * Test if the current credentials are valid by calling the Meta Graph API
+     */
+    async testCredentials(token?: string, phoneId?: string): Promise<{ valid: boolean; phone?: string; error?: string }> {
+        const testToken = token || (await this.loadCredentials()).accessToken;
+        const testPhoneId = phoneId || (await this.loadCredentials()).phoneNumberId;
+
+        if (!testToken || !testPhoneId) {
+            return { valid: false, error: 'Token o Phone Number ID vacío' };
+        }
+
+        try {
+            const res = await axios.get(
+                `https://graph.facebook.com/${this.apiVersion}/${testPhoneId}?fields=display_phone_number,verified_name`,
+                { headers: { 'Authorization': `Bearer ${testToken}` } }
+            );
+            return {
+                valid: true,
+                phone: res.data.display_phone_number || testPhoneId,
+            };
+        } catch (err: any) {
+            const msg = err.response?.data?.error?.message || err.message;
+            return { valid: false, error: msg };
+        }
+    }
+
+    /**
+     * Checks if the client has valid credentials (from DB or .env).
+     * This is an async check now that credentials are lazy-loaded.
+     */
+    async isConfiguredAsync(): Promise<boolean> {
+        const creds = await this.loadCredentials();
+        return !!(creds.accessToken && creds.phoneNumberId);
+    }
+
+    /**
+     * Synchronous check — uses cached credentials only.
+     * For backward compatibility with places that call isConfigured() synchronously.
+     */
     isConfigured(): boolean {
-        return !!(this.accessToken && this.phoneNumberId);
+        if (this.credentials) {
+            return !!(this.credentials.accessToken && this.credentials.phoneNumberId);
+        }
+        // Fallback to .env for initial startup before first async load
+        return !!(process.env.WHATSAPP_CLOUD_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
     }
 }
 

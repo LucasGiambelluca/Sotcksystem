@@ -78,9 +78,10 @@ export default function Catalog() {
   const [deliveryMethod, setDeliveryMethod] = useState('Delivery');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Efectivo' | 'Transf / MP'>('Efectivo');
-  const [isValidating, setIsValidating] = useState(false);
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [distanceInfo, setDistanceInfo] = useState<{ blocks: number | null, error?: string } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   // 1. Auto-fill from URL Parameters
   useEffect(() => {
@@ -88,10 +89,15 @@ export default function Catalog() {
     const name = params.get('name');
     const phone = params.get('phone');
     const addr = params.get('address');
+    const method = params.get('delivery_method');
 
     if (name) setCustomerName(name);
     if (phone) setPhoneNumber(phone);
-    if (addr) {
+    
+    if (method === 'pickup' || method === 'PICKUP' || method === 'Retiro en local') {
+        setDeliveryMethod('Retiro en local');
+        setAddress(''); // Ensure address is clear if pickup is forced
+    } else if (addr) {
         setAddress(addr);
         setDeliveryMethod('Delivery');
     }
@@ -131,11 +137,6 @@ export default function Catalog() {
 
     return () => clearTimeout(timer);
   }, [address, deliveryMethod]);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [orderNumber, setOrderNumber] = useState('');
-
   const categoryBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -224,48 +225,11 @@ export default function Catalog() {
       return;
     }
 
-    console.log('🚀 Iniciando checkout directo...');
-    setIsValidating(true);
-    try {
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${API_BASE}/api/public/orders/submit-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName,
-          phone: phoneNumber,
-          deliveryMethod,
-          address: deliveryMethod === 'Delivery' ? address : null,
-          paymentMethod,
-          items: cart,
-          total: cartTotal
-        })
-      });
-
-      console.log('📡 Respuesta recibida:', response.status);
-      const result = await response.json();
-      console.log('📦 Resultado:', result);
-
-      if (result.success) {
-        setOrderNumber(result.orderNumber || result.orderId?.substring(0, 8));
-        setIsSuccess(true);
-        setCart([]);
-        setCheckoutOpen(false);
-      } else {
-        alert(result.error || 'Error al enviar el pedido. Por favor intentá por WhatsApp.');
-        // Fallback to old WhatsApp link if API fails
-        triggerWhatsAppFallback();
-      }
-    } catch (err) {
-      console.error('Checkout error:', err);
-      triggerWhatsAppFallback();
-    } finally {
-      setIsValidating(false);
-    }
+    triggerWhatsAppFallback();
   }
 
   function triggerWhatsAppFallback() {
-    const rawPhone = config.whatsapp_phone || '';
+    const rawPhone = config.whatsapp_phone || '5492915091234';
     const phone = rawPhone.replace(/\D/g, '');
     const lines = [
       `*${customerName.trim()}* | _${deliveryMethod}_${deliveryMethod === 'Delivery' ? ` | Dir: ${address.trim()}` : ''} | $: ${paymentMethod}`,
@@ -273,12 +237,16 @@ export default function Catalog() {
       ''
     ];
     cart.forEach(item => {
-      const price = item.product.is_special && item.product.special_price ? item.product.special_price : item.product.price;
-      lines.push(`• *${item.product.name}* x${item.quantity} — ${fmt(price * item.quantity)}`);
+      lines.push(`• ${item.product.name} x${item.quantity}`);
       if (item.notes) lines.push(`  _Notas: ${item.notes}_`);
     });
     lines.push('');
-    lines.push(`💰 *Total: ${fmt(cartTotal)}*`);
+    
+    if (deliveryMethod === 'Delivery' && shippingFee !== null) {
+      lines.push(`🛵 *Envío: ${fmt(shippingFee)}*`);
+    }
+    
+    lines.push(`💰 *Total: ${fmt(cartTotal + (shippingFee || 0))}*`);
     const text = encodeURIComponent(lines.join('\n'));
     
     const waUrl = phone 
@@ -779,57 +747,18 @@ export default function Catalog() {
             <div className="p-5 border-t border-gray-100 bg-gray-50 mt-auto">
                 <button
                 type="submit"
-                disabled={isValidating}
-                className={`w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition ${isValidating ? 'opacity-50 cursor-wait' : ''}`}
+                className={`w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg hover:opacity-90 transition`}
                 style={{ backgroundColor: '#25D366' }}
               >
-                {isValidating ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
                   <MessageCircle size={22} />
-                )}
-                {isValidating ? 'Validando...' : 'Enviar a WhatsApp'}
+                Enviar a WhatsApp
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* ── SUCCESS MODAL ── */}
-      {isSuccess && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center shadow-2xl animate-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ShoppingCart size={40} className="text-emerald-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Pedido Recibido!</h2>
-            <p className="text-gray-500 text-sm mb-6">Estamos preparando tu orden. Te contactaremos por WhatsApp ante cualquier duda.</p>
-            <div className="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-100">
-              <span className="text-xs text-gray-400 uppercase font-bold tracking-widest block mb-1">Número de Pedido</span>
-              <span className="text-3xl font-black text-gray-900 tracking-tighter">#{orderNumber}</span>
-            </div>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => {
-                  const phone = config.whatsapp_phone?.replace(/\D/g, '') || '';
-                  if (phone) window.open(`https://wa.me/${phone}`, '_blank');
-                  setIsSuccess(false);
-                }}
-                className="w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg hover:opacity-90 transition transform active:scale-95 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#25D366' }}
-              >
-                Continuar en WhatsApp
-              </button>
-              <button
-                onClick={() => setIsSuccess(false)}
-                className="w-full py-4 rounded-2xl text-gray-500 font-bold text-sm hover:bg-gray-50 transition"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

@@ -110,4 +110,28 @@ export class ConfigurationService {
         this.cache = null;
         this.lastFetch = 0;
     }
+
+    /**
+     * Auto-syncs the bot's phone number into the connected WhatsApp config 
+     * so the catalog knows where to redirect users.
+     */
+    public static async syncBotPhoneNumber(phone: string) {
+        try {
+            if (!phone) return;
+            const cleanPhone = phone.replace(/\D/g, '');
+            
+            // Update whatsapp_config
+            const { data: wConfigs } = await supabase.from('whatsapp_config').select('id').order('created_at', { ascending: false }).limit(1);
+            if (wConfigs && wConfigs.length > 0) {
+                await supabase.from('whatsapp_config').update({ whatsapp_phone: cleanPhone }).eq('id', wConfigs[0].id);
+            }
+
+            // Sync to global branding to ensure backward-compatibility with older layouts
+            await supabase.from('public_branding').update({ whatsapp_phone: cleanPhone }).neq('id', '00000000-0000-0000-0000-000000000000');
+            
+            logger.info(`[ConfigurationService] Auto-synced bot phone number: ${cleanPhone}`);
+        } catch (e: any) {
+            logger.warn(`[ConfigurationService] Failed to auto-sync bot phone number: ${e.message}`);
+        }
+    }
 }

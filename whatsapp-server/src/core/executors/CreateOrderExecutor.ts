@@ -138,6 +138,7 @@ export class CreateOrderExecutor implements NodeExecutor {
             if (finalDeliveryType === 'PICKUP') {
                 validatedAddress = null;
                 finalAddressString = 'Retiro en Local';
+                shippingCost = 0; // Force $0 delivery fee for pickup
             }
 
             const order = await engine.orderService.createOrder({

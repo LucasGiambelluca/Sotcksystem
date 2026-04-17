@@ -646,28 +646,30 @@ export async function takeControl(phone: string) {
 }
 
 export async function resolveHandover(conversationId: string, phone: string) {
-  // Update status back to BOT in conversations
-  await supabase
-    .from('whatsapp_conversations')
-    .update({ status: 'BOT', updated_at: new Date().toISOString() })
-    .eq('id', conversationId);
-
-  // Resume the flow execution engine
+  // BUG FIX: Use our own backend endpoint instead of a non-existent Supabase Edge Function
   try {
-     await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-send`, {
-         method: 'POST',
-         headers: {
-             'Content-Type': 'application/json',
-             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-         },
-         body: JSON.stringify({
-              action: 'RESUME_FLOW',
-              phone: phone
-         })
-     });
-     // It triggers backend resume logic, implemented alongside router
+    const { apiUrl } = await getProviderConfig();
+    const url = apiUrl ? `${apiUrl}/api/resolve-handover` : '/api/resolve-handover';
+    
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, conversationId }),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Failed to resolve handover: ${res.status}`);
+    }
+    
+    return await res.json();
   } catch (err) {
-      console.error("Failed to resume flow", err);
+    console.error("Failed to resolve handover via backend:", err);
+    
+    // Fallback: at minimum update the conversation status directly
+    await supabase
+      .from('whatsapp_conversations')
+      .update({ status: 'BOT', updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
   }
 }
 
@@ -700,4 +702,22 @@ export async function getTotalUnreadCount(): Promise<number> {
   const { data } = await supabase.from('whatsapp_conversations').select('unread_count');
   if (!data) return 0;
   return data.reduce((sum: number, c: { unread_count: number }) => sum + (c.unread_count || 0), 0);
+}
+
+// NEW: Broadcast message to multiple individual contacts (1:1)
+export async function broadcastMessage(phones: string[], message: string) {
+  const { apiUrl } = await getProviderConfig();
+  const url = apiUrl ? `${apiUrl}/api/broadcast` : '/api/broadcast';
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phones, message }),
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Broadcast failed: ${res.status}`);
+  }
+
+  return await res.json();
 }

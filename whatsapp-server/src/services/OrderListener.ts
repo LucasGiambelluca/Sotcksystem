@@ -1,0 +1,268 @@
+// src/services/OrderListener.ts
+
+import { supabase } from '../config/database';
+import { BotContext } from '../core/BotContext';
+import { QueueManager, NotificationJob } from '../infrastructure/queue/QueueManager';
+import { logger } from '../utils/logger';
+import { RedisDedup } from '../infrastructure/deduplication/RedisDedup';
+
+/**
+ * Listener de órdenes v2.2.
+ * Combina Realtime de Supabase con un Polling de seguridad de 30s.
+ * NOTA: La tabla orders no tiene updated_at, usa timestamps específicos por estado.
+ */
+export class OrderListener {
+  private context: BotContext;
+  private queueManager: QueueManager;
+  private realtimeChannel: any;
+  private pollingInterval?: NodeJS.Timeout;
+  private lastPollTime: string = new Date(Date.now() - 60000).toISOString(); // Empezar desde 1 min atrás
+  private lastStatusCheck: Map<string, string> = new Map(); // Cache de estados para detectar cambios
+
+  constructor(context: BotContext, queueManager: QueueManager) {
+    this.context = context;
+    this.queueManager = queueManager;
+  }
+
+  /**
+   * Inicia el monitoreo de la tabla 'orders' para este bot.
+   */
+  start(): void {
+    this.startRealtime();
+    this.startPolling(30000); // Polling cada 30 segundos como red de seguridad
+    logger.info(`[${this.context.config.botId}] Listener de órdenes INICIADO (Realtime + Polling 30s).`);
+  }
+
+  private startRealtime(): void {
+    // IMPORTANTE: Supabase Realtime tiene limitaciones filtrando campos JSON.
+    // Escuchamos TODOS los cambios y filtramos manualmente en handleChange.
+    this.realtimeChannel = supabase
+      .channel(`orders-${this.context.config.botId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          // Sin filtro a nivel de Realtime - filtramos manualmente
+        },
+        async (payload) => {
+          const newOrder = payload.new as any;
+          const oldOrder = payload.old as any;
+          logger.debug(`[${this.context.config.botId}] Evento Realtime detectado: ${payload.eventType}`);
+
+          // Actualizar cache de estados para detectar cambios
+          if (newOrder?.id) {
+            this.lastStatusCheck.set(newOrder.id, newOrder.status);
+          }
+
+          await this.handleChange(newOrder, oldOrder);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          logger.info(`[${this.context.config.botId}] Canal Realtime suscrito exitosamente.`);
+        } else {
+          logger.warn(`[${this.context.config.botId}] Realtime status: ${status}`);
+        }
+      });
+  }
+
+  private startPolling(intervalMs: number): void {
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const now = new Date().toISOString();
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+        // Estrategia: Buscar órdenes recientes o con timestamps de estado recientes
+        // Como no hay updated_at, buscamos órdenes que:
+        // 1. Fueron creadas recientemente
+        // 2. O tienen timestamps de estado recientes (assigned_at, started_at, etc.)
+        const { data: orders, error } = await supabase
+          .from('orders')
+          .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, chat_context, phone, client_id, order_number')
+          .or(`and(created_at.gte.${this.lastPollTime},created_at.lte.${now}),and(assigned_at.gte.${fiveMinutesAgo}),and(started_at.gte.${fiveMinutesAgo}),and(ready_at.gte.${fiveMinutesAgo}),and(out_at.gte.${fiveMinutesAgo}),and(delivered_at.gte.${fiveMinutesAgo}),and(cancelled_at.gte.${fiveMinutesAgo})`)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        if (orders && orders.length > 0) {
+          logger.info(`[${this.context.config.botId}] Polling encontró ${orders.length} órdenes con actividad reciente.`);
+
+          for (const order of orders) {
+            // Verificar si es una orden nueva o un cambio de estado
+            const previousStatus = this.lastStatusCheck.get(order.id);
+            const isNewOrder = !previousStatus && order.status;
+            const statusChanged = previousStatus && previousStatus !== order.status;
+
+            if (isNewOrder) {
+              logger.info(`[${this.context.config.botId}] Nueva orden detectada: ${order.order_number} (${order.status})`);
+              await this.handleChange(order, null);
+            } else if (statusChanged) {
+              logger.info(`[${this.context.config.botId}] Cambio de estado detectado: ${order.order_number} ${previousStatus} -> ${order.status}`);
+              const oldOrderData = { ...order, status: previousStatus };
+              await this.handleChange(order, oldOrderData);
+            }
+
+            // Actualizar el cache de estados
+            this.lastStatusCheck.set(order.id, order.status);
+          }
+        }
+
+        // Actualizar el tiempo de referencia
+        this.lastPollTime = now;
+
+        // Limpiar cache de órdenes antiguas (más de 24 horas) para evitar memory leaks
+        this.cleanupOldStatusCache();
+
+      } catch (err: any) {
+        logger.error(`[${this.context.config.botId}] Error en Polling: ${err.message}`);
+      }
+    }, intervalMs);
+  }
+
+  /**
+   * Limpia el cache de estados de órdenes antiguas para evitar memory leaks.
+   */
+  private cleanupOldStatusCache(): void {
+    // Mantener solo las últimas 100 órdenes en cache
+    if (this.lastStatusCheck.size > 100) {
+      const entries = Array.from(this.lastStatusCheck.entries());
+      this.lastStatusCheck.clear();
+      // Mantener las últimas 50 entradas
+      entries.slice(-50).forEach(([id, status]) => {
+        this.lastStatusCheck.set(id, status);
+      });
+      logger.debug(`[${this.context.config.botId}] Cache de estados limpiado.`);
+    }
+  }
+
+  /**
+   * Procesa un cambio detectado en la base de datos.
+   */
+  private async handleChange(newOrder: any, oldOrder: any | null): Promise<void> {
+    const orderId = newOrder.id;
+    const newStatus = newOrder.status;
+    const oldStatus = oldOrder?.status;
+
+    // 0. FILTRADO MANUAL: Verificar si este pedido pertenece a este bot
+    const chatContext = newOrder.chat_context || {};
+    const orderBotId = chatContext.bot_id;
+    const orderSlug = chatContext.catalog_slug;
+    const orderBusiness = chatContext.catalog_business_name;
+
+    const myBotId = this.context.config.phoneNumberId;
+    const mySlug = this.context.config.catalogSlug;
+
+    let isMyOrder = false;
+
+    // Lógica de aislamiento (igual que OrderNotificationListener)
+    if (myBotId && orderBotId && orderBotId === myBotId) {
+      isMyOrder = true;
+    } else if (mySlug && orderSlug && orderSlug === mySlug) {
+      isMyOrder = true;
+    } else if (orderBusiness && mySlug && orderBusiness.toLowerCase().includes(mySlug.toLowerCase())) {
+      isMyOrder = true;
+    } else if (!myBotId && !orderBotId) {
+      isMyOrder = true; // Local dev fallback
+    }
+
+    // Si no es mi pedido, ignorar
+    if (!isMyOrder) {
+      return;
+    }
+
+    // 1. Evitar redundancia si el status no cambió
+    if (newStatus === oldStatus && oldOrder !== null) return;
+
+    // 2. Determinar tipo y prioridad de notificación
+    const { type, priority, message } = this.buildNotification(newOrder, oldStatus);
+    if (!message) return;
+
+    // 3. Deduplicación (Prevenir re-procesamiento cruzado)
+    const dedupKey = `order:${orderId}:${newStatus}`;
+    const isDuplicate = await RedisDedup.isDuplicate(this.context, dedupKey, 300); // 5 min TTL
+    if (isDuplicate) return;
+
+    // 4. Encolar en BullMQ
+    const job: NotificationJob = {
+      id: `notif:${orderId}:${newStatus}`,
+      type,
+      phone: newOrder.phone || newOrder.client?.phone,
+      message,
+      metadata: {
+        orderId,
+        status: newStatus,
+        oldStatus: oldStatus || undefined,
+      },
+    };
+
+    await this.queueManager.enqueue(job, priority);
+
+    logger.info(`[${this.context.config.botId}] Notificación encolada (${newStatus}) -> ${orderId}`);
+  }
+
+  /**
+   * Lógica de negocio para mapear estados a mensajes y prioridades.
+   */
+  private buildNotification(order: any, oldStatus: string | null): {
+    type: 'order_new' | 'status_change';
+    priority: number;
+    message: string;
+  } {
+    const isNew = oldStatus === null || oldStatus === undefined;
+    const status = order.status;
+    const orderNumber = order.order_number || '#???';
+
+    // Mapeo básico de estados
+    const templates: Record<string, string> = {
+      'PENDING': `✅ Pedido recibido! Número: ${orderNumber}. Te avisamos cuando esté listo.`,
+      'CONFIRMED': `✅ Pedido ${orderNumber} ha sido CONFIRMADO. ¡Gracias!`,
+      'IN_PREPARATION': `👨‍🍳 Tu pedido ${orderNumber} está en preparación.`,
+      'READY_FOR_PICKUP': `🎉 ¡Tu pedido ${orderNumber} está listo para retirar!`,
+      'OUT_FOR_DELIVERY': `🛵 ¡Tu pedido ${orderNumber} ya salió hacia tu domicilio!`,
+      'DELIVERED': `✅ Pedido ${orderNumber} entregado. ¡Buen provecho!`,
+      'CANCELLED': `❌ Lo sentimos, tu pedido ${orderNumber} ha sido cancelado.`,
+      'IN_TRANSIT': `🛵 Tu pedido ${orderNumber} está en camino.`,
+      'READY': `🎉 ¡Tu pedido ${orderNumber} está listo!`
+    };
+
+    const deliveryType = (order.delivery_type || '').toLowerCase();
+    const isPickup = deliveryType.includes('retiro') || deliveryType.includes('pickup') || deliveryType.includes('local');
+
+    let type: 'order_new' | 'status_change' = isNew ? 'order_new' : 'status_change';
+    let priority = 20; // Default: Cambios de estado
+    let message = templates[status];
+
+    // Lógica inteligente para estados de "salida" o "listo"
+    if (status === 'IN_TRANSIT' || status === 'OUT_FOR_DELIVERY' || status === 'SHIPPED') {
+      if (isPickup) {
+        message = `🎉 ¡Tu pedido ${orderNumber} ya está listo para que pases a retirarlo por el local!`;
+      } else {
+        message = `🛵 ¡Tu pedido ${orderNumber} ya salió hacia tu domicilio! Preparate para recibirlo.`;
+      }
+    }
+
+    if (!message) {
+      message = templates[status] || `Tu pedido ${orderNumber} cambió a: ${status}`;
+    }
+
+    // Los pedidos nuevos y salidas a delivery tienen alta prioridad (menor número en BullMQ)
+    if (isNew) {
+        priority = 10;
+    } else if (status === 'OUT_FOR_DELIVERY' || status === 'READY_FOR_PICKUP') {
+      priority = 5; // Máxima prioridad
+    }
+
+    return { type, priority, message };
+  }
+
+  /**
+   * Detiene el listener limpiando recursos.
+   */
+  stop(): void {
+    if (this.realtimeChannel) supabase.removeChannel(this.realtimeChannel);
+    if (this.pollingInterval) clearInterval(this.pollingInterval);
+    logger.info(`[${this.context.config.botId}] Listener DETENIDO.`);
+  }
+}

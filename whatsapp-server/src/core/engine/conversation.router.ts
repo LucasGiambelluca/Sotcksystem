@@ -221,21 +221,67 @@ export class ConversationRouter {
 
             // =====================================================================
             // PRIORITY 1: HANDOVER CHECK
+            // Search by exact phone first, then check for any HANDOVER conversations
+            // that might belong to this user (LID vs regular phone mismatch fix)
             // =====================================================================
-            const { data: convo } = await supabase
+            let { data: convo } = await supabase
                 .from('whatsapp_conversations')
-                .select('status')
+                .select('status, phone')
                 .eq('phone', cleanPhone)
                 .maybeSingle();
+
+            // If no exact match found but phone might have a LID variant, 
+            // also check for any HANDOVER conversation (allows the bot to stay silent)
+            if ((!convo || convo.status !== 'HANDOVER') && !cleanPhone.includes('@lid')) {
+                // Check if there's a HANDOVER conversation with a LID that partially matches
+                const digits = cleanPhone.replace(/\D/g, '');
+                if (digits.length >= 8) {
+                    const { data: lidConvo } = await supabase
+                        .from('whatsapp_conversations')
+                        .select('status, phone')
+                        .eq('status', 'HANDOVER')
+                        .like('phone', `%${digits.slice(-8)}%`)
+                        .limit(1)
+                        .maybeSingle();
+                    if (lidConvo) {
+                        convo = lidConvo;
+                        logger.info(`[HANDOVER] Cross-matched LID conversation: ${lidConvo.phone} for incoming ${cleanPhone}`);
+                    }
+                }
+            }
 
             if (convo && convo.status === 'HANDOVER') {
                 if (['reset', 'reiniciar', 'resume', 'hola'].includes(cleanText)) {
                     logger.info(`[HANDOVER] Resuming bot`, { phone });
                     await supabase.from('whatsapp_conversations')
-                        .update({ status: 'ACTIVE' })
-                        .eq('phone', cleanPhone);
+                        .update({ status: 'BOT' })
+                        .eq('phone', convo.phone);
                 } else {
                     logger.debug(`[HANDOVER] Message ignored (Human active)`, { phone });
+                    // Save the inbound message to the correct conversation so it appears in the panel
+                    try {
+                        const { data: existingConvo } = await supabase.from('whatsapp_conversations')
+                            .select('id, unread_count')
+                            .eq('phone', convo.phone)
+                            .single();
+                        if (existingConvo) {
+                            await supabase.from('whatsapp_messages').insert({
+                                conversation_id: existingConvo.id,
+                                direction: 'INBOUND',
+                                content: text,
+                                message_type: 'text',
+                                is_read: false,
+                            });
+                            await supabase.from('whatsapp_conversations').update({
+                                last_message: text,
+                                last_message_at: new Date().toISOString(),
+                                unread_count: (existingConvo.unread_count || 0) + 1,
+                                updated_at: new Date().toISOString(),
+                            }).eq('id', existingConvo.id);
+                        }
+                    } catch (e) {
+                        logger.error(`[HANDOVER] Error saving inbound during handover`, e);
+                    }
                     return []; 
                 }
             }
@@ -267,7 +313,7 @@ export class ConversationRouter {
             // 🎙️ PRIORITY 5: ACTIVE FLOW (Standard logic)
             // =====================================================================
             if (session?.status === 'waiting_input') {
-                const globalBreakers = ['hola', 'menu', 'menú', 'cancelar', 'salir', 'reset', 'reiniciar'];
+                const globalBreakers = ['hola', 'menu', 'menú', 'cancelar', 'salir', 'reset', 'reiniciar', 'inicio'];
                 
                 // No interceptamos nada con IA. Si está en flujo, TODO va al flujo. Sólo rompemos con keywords exactas.
                 if (globalBreakers.includes(cleanText)) {
@@ -295,7 +341,8 @@ export class ConversationRouter {
             // =====================================================================
             // 👋 PRIORITY 7: GREETINGS / HELP
             // =====================================================================
-            if (intent === 'GREETING' || intent === 'HELP' || cleanText === 'hola' || cleanText === 'menu') {
+            if (intent === 'GREETING' || intent === 'HELP' || ['hola', 'menu', 'menú', 'inicio'].includes(cleanText)) {
+                // Forzamos la palabra 'hola' para que el motor busque el trigger del menú principal
                 const engineResponse = await this.flowEngine.processMessage(phone, 'hola', { ...context, pushName, remoteJid });
                 return this.extractMessages(engineResponse);
             }

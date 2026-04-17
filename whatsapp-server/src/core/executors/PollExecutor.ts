@@ -14,15 +14,44 @@ export class PollExecutor implements NodeExecutor {
         const question = data.question || "Elige una opción:";
         const options = data.options || ['Sí', 'No'];
 
-        // Build a text-based numbered menu (much more reliable than native WhatsApp polls)
+        // Build a text-based numbered menu (Fallback for Baileys/Legacy)
         const optionLines = options.map((opt: string, i: number) => {
             const cleanOpt = opt.replace(/^\d+[\s.)-]*\s*/, '');
             return `*${i + 1}.* ${cleanOpt}`;
         }).join('\n');
         const menuText = `${question}\n\n${optionLines}\n\n_Respondé con el número de tu elección._`;
 
+        let interactiveObj: any;
+        if (options.length <= 3) {
+            interactiveObj = {
+                type: 'button',
+                body: { text: question },
+                action: {
+                    buttons: options.map((opt: string, idx: number) => ({
+                        type: 'reply',
+                        reply: { id: `poll_${idx}`, title: opt.substring(0, 20).trim() }
+                    }))
+                }
+            };
+        } else {
+            interactiveObj = {
+                type: 'list',
+                body: { text: question },
+                action: {
+                    button: 'Opciones',
+                    sections: [{
+                        title: 'Elegí una opción',
+                        rows: options.slice(0, 10).map((opt: string, idx: number) => ({
+                            id: `poll_${idx}`,
+                            title: opt.substring(0, 24).trim()
+                        }))
+                    }]
+                }
+            };
+        }
+
         return {
-            messages: [menuText],
+            messages: [{ text: menuText, interactive: interactiveObj }],
             wait_for_input: true
         };
     }
