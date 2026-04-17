@@ -4,7 +4,6 @@ import { VolumeX, Utensils, LogOut, Package, Minus, Layers, MapPin, Printer } fr
 import { useSound } from '../context/SoundContext';
 import { shiftService } from '../services/shiftService';
 import { stationService } from '../services/stationService';
-import { updateOrderStatus } from '../services/orderService';
 import { toast } from 'sonner';
 import ShiftLogin from '../components/ShiftLogin';
 import type { Shift, Station, Employee } from '../types';
