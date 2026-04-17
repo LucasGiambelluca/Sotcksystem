@@ -40,14 +40,17 @@ app.get('/test-logo', async (req, res) => {
 // --- Debug Logger ---
 app.use((req, _res, next) => {
     // Strip /eldelirio-api or similar prefixes if they exist
-    if (req.url.startsWith('/eldelirio-api')) {
+    // Use includes for robustness in case of double slashes or other proxy artifacts
+    if (req.url.includes('/eldelirio-api')) {
+        const oldUrl = req.url;
         req.url = req.url.replace('/eldelirio-api', '');
+        console.log(`[PrefixStripper] URL transformed: ${oldUrl} -> ${req.url}`);
     }
     
     if (req.url.includes('printer')) {
         console.log(`[PRINTER-DEBUG] HIT DETECTED: ${req.method} ${req.url}`);
     }
-    console.log(`[HTTP] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    console.log(`[HTTP] ${req.method} ${req.url} - Original: ${req.originalUrl}`);
     next();
 });
 
@@ -147,10 +150,10 @@ import path from 'path';
 import whatsappWebhooks from './routes/whatsapp.webhooks';
 
 // --- External Services & WhatsApp specific routes ---
-app.use('/api/groups', groupsRoutes);
-app.use('/api', whatsappRoutes);  // Limiter disabled temporarily
 app.use('/api/official', whatsappWebhooks); // Direct webhook: /api/official/webhook
 app.use('/api/official/:botId', whatsappWebhooks); // Bot-specific webhook: /api/official/:botId/webhook
+app.use('/api/groups', groupsRoutes);
+app.use('/api', whatsappRoutes);  // Generic /api mount points
 app.use('/api', systemRoutes);
 
 // --- Notify v2.1 Logistics Webhook ---
