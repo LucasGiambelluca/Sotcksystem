@@ -1,25 +1,22 @@
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
+const URL = 'https://bomzcidnpslryfgnrsrs.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvbXpjaWRucHNscnlmZ25yc3JzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk5MTA5OCwiZXhwIjoyMDgzNTY3MDk4fQ.XpobbRlaNeWFKWc8c58Es0e3K9abPKJa3EzgA0Ri0J8';
+const supabase = createClient(URL, KEY);
 
-async function inspectTable() {
-    // We can't directly list columns via the JS client easily without RPC or querying pg_catalog,
-    // but we can try a dummy select or insert to see what works.
-    // Better: Query information_schema if we have permissions, or just try to get one row and see keys.
-    const { data, error } = await supabase
-        .from('draft_orders')
-        .select('*')
-        .limit(1);
-    
+async function inspectSchema() {
+    console.log('--- Inspecting whatsapp_config schema ---');
+    const { data, error } = await supabase.from('whatsapp_config').select('*').limit(1);
     if (error) {
-        console.error('Error querying draft_orders:', error);
+        console.error('Error:', error);
+        return;
+    }
+    if (data && data.length > 0) {
+        console.log('Columns found:', Object.keys(data[0]).sort().join(', '));
+        // console.log('Full data:', JSON.stringify(data[0], null, 2));
     } else {
-        console.log('Columns in draft_orders:', Object.keys(data[0] || {}));
-        if (data.length === 0) {
-            console.log('Table is empty. Attempting to get schema via RPC or just assuming columns are missing based on error.');
-        }
+        console.log('No data in whatsapp_config');
     }
 }
 
-inspectTable();
+inspectSchema();

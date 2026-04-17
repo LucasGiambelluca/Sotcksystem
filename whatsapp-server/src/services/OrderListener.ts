@@ -89,12 +89,10 @@ export class OrderListener {
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
         // Estrategia: Buscar órdenes recientes o con timestamps de estado recientes
-        // Como no hay updated_at, buscamos órdenes que:
-        // 1. Fueron creadas recientemente
-        // 2. O tienen timestamps de estado recientes (assigned_at, started_at, etc.)
+        // Incluimos delivery_type y delivery_address para detectar Pickup correctamente
         const { data: orders, error } = await supabase
           .from('orders')
-          .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, updated_at, chat_context, phone, client_id, order_number')
+          .select('id, status, created_at, assigned_at, started_at, ready_at, out_at, delivered_at, cancelled_at, updated_at, chat_context, phone, client_id, order_number, delivery_type, delivery_address')
           .or(`updated_at.gte.${this.lastPollTime},created_at.gte.${this.lastPollTime},out_at.gte.${fiveMinutesAgo},delivered_at.gte.${fiveMinutesAgo}`)
           .order('created_at', { ascending: true });
 
@@ -240,12 +238,21 @@ export class OrderListener {
   private async enqueueNotification(order: any, status: string, message: string, priority: number) {
     const dedupKey = `order:${order.id}:${status}`;
     const isDuplicate = await RedisDedup.isDuplicate(this.context, dedupKey, 300);
-    if (isDuplicate) return;
+    if (isDuplicate) {
+        logger.debug(`[OrderListener] Notificación duplicada omitida: ${dedupKey}`);
+        return;
+    }
+
+    const phone = order.phone || order.client?.phone || order.chat_context?.phone;
+    if (!phone) {
+        logger.warn(`[OrderListener] No se pudo encontrar teléfono para la orden ${order.order_number}`);
+        return;
+    }
 
     await this.queueManager.enqueue({
       id: `notif:${order.id}:${status}`,
       type: 'status_change',
-      phone: order.phone || order.client?.phone,
+      phone,
       message,
       metadata: { orderId: order.id, status }
     }, priority);
@@ -253,22 +260,35 @@ export class OrderListener {
     logger.info(`[${this.context.config.botId}] ✅ Notificación encolada (${status}) -> ${order.order_number}`);
   }
 
+  private detectPickup(order: any): boolean {
+    const dtLower = (order.delivery_type || '').toLowerCase();
+    const adLower = (order.delivery_address || '').toLowerCase();
+    const ctxLower = JSON.stringify(order.chat_context || {}).toLowerCase();
+    
+    return dtLower === 'pickup' || 
+           dtLower.includes('retiro') || 
+           dtLower.includes('local') || 
+           adLower.includes('retiro') || 
+           adLower.includes('local') ||
+           ctxLower.includes('retiro') ||
+           ctxLower.includes('local');
+  }
+
   private async buildConsolidatedMessage(order: any, states: string[]): Promise<string | null> {
     const finalStatus = states[states.length - 1];
     const orderNumber = order.order_number || order.id.slice(0, 8);
-    
-    // Detectar Pickup
-    const dtLower = (order.delivery_type || '').toLowerCase();
-    const adLower = (order.delivery_address || '').toLowerCase();
-    const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || adLower.includes('retiro') || adLower.includes('local');
+    const isPickup = this.detectPickup(order);
 
     const { ConfigurationService } = require('./ConfigurationService');
     const appConfig = await ConfigurationService.getFullConfig();
     const clientName = order.client?.name || order.chat_context?.pushName || 'Cliente';
+    const deliveryAddress = order.delivery_address || '';
     
     if (finalStatus === 'IN_PREPARATION') {
-        const prepMsg = appConfig.template_preparation ? `👨‍🍳 *${appConfig.template_preparation.replace('{orderId}', orderNumber)}*` : `✅ *Pedido #${orderNumber} Actualizado*\r\n\r\n¡Buenas noticias ${clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
-        return prepMsg;
+        const prepMsg = appConfig.template_preparation ? appConfig.template_preparation : `✅ *Pedido #{orderId} Actualizado*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
+        return prepMsg
+            .replace(/\{orderId\}/g, orderNumber)
+            .replace(/\{clientName\}/g, clientName);
     }
 
     if (finalStatus === 'OUT_FOR_DELIVERY' || finalStatus === 'IN_TRANSIT' || states.includes('OUT_FOR_DELIVERY') || finalStatus === 'READY' || finalStatus === 'READY_FOR_PICKUP') {
@@ -278,18 +298,19 @@ export class OrderListener {
                 .replace(/\{orderId\}/g, orderNumber)
                 .replace(/\{clientName\}/g, clientName);
         } else {
-            let msg = `🚚 *Actualización de tu pedido #${orderNumber}*\r\n\r\n`;
-            if (finalStatus === 'DELIVERED') {
-                msg += `¡Tu pedido ya fue entregado! Disfrutalo mucho. 🎉`;
-            } else {
-                msg += `¡Buenas noticias! Tu pedido ya está listo y salió hacia tu domicilio. 🛵`;
-            }
-            return msg;
+            const template = appConfig.template_transit || appConfig.template_out_delivery || `🚚 *Pedido #{orderId} en camino*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo y salió hacia tu domicilio: {deliveryAddress}. 🛵`;
+            return template
+                .replace(/\{orderId\}/g, orderNumber)
+                .replace(/\{clientName\}/g, clientName)
+                .replace(/\{deliveryAddress\}/g, deliveryAddress);
         }
     }
 
     if (finalStatus === 'DELIVERED') {
-        return `✅ *Pedido #${orderNumber} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Gracias por confiar en nosotros. 🎉`;
+        const template = appConfig.template_delivered || `✅ *Pedido #{orderId} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Gracias por confiar en nosotros. 🎉`;
+        return template
+            .replace(/\{orderId\}/g, orderNumber)
+            .replace(/\{clientName\}/g, clientName);
     }
     return null;
   }
