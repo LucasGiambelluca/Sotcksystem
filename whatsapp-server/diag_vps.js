@@ -1,53 +1,53 @@
 const { createClient } = require('@supabase/supabase-js');
 
-// VPS Credentials (from user logs and previous turns)
-const URL = 'https://bomzcidnpslryfgnrsrs.supabase.co';
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvbXpjaWRucHNscnlmZ25yc3JzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk5MTA5OCwiZXhwIjoyMDgzNTY3MDk4fQ.XpobbRlaNeWFKWc8c58Es0e3K9abPKJa3EzgA0Ri0J8';
-const supabase = createClient(URL, KEY);
+const VPS_URL = 'https://bomzcidnpslryfgnrsrs.supabase.co';
+const VPS_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvbXpjaWRucHNscnlmZ25yc3JzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk5MTA5OCwiZXhwIjoyMDgzNTY3MDk4fQ.XpobbRlaNeWFKWc8c58Es0e3K9abPKJa3EzgA0Ri0J8';
+const supabase = createClient(VPS_URL, VPS_KEY);
 
-const MY_SLUG = 'elpollocomilon';
-const MY_BOT_ID = '1076716382182500';
-
-const lastStatusCheck = new Map();
-let lastPollTime = new Date(Date.now() - 300000).toISOString(); // 5 min ago
-
-async function runDiagnostic() {
-    console.log(`--- Diagnóstico Listener v2.3 (Simulando VPS) ---`);
-    console.log(`Buscando actividad desde: ${lastPollTime}`);
-
-    const { data: orders, error } = await supabase
-        .from('orders')
-        .select('id, status, order_number, updated_at, chat_context, out_at, assigned_at')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-
-    if (error) {
-        console.error('Error en consulta:', error);
+async function diagnostic() {
+    console.log('--- VPS Notification Diagnostic ---');
+    
+    // 1. Check Config
+    const { data: config } = await supabase.from('whatsapp_config').select('*').limit(1).single();
+    console.log('Template Transit:', config.template_transit);
+    console.log('Template Ready:', config.template_ready);
+    
+    // 2. Check Last Order
+    const { data: order } = await supabase.from('orders')
+        .select('*, clients(name, phone)')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+    
+    if (!order) {
+        console.log('No orders found.');
         return;
     }
 
-    console.log(`Órdenes encontradas: ${orders.length}`);
-
-    for (const order of orders) {
-        const chatContext = order.chat_context || {};
-        const isMyOrder = 
-            (chatContext.catalog_slug === MY_SLUG) || 
-            (chatContext.bot_id === MY_BOT_ID);
-
-        console.log(`\nPedido #${order.order_number} (${order.status})`);
-        console.log(`- Pertenece a este bot: ${isMyOrder ? 'SÍ' : 'NO'}`);
-        console.log(`- updated_at: ${order.updated_at}`);
-        console.log(`- out_at: ${order.out_at}`);
-        console.log(`- chat_context.catalog_slug: ${chatContext.catalog_slug}`);
-        
-        if (isMyOrder && (order.status === 'DELIVERED' || order.status === 'COMPLETED')) {
-            const hasOutAt = !!(order.out_at || order.assigned_at);
-            console.log(`- [CHECK REPLAY] ¿Tiene out_at/assigned_at?: ${hasOutAt ? 'SÍ' : 'NO'}`);
-            if (!hasOutAt) {
-                console.log(`  ⚠ ADVERTENCIA: Este pedido no tiene marca de salida. El aviso "Pedido Enviado" NUNCA se enviará como replay.`);
-            }
-        }
-    }
+    console.log('\nLast Order Details:');
+    console.log('ID:', order.id);
+    console.log('Status:', order.status);
+    console.log('Delivery Type:', order.delivery_type);
+    console.log('Delivery Address:', order.delivery_address);
+    console.log('Phone:', order.phone || order.clients?.phone);
+    
+    // 3. Test isPickup Logic (from OrderListener v2.6)
+    const dtLower = (order.delivery_type || '').toLowerCase();
+    const adLower = (order.delivery_address || '').toLowerCase();
+    const isPickup = dtLower === 'pickup' || dtLower.includes('retiro') || dtLower.includes('local') || adLower.includes('retiro') || adLower.includes('local');
+    console.log('\nisPickup detection:', isPickup);
+    
+    // 4. Test Template Compilation
+    const orderNumber = order.order_number || order.id.slice(0, 8);
+    const clientName = order.clients?.name || 'Cliente';
+    const template = isPickup ? (config.template_ready || 'READY_FALLBACK') : (config.template_transit || 'TRANSIT_FALLBACK');
+    
+    const message = template
+        .replace(/\{orderId\}/g, orderNumber)
+        .replace(/\{clientName\}/g, clientName);
+    
+    console.log('\nCompiled Message:');
+    console.log(message);
 }
 
-runDiagnostic();
+diagnostic();
