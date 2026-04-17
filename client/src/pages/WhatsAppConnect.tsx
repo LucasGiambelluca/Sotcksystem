@@ -72,7 +72,6 @@ export default function WhatsAppConnect() {
         xfbml: true,
         version: 'v21.0'
       });
-      setIsSdkLoaded(true);
     };
 
     (function(d, s, id) {
