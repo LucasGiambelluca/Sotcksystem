@@ -21,37 +21,30 @@ export class PollExecutor implements NodeExecutor {
         }).join('\n');
         const menuText = `${question}\n\n${optionLines}\n\n_Respondé con el número de tu elección._`;
 
-        let interactiveObj: any;
-        if (options.length <= 3) {
-            interactiveObj = {
-                type: 'button',
-                body: { text: question },
-                action: {
-                    buttons: options.map((opt: string, idx: number) => ({
-                        type: 'reply',
-                        reply: { id: `poll_${idx}`, title: opt.substring(0, 20).trim() }
+        const interactiveObj: any = {
+            type: options.length <= 3 ? 'button' : 'list',
+            body: { text: question },
+            action: options.length <= 3 ? {
+                buttons: options.map((opt: string, idx: number) => ({
+                    type: 'reply',
+                    reply: { id: (idx + 1).toString(), title: opt.substring(0, 20).trim() }
+                }))
+            } : {
+                button: 'Opciones',
+                sections: [{
+                    title: 'Elegí una opción',
+                    rows: options.slice(0, 10).map((opt: string, idx: number) => ({
+                        id: (idx + 1).toString(),
+                        title: opt.substring(0, 24).trim()
                     }))
-                }
-            };
-        } else {
-            interactiveObj = {
-                type: 'list',
-                body: { text: question },
-                action: {
-                    button: 'Opciones',
-                    sections: [{
-                        title: 'Elegí una opción',
-                        rows: options.slice(0, 10).map((opt: string, idx: number) => ({
-                            id: `poll_${idx}`,
-                            title: opt.substring(0, 24).trim()
-                        }))
-                    }]
-                }
-            };
-        }
+                }]
+            }
+        };
+
+        const isOfficial = !!(process.env.WHATSAPP_CLOUD_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 
         return {
-            messages: [{ text: menuText, interactive: interactiveObj }],
+            messages: isOfficial ? [{ interactive: interactiveObj }] : [menuText],
             wait_for_input: true
         };
     }

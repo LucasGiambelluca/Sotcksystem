@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
-import Logo from '../assets/Logo2.svg';
+import Logo from '../assets/nuevologo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -67,7 +67,7 @@ export default function Login() {
         <img 
           src={Logo} 
           alt="StockSystem Logo" 
-          className="w-24 sm:w-32 h-auto mx-auto mb-8 opacity-90 drop-shadow-[0_0_15px_rgba(99,102,241,0.4)]" 
+          className="w-32 sm:w-48 h-auto mx-auto mb-8 opacity-90 drop-shadow-[0_0_15px_rgba(99,102,241,0.4)]" 
         />
         
         <h2 className="text-3xl font-medium text-white mb-8 tracking-tight">Bienvenido de nuevo</h2>

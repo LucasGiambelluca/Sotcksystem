@@ -1,3 +1,4 @@
+import { ShortcutsManager } from '../../services/ShortcutsManager';
 import { IntentClassifier } from '../../flows/intents/classifier';
 import { FlowEngine } from './flow.engine';
 import { AIService } from '../../services/AIService';
@@ -131,22 +132,19 @@ export class ConversationRouter {
         return false;
     }
 
-    private async isDynamicFlowTrigger(text: string): Promise<boolean> {
-        const { data: flows } = await supabase.from('flows').select('trigger_word').eq('is_active', true);
-        if (!flows) return false;
-        
-        for (const f of flows) {
-            if (f.trigger_word) {
-                const words = f.trigger_word.toLowerCase().split(',').map((w: string) => this.normalizeText(w));
-                if (words.includes(text)) return true;
-            }
-        }
-        return false;
-    }
+    // isDynamicFlowTrigger was removed as it was redundant and slow
+
 
     async processMessage(phone: string, text: string, pushName: string, initialContext: any = {}): Promise<any[]> {
         const cleanText = this.normalizeText(text);
         const cleanPhone = PhoneUtils.normalize(phone);
+
+        // --- GLOBAL SHORTCUTS INTERCEPTOR (ROUTER LEVEL) ---
+        const shortcutMessages = await ShortcutsManager.handle(text, phone) || await ShortcutsManager.handle(cleanText, phone);
+        if (shortcutMessages) {
+            logger.info(`[Router] GLOBAL Shortcut handled: ${cleanText}. Intercepting.`);
+            return shortcutMessages;
+        }
         
         try {
             // --- 0. LOADS SESSION DATA ---
@@ -162,14 +160,14 @@ export class ConversationRouter {
                 logger.error(`[Router] Flow resolution failed`, err);
             }
 
-            // 🔍 SESSION RESOLUTION: We only fetch if it exists. 
-            // We DON'T create it here because we don't know the correct Flow ID yet.
-            // FlowEngine.processMessage will handle the creation with the right flow.
-            const session = await this.sessionRepository.findActiveSession(sessionId);
+            // --- 🔄 PARALLEL RE-RESOLUTION: Fetch session and conversation status once ---
+            const [session, convoResponse] = await Promise.all([
+                this.sessionRepository.findActiveSession(sessionId),
+                supabase.from('whatsapp_conversations').select('status, phone').eq('phone', cleanPhone).maybeSingle()
+            ]);
             
-            // Re-evaluate context based on existing session OR empty if it's new
+            let convo = convoResponse.data;
             const isNewSession = !session;
-
             const profile = await customerRepository.getProfile(cleanPhone);
             const context = { 
                 ...(isNewSession ? {} : session?.getAllVariablesForCurrentFlow()), 
@@ -219,16 +217,8 @@ export class ConversationRouter {
                 return await this.handleCatalogOrder(phone, catalogItems, metadata, pushName, context);
             }
 
-            // =====================================================================
-            // PRIORITY 1: HANDOVER CHECK
-            // Search by exact phone first, then check for any HANDOVER conversations
-            // that might belong to this user (LID vs regular phone mismatch fix)
-            // =====================================================================
-            let { data: convo } = await supabase
-                .from('whatsapp_conversations')
-                .select('status, phone')
-                .eq('phone', cleanPhone)
-                .maybeSingle();
+            // Handover check already fetched in the parallel block above
+
 
             // If no exact match found but phone might have a LID variant, 
             // also check for any HANDOVER conversation (allows the bot to stay silent)
@@ -258,30 +248,6 @@ export class ConversationRouter {
                         .eq('phone', convo.phone);
                 } else {
                     logger.debug(`[HANDOVER] Message ignored (Human active)`, { phone });
-                    // Save the inbound message to the correct conversation so it appears in the panel
-                    try {
-                        const { data: existingConvo } = await supabase.from('whatsapp_conversations')
-                            .select('id, unread_count')
-                            .eq('phone', convo.phone)
-                            .single();
-                        if (existingConvo) {
-                            await supabase.from('whatsapp_messages').insert({
-                                conversation_id: existingConvo.id,
-                                direction: 'INBOUND',
-                                content: text,
-                                message_type: 'text',
-                                is_read: false,
-                            });
-                            await supabase.from('whatsapp_conversations').update({
-                                last_message: text,
-                                last_message_at: new Date().toISOString(),
-                                unread_count: (existingConvo.unread_count || 0) + 1,
-                                updated_at: new Date().toISOString(),
-                            }).eq('id', existingConvo.id);
-                        }
-                    } catch (e) {
-                        logger.error(`[HANDOVER] Error saving inbound during handover`, e);
-                    }
                     return []; 
                 }
             }
@@ -321,7 +287,9 @@ export class ConversationRouter {
                     if (session) session.status = 'completed'; 
                 } else {
                     logger.info(`[Router] 💬 Sending message directly to flow engine.`);
-                    const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+                    const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid }, {
+                        initialState: { session, conversation: convo }
+                    });
                     
                     if (engineResponse?.currentStateDefinition?._restart_ai) {
                         return await this.processMessage(phone, text, pushName, initialContext);
@@ -352,7 +320,9 @@ export class ConversationRouter {
             // Si el trigger coincide con algo, el Flow Engine lo agarra.
             // =====================================================================
             logger.info(`[Router] Fallback to FlowEngine directly for: ${text}`);
-            const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid });
+            const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid }, {
+                initialState: { session, conversation: convo }
+            });
             return this.extractMessages(engineResponse);
 
         } catch (err: any) {

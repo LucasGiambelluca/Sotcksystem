@@ -92,19 +92,27 @@ export class OrderValidatorExecutor implements NodeExecutor {
         const hasBebidas = availableCategories.has('bebidas') || availableCategories.has('bebida');
         const hasPostres = availableCategories.has('postres') || availableCategories.has('postre');
 
-        const options: { id: string; text: string }[] = [
-            { id: 'confirmed', text: '✅ Todo Correcto' },
+        const buttons: any[] = [
+            { type: 'reply', reply: { id: 'confirmed', title: '✅ Todo Correcto' } }
         ];
-        if (hasBebidas) options.push({ id: 'add_drink', text: '🥤 Agregar Bebida' });
-        if (hasPostres) options.push({ id: 'add_dessert', text: '🍰 Agregar Postre' });
-        options.push({ id: 'add_more', text: '🛒 Sumar otros productos' });
-        options.push({ id: 'cancel', text: '❌ Cancelar/Reiniciar' });
 
-        const optionLines = options.map((opt, i) => `*${i + 1}.* ${opt.text}`).join('\n');
-        const menuText = `${summaryText}\n${optionLines}\n\n_Respondé con el número de tu elección._`;
+        if (hasBebidas || hasPostres) {
+            buttons.push({ type: 'reply', reply: { id: 'add_more', title: '➕ Agregar algo' } });
+        } else {
+            buttons.push({ type: 'reply', reply: { id: 'add_more', title: '🛒 Ver Menú' } });
+        }
+        
+        buttons.push({ type: 'reply', reply: { id: 'cancel', title: '❌ Cancelar' } });
+
+        const interactive = {
+            type: 'button',
+            body: { text: summaryText },
+            footer: { text: 'Respondé tocando un botón' },
+            action: { buttons }
+        };
 
         return {
-            messages: [menuText],
+            messages: [{ interactive }],
             wait_for_input: true
         };
     }
@@ -114,32 +122,58 @@ export class OrderValidatorExecutor implements NodeExecutor {
         messages?: string[]; 
         isValidInput?: boolean; 
     }> {
-        // Rebuild the same dynamic options list to get correct number -> id mapping
-        const { supabase: sb } = require('../../config/database');
-        const { data: categories } = await sb
-            .from('catalog_items')
-            .select('category')
-            .eq('is_active', true);
+        console.log(`\x1b[35m[DEBUG-VALIDATOR] Input received: "${input}"\x1b[0m`);
         
-        const availableCategories = new Set(
-            (categories || []).map((c: any) => (c.category || '').toLowerCase().trim())
-        );
-        const hasBebidas = availableCategories.has('bebidas') || availableCategories.has('bebida');
-        const hasPostres = availableCategories.has('postres') || availableCategories.has('postre');
+        // All valid result IDs that this node's edges can route to
+        const validButtonIds = ['confirmed', 'add_drink', 'add_dessert', 'add_more', 'cancel'];
+        
+        const cleanInput = input.trim().toLowerCase();
+        
+        // 1. Direct button ID match (from WhatsApp interactive button clicks)
+        let selectedId = validButtonIds.includes(cleanInput) ? cleanInput : null;
+        
+        // 2. Numeric fallback (when user types a number instead of pressing button)
+        if (!selectedId) {
+            // Build dynamic numbered options matching what was actually sent to the user
+            const { supabase: sb } = require('../../config/database');
+            const { data: categories } = await sb
+                .from('catalog_items')
+                .select('category')
+                .eq('is_active', true);
+            
+            const availableCategories = new Set(
+                (categories || []).map((c: any) => (c.category || '').toLowerCase().trim())
+            );
+            const hasBebidas = availableCategories.has('bebidas') || availableCategories.has('bebida');
+            const hasPostres = availableCategories.has('postres') || availableCategories.has('postre');
 
-        const optionIds: string[] = ['confirmed'];
-        if (hasBebidas) optionIds.push('add_drink');
-        if (hasPostres) optionIds.push('add_dessert');
-        optionIds.push('add_more');
-        optionIds.push('cancel');
+            // Match the EXACT order of buttons sent in execute()
+            const sentButtonIds: string[] = ['confirmed'];
+            if (hasBebidas || hasPostres) sentButtonIds.push('add_more');
+            else sentButtonIds.push('add_more');
+            sentButtonIds.push('cancel');
 
-        const optionIdMap: Record<string, string> = {};
-        optionIds.forEach((id, i) => { optionIdMap[String(i + 1)] = id; });
-        
-        const selectedId = optionIdMap[input.trim()] || input.trim().toLowerCase();
-        
+            const numericIdMap: Record<string, string> = {};
+            sentButtonIds.forEach((id, i) => { numericIdMap[String(i + 1)] = id; });
+            
+            selectedId = numericIdMap[cleanInput] || null;
+        }
+
+        // 3. Synonym resolution for text replies
+        if (!selectedId) {
+            const confirmWords = ['si', 'sí', 'confirmar', 'correcto', 'dale', 'ok', 'listo', 'todo correcto', 'confirmo'];
+            const cancelWords = ['no', 'cancelar', 'nada', 'volver'];
+            const addMoreWords = ['agregar', 'sumar', 'mas', 'más', 'otro', 'bebida', 'postre', 'menu', 'menú'];
+            
+            if (confirmWords.some(w => cleanInput.includes(w))) selectedId = 'confirmed';
+            else if (cancelWords.some(w => cleanInput === w)) selectedId = 'cancel';
+            else if (addMoreWords.some(w => cleanInput.includes(w))) selectedId = 'add_more';
+        }
+
+        console.log(`\x1b[35m[DEBUG-VALIDATOR] Resolved: "${input}" -> selectedId: "${selectedId}"\x1b[0m`);
+
         const updatedContext: Partial<ExecutionContext> = { 
-            order_validation_result: selectedId 
+            order_validation_result: selectedId || cleanInput 
         };
 
         // --- Forced Pickup Detection ---
@@ -165,7 +199,7 @@ export class OrderValidatorExecutor implements NodeExecutor {
 
         return {
             updatedContext,
-            isValidInput: !!optionIdMap[input.trim()]
+            isValidInput: !!selectedId
         };
     }
 }

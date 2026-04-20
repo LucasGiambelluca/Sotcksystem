@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockSystem Redesign Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #e11d48; /* Rose 600 */
+            --primary-hover: #be123c; /* Rose 700 */
+            --primary-light: #fff1f2; /* Rose 50 */
+            --bg-body: #f8fafc; /* Slate 50 */
+            --bg-card: #ffffff;
+            --sidebar-bg: #0f172a; /* Slate 900 */
+            --sidebar-text: #94a3b8; /* Slate 400 */
+            --sidebar-active: #ffffff;
+            --text-main: #1e293b; /* Slate 800 */
+            --text-muted: #64748b; /* Slate 500 */
+            --border-color: #f1f5f9; /* Slate 100 */
+            --radius-xl: 1rem;
+            --radius-2xl: 1.5rem;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        aside {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100vh;
+            padding: 2rem 1rem;
+            transition: width 0.3s ease;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0 1rem 2rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background-color: var(--primary);
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 0 15px rgba(225, 29, 72, 0.3);
+        }
+
+        .logo-text {
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .logo-text span {
+            color: var(--primary);
+        }
+
+        nav {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 1rem;
+        }
+
+        .nav-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-group-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #475569;
+            padding: 0 1rem 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            text-decoration: none;
+            color: inherit;
+            font-weight: 500;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-item:hover {
+            background-color: #1e293b;
+            color: white;
+        }
+
+        .nav-item.active {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(225, 29, 72, 0.2);
+        }
+
+        .nav-item i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .sidebar-footer {
+            padding-top: 1rem;
+            border-top: 1px solid #1e293b;
+        }
+
+        /* --- MAIN CONTENT --- */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            height: 72px;
+            background-color: white;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            flex-shrink: 0;
+        }
+
+        .search-bar {
+            position: relative;
+            width: 400px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 0.625rem 1rem 0.625rem 2.5rem;
+            background-color: #f1f5f9;
+            border: 1px solid transparent;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            background-color: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+        }
+
+        .search-bar i {
+            position: absolute;
+            left: 0.875rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            width: 18px;
+            height: 18px;
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            color: var(--primary);
+        }
+
+        .badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background-color: var(--primary);
+            color: white;
+            font-size: 0.625rem;
+            font-weight: 700;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+        }
+
+        .profile-trigger {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            background-color: #e2e8f0;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        /* --- CONTENT AREA --- */
+        .content-wrap {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .page-title p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .primary-btn {
+            background-color: var(--primary);
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            border: none;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.2);
+        }
+
+        .primary-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        /* --- CARDS & GRID --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-icon.rose { background-color: #fff1f2; color: #e11d48; }
+        .stat-icon.blue { background-color: #eff6ff; color: #3b82f6; }
+        .stat-icon.amber { background-color: #fffbeb; color: #d97706; }
+        .stat-icon.emerald { background-color: #ecfdf5; color: #10b981; }
+
+        .stat-content h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .stat-content p {
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            color: var(--text-muted);
+        }
+
+        .main-card {
+            background-color: white;
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-tabs {
+            padding: 1rem 1.5rem 0;
+            display: flex;
+            gap: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #fafafa;
+        }
+
+        .tab-item {
+            padding: 0.75rem 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s ease;
+        }
+
+        .tab-item:hover {
+            color: var(--primary);
+        }
+
+        .tab-item.active {
+            color: var(--primary);
+        }
+
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: var(--primary);
+            border-radius: 3px 3px 0 0;
+        }
+
+        /* --- SALON PREVIEW --- */
+        .salon-canvas {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            grid-template-rows: repeat(12, 1fr);
+            gap: 10px;
+            padding: 2rem;
+            background-color: #f1f5f9;
+            min-height: 500px;
+            position: relative;
+            border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+        }
+
+        .grid-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .table-obj {
+            background-color: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 700;
+            cursor: move;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+        }
+
+        .table-obj:hover {
+            border-color: var(--primary);
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .table-obj.occupied {
+            background-color: #fff1f2;
+            border-color: #fda4af;
+            color: #e11d48;
+        }
+
+        .table-obj.billing {
+            background-color: #fffbeb;
+            border-color: #fcd34d;
+            color: #d97706;
+        }
+
+        .table-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10b981;
+            margin-bottom: 4px;
+        }
+
+        .occupied .table-status-dot { background-color: #e11d48; }
+        .billing .table-status-dot { background-color: #f59e0b; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .table-capacity {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-weight: 500;
+        }
+
+        /* --- MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background-color: white;
+            width: 100%;
+            max-width: 500px;
+            border-radius: var(--radius-2xl);
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            overflow: hidden;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            background-color: #f8fafc;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .secondary-btn {
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <aside>
+        <div class="logo-container">
+            <div class="logo-icon">
+                <i data-lucide="package"></i>
+            </div>
+            <div class="logo-text">Stock<span>System</span></div>
+        </div>
+
+        <nav>
+            <div class="nav-group">
+                <div class="nav-group-label">General</div>
+                <a href="#" class="nav-item">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-label">Restaurante</div>
+                <a href="#" class="nav-item active">
+                    <i data-lucide="utensils"></i>
+                    <span>Salón</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="grid"></i>
+                    <span>Mesas</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="qr-code"></i>
+                    <span>Carta QR</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="chef-hat"></i>
+                    <span>Cocina</span>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-label">Logística</div>
+                <a href="#" class="nav-item">
+                    <i data-lucide="package"></i>
+                    <span>Inventario</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="truck"></i>
+                    <span>Pedidos</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="shopping-cart"></i>
+                    <span>Ventas</span>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-label">Atención</div>
+                <a href="#" class="nav-item">
+                    <i data-lucide="message-circle"></i>
+                    <span>WhatsApp</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-lucide="users"></i>
+                    <span>Clientes</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="#" class="nav-item">
+                <i data-lucide="settings"></i>
+                <span>Configuración</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i data-lucide="log-out"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <div class="search-bar">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Buscar pedidos, mesas o productos...">
+            </div>
+
+            <div class="user-actions">
+                <button class="icon-btn">
+                    <i data-lucide="bell"></i>
+                    <span class="badge">3</span>
+                </button>
+                <div class="profile-trigger">
+                    <div style="text-align: right">
+                        <div style="font-size: 0.875rem; font-weight: 600; line-height: 1">Lucas D.</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px">Admin</div>
+                    </div>
+                    <img src="https://ui-avatars.com/api/?name=Lucas+D&background=e11d48&color=fff" class="avatar" alt="Avatar">
+                </div>
+            </div>
+        </header>
+
+        <div class="content-wrap">
+            <div class="page-header">
+                <div class="page-title">
+                    <h2>Salón</h2>
+                    <p>Gestiona las mesas y pedidos en tiempo real.</p>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="secondary-btn" style="display: flex; align-items: center; gap: 0.5rem">
+                         <i data-lucide="edit-3" style="width: 18px; height: 18px"></i> Editar Plano
+                    </button>
+                    <button class="primary-btn" onclick="openModal()">
+                        <i data-lucide="plus"></i> Nueva Mesa
+                    </button>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon emerald"><i data-lucide="check-circle"></i></div>
+                        <span style="font-size: 0.75rem; color: #10b981; font-weight: 600">Libres</span>
+                    </div>
+                    <div class="stat-content">
+                        <h3>12</h3>
+                        <p>Mesas disponibles</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon rose"><i data-lucide="users"></i></div>
+                        <span style="font-size: 0.75rem; color: #e11d48; font-weight: 600">Ocupadas</span>
+                    </div>
+                    <div class="stat-content">
+                        <h3>8</h3>
+                        <p>Mesas activas</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon amber"><i data-lucide="file-text"></i></div>
+                        <span style="font-size: 0.75rem; color: #d97706; font-weight: 600">Cuenta</span>
+                    </div>
+                    <div class="stat-content">
+                        <h3>3</h3>
+                        <p>Pidiendo ticket</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon blue"><i data-lucide="trending-up"></i></div>
+                        <span style="font-size: 0.75rem; color: #3b82f6; font-weight: 600">Ventas</span>
+                    </div>
+                    <div class="stat-content">
+                        <h3>$45.200</h3>
+                        <p>Total del turno</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-card">
+                <div class="card-tabs">
+                    <div class="tab-item active">Planta Baja</div>
+                    <div class="tab-item">Terraza</div>
+                    <div class="tab-item">Vereda</div>
+                </div>
+                <div class="salon-canvas">
+                    <div class="grid-pattern"></div>
+                    
+                    <!-- Table 1 -->
+                    <div class="table-obj" style="grid-column: 2 / 4; grid-row: 2 / 4; width: 80px; height: 80px;">
+                        <div class="table-status-dot"></div>
+                        <span>M-01</span>
+                        <div class="table-capacity">4 Pers.</div>
+                    </div>
+
+                    <!-- Table 2 -->
+                    <div class="table-obj occupied" style="grid-column: 5 / 7; grid-row: 2 / 4; width: 80px; height: 80px;">
+                        <div class="table-status-dot"></div>
+                        <span>M-02</span>
+                        <div class="table-capacity">4 Pers.</div>
+                    </div>
+
+                    <!-- Table 3 -->
+                    <div class="table-obj billing" style="grid-column: 8 / 10; grid-row: 2 / 4; width: 80px; height: 80px;">
+                        <div class="table-status-dot"></div>
+                        <span>M-03</span>
+                        <div class="table-capacity">4 Pers.</div>
+                    </div>
+
+                    <!-- Table 4 (Big) -->
+                    <div class="table-obj" style="grid-column: 12 / 15; grid-row: 2 / 4; width: 120px; height: 80px;">
+                        <div class="table-status-dot"></div>
+                        <span>M-04</span>
+                        <div class="table-capacity">8 Pers.</div>
+                    </div>
+
+                    <!-- Table 5 (Round) -->
+                    <div class="table-obj occupied" style="grid-column: 2 / 4; grid-row: 6 / 8; width: 80px; height: 80px; border-radius: 50%;">
+                        <div class="table-status-dot"></div>
+                        <span>M-05</span>
+                        <div class="table-capacity">4 Pers.</div>
+                    </div>
+
+                    <!-- Bar -->
+                    <div style="grid-column: 16 / 21; grid-row: 8 / 13; background-color: #e2e8f0; border: 2px dashed #cbd5e1; border-radius: 1rem; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #64748b;">
+                        BARRA / CAJA
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Mock -->
+    <div id="modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="font-weight: 700">Nueva Mesa</h3>
+                <button onclick="closeModal()" class="icon-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Número de Mesa</label>
+                    <input type="text" placeholder="Ej: 10">
+                </div>
+                <div class="form-group">
+                    <label>Etiqueta / Nombre</label>
+                    <input type="text" placeholder="Ej: VIP Ventana">
+                </div>
+                <div class="form-group">
+                    <label>Zona</label>
+                    <select>
+                        <option>Planta Baja</option>
+                        <option>Terraza</option>
+                        <option>Vereda</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
+                    <div class="form-group">
+                        <label>Capacidad</label>
+                        <input type="text" placeholder="4">
+                    </div>
+                    <div class="form-group">
+                        <label>Forma</label>
+                        <select>
+                            <option>Cuadrada</option>
+                            <option>Redonda</option>
+                            <option>Rectangular</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal()" class="secondary-btn">Cancelar</button>
+                <button onclick="closeModal()" class="primary-btn">Crear Mesa</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function openModal() {
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Simple interactive mock: change table status on click
+        document.querySelectorAll('.table-obj').forEach(table => {
+            table.addEventListener('click', () => {
+                if (table.classList.contains('occupied')) {
+                    table.classList.remove('occupied');
+                    table.classList.add('billing');
+                } else if (table.classList.contains('billing')) {
+                    table.classList.remove('billing');
+                } else {
+                    table.classList.add('occupied');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

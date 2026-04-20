@@ -690,12 +690,30 @@ export async function markConversationAsRead(conversationId: string) {
 
 export function subscribeToMessages(onNewMessage: (msg: WhatsAppMessage) => void, onConversationUpdate: (convo: WhatsAppConversation) => void) {
   const messagesChannel = supabase.channel('whatsapp-messages')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => onNewMessage(payload.new as WhatsAppMessage))
-    .subscribe();
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
+        console.log('🔔 Realtime: Nuevo Mensaje', payload.new);
+        onNewMessage(payload.new as WhatsAppMessage);
+    })
+    .subscribe((status) => {
+        console.log('🔌 Realtime Status (Messages):', status);
+        if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Error de canal en WhatsApp Messages. Verifique RLS y Publicaciones en Supabase.');
+        }
+    });
+
   const convosChannel = supabase.channel('whatsapp-conversations')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, (payload) => onConversationUpdate(payload.new as WhatsAppConversation))
-    .subscribe();
-  return () => { supabase.removeChannel(messagesChannel); supabase.removeChannel(convosChannel); };
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
+        console.log('🔄 Realtime: Conversación Actualizada', payload.new);
+        onConversationUpdate(payload.new as WhatsAppConversation);
+    })
+    .subscribe((status) => {
+        console.log('🔌 Realtime Status (Conversations):', status);
+    });
+
+  return () => { 
+    supabase.removeChannel(messagesChannel); 
+    supabase.removeChannel(convosChannel); 
+  };
 }
 
 export async function getTotalUnreadCount(): Promise<number> {

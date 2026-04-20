@@ -39,12 +39,12 @@ app.get('/test-logo', async (req, res) => {
 
 // --- Debug Logger ---
 app.use((req, _res, next) => {
-    // Strip /eldelirio-api or similar prefixes if they exist
-    // Use includes for robustness in case of double slashes or other proxy artifacts
-    if (req.url.includes('/eldelirio-api')) {
+    // Generic prefix stripping: matches /eldelirio-api, /elpollocomilon-api, etc.
+    const apiPrefixMatch = req.url.match(/^\/[^/]+-api(\/.*)$/);
+    if (apiPrefixMatch) {
         const oldUrl = req.url;
-        req.url = req.url.replace('/eldelirio-api', '');
-        console.log(`[PrefixStripper] URL transformed: ${oldUrl} -> ${req.url}`);
+        req.url = apiPrefixMatch[1]; // The part after the prefix
+        console.log(`[PrefixStripper] URL transformed (generic): ${oldUrl} -> ${req.url}`);
     }
     
     if (req.url.includes('printer')) {

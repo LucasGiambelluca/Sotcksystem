@@ -46,7 +46,8 @@ export class NotificationWorker {
 
     try {
       // 1. Enviar vía el cliente unificado (Baileys o Official)
-      await whatsappClient.sendMessage(phone, { text: message });
+      const payload = typeof message === 'string' ? { text: message } : message;
+      await whatsappClient.sendMessage(phone, payload);
 
       // 2. Registrar éxito en DB
       await this.logNotification(job.data, 'success');

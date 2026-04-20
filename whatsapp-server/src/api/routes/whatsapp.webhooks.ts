@@ -145,7 +145,11 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
                         } else if (message.type === 'button') {
                             text = message.button.text;
                         } else if (message.type === 'interactive') {
-                            text = message.interactive.button_reply?.title || message.interactive.list_reply?.title || '';
+                            // Prioritize ID for programmatic logic, title as fallback for tracking/logging
+                            text = message.interactive.button_reply?.id || 
+                                   message.interactive.list_reply?.id || 
+                                   message.interactive.button_reply?.title || 
+                                   message.interactive.list_reply?.title || '';
                         } else if (message.type === 'location') {
                             text = '_LOCATION_RECEIVED_';
                             context._location = { lat: message.location.latitude, lng: message.location.longitude };
@@ -174,6 +178,12 @@ router.post('/webhook', verifySignature, async (req: Request, res: Response) => 
 
                         if (text) {
                             logger.info(`[OfficialWA] Processing: ${phone} -> "${text}" (id: ${messageId})`);
+                            
+                            // PERSIST INBOUND MESSAGE:
+                            // This ensures the dashboard sees the message immediately, even if the bot is slow or fails.
+                            await officialWhatsAppClient.saveInboundMessageDB(phone, pushName, text, message.type, messageId)
+                                .catch(err => logger.error(`[Webhook] Error persisting inbound: ${err.message}`));
+
                             const responses = await conversationRouter.processMessage(phone, text, pushName, context);
                             // Send responses sequentially to preserve message order
                             for (const response of responses) {

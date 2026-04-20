@@ -1,0 +1,1061 @@
+[dotenv@17.3.1] injecting env (23) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+[
+  {
+    "id": "35a1d061-52ca-4d34-a47a-dead9c20fcf2",
+    "name": "Atención Humana",
+    "description": null,
+    "trigger_word": "atencion-humana",
+    "trigger_type": "exact",
+    "is_active": true,
+    "is_default": false,
+    "nodes": [
+      {
+        "id": "start",
+        "data": {
+          "label": "Inicio (Palabra Clave: atencion-humana)"
+        },
+        "type": "input",
+        "style": {
+          "color": "white",
+          "border": "none",
+          "background": "#22c55e",
+          "fontWeight": "bold"
+        },
+        "width": 150,
+        "height": 56,
+        "position": {
+          "x": 50,
+          "y": 150
+        },
+        "positionAbsolute": {
+          "x": 50,
+          "y": 150
+        }
+      },
+      {
+        "id": "n_hours",
+        "data": {},
+        "type": "businessHoursNode",
+        "width": 256,
+        "height": 130,
+        "position": {
+          "x": 350,
+          "y": 150
+        },
+        "positionAbsolute": {
+          "x": 350,
+          "y": 150
+        }
+      },
+      {
+        "id": "n_msg",
+        "data": {
+          "text": "🧑‍💼 ¡Entendido! Voy a conectarte con un asesor.\n\nMientras esperás, contanos qué necesitás así el asesor ya tiene contexto cuando te atienda."
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "position": {
+          "x": 650,
+          "y": 150
+        },
+        "positionAbsolute": {
+          "x": 650,
+          "y": 150
+        }
+      },
+      {
+        "id": "n_motivo",
+        "data": {
+          "question": "¿Cuál es el motivo de tu consulta?",
+          "variable": "motivo_consulta"
+        },
+        "type": "questionNode",
+        "width": 256,
+        "height": 200,
+        "position": {
+          "x": 950,
+          "y": 150
+        },
+        "positionAbsolute": {
+          "x": 950,
+          "y": 150
+        }
+      },
+      {
+        "id": "n_handover",
+        "data": {
+          "message": "👤 Un asesor se va a comunicar con vos pronto.\n\n📝 Tu consulta: \"{{motivo_consulta}}\"\n\nCuando termine la atención humana, escribí *hola* para volver al bot. ¡Gracias por tu paciencia!"
+        },
+        "type": "handoverNode",
+        "width": 256,
+        "height": 168,
+        "position": {
+          "x": 1250,
+          "y": 150
+        },
+        "positionAbsolute": {
+          "x": 1250,
+          "y": 150
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "start",
+        "target": "n_hours",
+        "animated": true
+      },
+      {
+        "id": "e2",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_hours",
+        "target": "n_msg",
+        "animated": true
+      },
+      {
+        "id": "e3",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_msg",
+        "target": "n_motivo",
+        "animated": true
+      },
+      {
+        "id": "e4",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_motivo",
+        "target": "n_handover",
+        "animated": true
+      }
+    ],
+    "viewport": {},
+    "created_at": "2026-03-22T22:15:18.338881+00:00",
+    "updated_at": "2026-03-22T22:15:18.338881+00:00"
+  },
+  {
+    "id": "0976f157-fc0f-4d3f-acf6-34b6786fec4c",
+    "name": "Tomar Pedido",
+    "description": null,
+    "trigger_word": "pedido",
+    "trigger_type": "exact",
+    "is_active": true,
+    "is_default": false,
+    "nodes": [
+      {
+        "id": "start",
+        "data": {
+          "label": "Inicio"
+        },
+        "type": "input",
+        "width": 150,
+        "height": 40,
+        "dragging": false,
+        "position": {
+          "x": -132,
+          "y": -104
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": -132,
+          "y": -104
+        }
+      },
+      {
+        "id": "node_1775152636301_poll_tipo",
+        "data": {
+          "options": [
+            "Delivery",
+            "Retiro en Local"
+          ],
+          "question": "¿Cómo querés recibir tu pedido?",
+          "variable": "tipo_pedido"
+        },
+        "type": "pollNode",
+        "width": 280,
+        "height": 293,
+        "dragging": false,
+        "position": {
+          "x": 368.8888888888888,
+          "y": 245.83333333333331
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 368.8888888888888,
+          "y": 245.83333333333331
+        }
+      },
+      {
+        "id": "node_1775152636301_msg_dir",
+        "data": {
+          "message": "📍 Bien, antes que nada veamos si llegamos hasta tu dirección."
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "dragging": false,
+        "position": {
+          "x": 731.2584714204504,
+          "y": -99.25264463340858
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 731.2584714204504,
+          "y": -99.25264463340858
+        }
+      },
+      {
+        "id": "node_1775152636301_q_dir",
+        "data": {
+          "question": "¿A qué dirección enviamos el pedido?",
+          "variable": "direccion"
+        },
+        "type": "questionNode",
+        "width": 256,
+        "height": 200,
+        "dragging": false,
+        "position": {
+          "x": 1039.1329410615115,
+          "y": -155.240991059325
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1039.1329410615115,
+          "y": -155.240991059325
+        }
+      },
+      {
+        "id": "node_1775152636301_loc_val",
+        "data": {
+          "label": "Validar Ubicación"
+        },
+        "type": "locationValidatorNode",
+        "width": 256,
+        "height": 158,
+        "dragging": false,
+        "position": {
+          "x": 1353.5942749879744,
+          "y": -260.630819625756
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1353.5942749879744,
+          "y": -260.630819625756
+        }
+      },
+      {
+        "id": "node_1775152636301_catalog_del",
+        "data": {
+          "label": "Catálogo (Delivery)",
+          "message": "🛒 ¡Genial! Acá tenés nuestro menú. Elegí lo que quieras y mandanos el pedido:"
+        },
+        "type": "sendCatalogNode",
+        "width": 240,
+        "height": 160,
+        "dragging": false,
+        "position": {
+          "x": 1403.7237654320988,
+          "y": 21.1820987654321
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1403.7237654320988,
+          "y": 21.1820987654321
+        }
+      },
+      {
+        "id": "node_1775152636301_catalog_ret",
+        "data": {
+          "label": "Catálogo (Retiro)",
+          "message": "🛒 ¡Perfecto! Acá tenés nuestro menú para retiro en local:"
+        },
+        "type": "sendCatalogNode",
+        "width": 240,
+        "height": 160,
+        "dragging": false,
+        "position": {
+          "x": 887.5790271956835,
+          "y": 353.1433567725286
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 887.5790271956835,
+          "y": 353.1433567725286
+        }
+      },
+      {
+        "id": "node_1775152636301_order_val",
+        "data": {
+          "label": "Validar Pedido",
+          "message": "🛒 *Confirmá tu pedido:*"
+        },
+        "type": "orderValidatorNode",
+        "width": 320,
+        "height": 524,
+        "dragging": false,
+        "position": {
+          "x": 2317.2054031621624,
+          "y": 317.86769305430835
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 2317.2054031621624,
+          "y": 317.86769305430835
+        }
+      },
+      {
+        "id": "node_1775152636301_create_order",
+        "data": {
+          "label": "Crear Pedido",
+          "message": "✅ ¡Pedido confirmado! Te avisaremos cuando esté listo."
+        },
+        "type": "createOrderNode",
+        "width": 256,
+        "height": 152,
+        "dragging": false,
+        "position": {
+          "x": 1890.4320987654319,
+          "y": 357.8703703703704
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1890.4320987654319,
+          "y": 357.8703703703704
+        }
+      },
+      {
+        "id": "node_1775152636301_clear_cart",
+        "data": {
+          "message": "🧹 Tu pedido ha sido cancelado y el carrito vaciado."
+        },
+        "type": "clearCartNode",
+        "width": 256,
+        "height": 174,
+        "dragging": false,
+        "position": {
+          "x": 748.2044464215437,
+          "y": 751.4978785642446
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 748.2044464215437,
+          "y": 751.4978785642446
+        }
+      },
+      {
+        "id": "node_1775153134080_search_bebidas",
+        "data": {
+          "query": "bebidas",
+          "message": "🥤 Estas son nuestras bebidas disponibles:"
+        },
+        "type": "productSearchNode",
+        "width": 288,
+        "height": 358,
+        "position": {
+          "x": 1250,
+          "y": 400
+        },
+        "positionAbsolute": {
+          "x": 1250,
+          "y": 400
+        }
+      },
+      {
+        "id": "node_1775153134080_search_postres",
+        "data": {
+          "query": "postre",
+          "message": "🍰 Mirá que ricos postres tenemos:"
+        },
+        "type": "productSearchNode",
+        "width": 288,
+        "height": 358,
+        "position": {
+          "x": 1250,
+          "y": 600
+        },
+        "positionAbsolute": {
+          "x": 1250,
+          "y": 600
+        }
+      },
+      {
+        "id": "node_1775153134080_search_mas",
+        "data": {
+          "query": "",
+          "message": "🔍 Buscá lo que quieras sumar:"
+        },
+        "type": "productSearchNode",
+        "width": 288,
+        "height": 358,
+        "position": {
+          "x": 1250,
+          "y": 800
+        },
+        "positionAbsolute": {
+          "x": 1250,
+          "y": 800
+        }
+      },
+      {
+        "id": "node_1775156234876_sf4j2faq9",
+        "data": {
+          "question": "Lo siento, no podemos llegar hasta tu ubicacion, podes retirar tu pedido por nuestro local\n1-SI\n2-NO",
+          "variable": "respuesta"
+        },
+        "type": "questionNode",
+        "width": 256,
+        "height": 200,
+        "dragging": false,
+        "position": {
+          "x": 1734.76935107,
+          "y": -207.21543984367
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1734.76935107,
+          "y": -207.21543984367
+        }
+      },
+      {
+        "id": "node_1775156295950_y4l1y8nui",
+        "data": {
+          "variable": "respuesta",
+          "expectedValue": "1"
+        },
+        "type": "conditionNode",
+        "width": 256,
+        "height": 192,
+        "dragging": false,
+        "position": {
+          "x": 2067.754890118038,
+          "y": -214.8392000459604
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 2067.754890118038,
+          "y": -214.8392000459604
+        }
+      },
+      {
+        "id": "node_1775156328390_t8jg973gh",
+        "data": {
+          "text": "Sentimos no poder tomar tu pedido.\npara comenzar de nuevo escribi HOLA"
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "dragging": false,
+        "position": {
+          "x": 2614.8018648675543,
+          "y": -123.55311499644685
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 2614.8018648675543,
+          "y": -123.55311499644685
+        }
+      },
+      {
+        "id": "n_location_fail_msg",
+        "data": {
+          "options": [
+            "📍 Intentar con otra dirección",
+            "🏠 Retirar en el local"
+          ],
+          "question": "❌ Lo sentimos, no llegamos a esa ubicación con el delivery.\n\n¿Qué preferís hacer?",
+          "variable": "retry_option"
+        },
+        "type": "pollNode",
+        "width": 280,
+        "height": 293,
+        "position": {
+          "x": 500,
+          "y": 600
+        },
+        "positionAbsolute": {
+          "x": 500,
+          "y": 600
+        }
+      },
+      {
+        "id": "n_location_fail_cond",
+        "data": {
+          "operator": "equals",
+          "variable": "retry_option",
+          "expectedValue": "1"
+        },
+        "type": "conditionNode",
+        "width": 256,
+        "height": 192,
+        "position": {
+          "x": 500,
+          "y": 750
+        },
+        "positionAbsolute": {
+          "x": 500,
+          "y": 750
+        }
+      },
+      {
+        "id": "node_1776386088122_2co0m40qc",
+        "data": {
+          "text": "*Si queres reiniciar la conversacion escribi inicio*"
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "dragging": false,
+        "position": {
+          "x": 172.62315465599931,
+          "y": 49.573479076010884
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 172.62315465599931,
+          "y": 49.573479076010884
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_poll_del",
+        "style": {
+          "stroke": "#3b82f6"
+        },
+        "source": "node_1775152636301_poll_tipo",
+        "target": "node_1775152636301_msg_dir",
+        "animated": true,
+        "sourceHandle": "option-0"
+      },
+      {
+        "id": "e_poll_ret",
+        "style": {
+          "stroke": "#10b981"
+        },
+        "source": "node_1775152636301_poll_tipo",
+        "target": "node_1775152636301_catalog_ret",
+        "animated": true,
+        "sourceHandle": "option-1"
+      },
+      {
+        "id": "e_msg_q",
+        "style": {
+          "stroke": "#3b82f6"
+        },
+        "source": "node_1775152636301_msg_dir",
+        "target": "node_1775152636301_q_dir",
+        "animated": true
+      },
+      {
+        "id": "e_q_loc",
+        "style": {
+          "stroke": "#3b82f6"
+        },
+        "source": "node_1775152636301_q_dir",
+        "target": "node_1775152636301_loc_val",
+        "animated": true
+      },
+      {
+        "id": "e_loc_ok",
+        "style": {
+          "stroke": "#10b981"
+        },
+        "source": "node_1775152636301_loc_val",
+        "target": "node_1775152636301_catalog_del",
+        "animated": true,
+        "sourceHandle": "true"
+      },
+      {
+        "id": "e_catdel_ov",
+        "style": {
+          "stroke": "#6366f1"
+        },
+        "source": "node_1775152636301_catalog_del",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "e_catret_ov",
+        "style": {
+          "stroke": "#10b981"
+        },
+        "source": "node_1775152636301_catalog_ret",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "e_ov_confirm",
+        "style": {
+          "stroke": "#10b981"
+        },
+        "source": "node_1775152636301_order_val",
+        "target": "node_1775152636301_create_order",
+        "animated": true,
+        "sourceHandle": "confirmed"
+      },
+      {
+        "id": "e_ov_cancel",
+        "style": {
+          "stroke": "#ef4444"
+        },
+        "source": "node_1775152636301_order_val",
+        "target": "node_1775152636301_clear_cart",
+        "animated": true,
+        "sourceHandle": "cancel"
+      },
+      {
+        "id": "e_search_loop",
+        "type": "smoothstep",
+        "label": "🔄 Loop",
+        "style": {
+          "stroke": "#f59e0b",
+          "strokeWidth": 3
+        },
+        "source": "node_1775152636301_search",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "e_ov_beb",
+        "style": {
+          "stroke": "#3b82f6"
+        },
+        "source": "node_1775152636301_order_val",
+        "target": "node_1775153134080_search_bebidas",
+        "animated": true,
+        "sourceHandle": "add_drink"
+      },
+      {
+        "id": "e_ov_pos",
+        "style": {
+          "stroke": "#8b5cf6"
+        },
+        "source": "node_1775152636301_order_val",
+        "target": "node_1775153134080_search_postres",
+        "animated": true,
+        "sourceHandle": "add_dessert"
+      },
+      {
+        "id": "e_ov_mas",
+        "style": {
+          "stroke": "#f59e0b"
+        },
+        "source": "node_1775152636301_order_val",
+        "target": "node_1775153134080_search_mas",
+        "animated": true,
+        "sourceHandle": "add_more"
+      },
+      {
+        "id": "e_loop_beb",
+        "type": "smoothstep",
+        "label": "🔄 Loop",
+        "style": {
+          "stroke": "#f59e0b"
+        },
+        "source": "node_1775153134080_search_bebidas",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "e_loop_pos",
+        "type": "smoothstep",
+        "label": "🔄 Loop",
+        "style": {
+          "stroke": "#f59e0b"
+        },
+        "source": "node_1775153134080_search_postres",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "e_loop_mas",
+        "type": "smoothstep",
+        "label": "🔄 Loop",
+        "style": {
+          "stroke": "#f59e0b"
+        },
+        "source": "node_1775153134080_search_mas",
+        "target": "node_1775152636301_order_val",
+        "animated": true
+      },
+      {
+        "id": "reactflow__edge-node_1775152636301_loc_valfalse-node_1775156234876_sf4j2faq9",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1775152636301_loc_val",
+        "target": "node_1775156234876_sf4j2faq9",
+        "animated": true,
+        "sourceHandle": "false",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1775156234876_sf4j2faq9-node_1775156295950_y4l1y8nui",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1775156234876_sf4j2faq9",
+        "target": "node_1775156295950_y4l1y8nui",
+        "animated": true,
+        "sourceHandle": null,
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1775156295950_y4l1y8nuifalse-node_1775156328390_t8jg973gh",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1775156295950_y4l1y8nui",
+        "target": "node_1775156328390_t8jg973gh",
+        "animated": true,
+        "sourceHandle": "false",
+        "targetHandle": null
+      },
+      {
+        "id": "e_val_to_fail_msg",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_location_val",
+        "target": "n_location_fail_msg",
+        "animated": true,
+        "sourceHandle": "no",
+        "targetHandle": "default"
+      },
+      {
+        "id": "e_fail_msg_to_cond",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_location_fail_msg",
+        "target": "n_location_fail_cond",
+        "animated": true,
+        "sourceHandle": "default",
+        "targetHandle": "default"
+      },
+      {
+        "id": "e_fail_retry_yes",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_location_fail_cond",
+        "target": "n_ask_address",
+        "animated": true,
+        "sourceHandle": "yes",
+        "targetHandle": "default"
+      },
+      {
+        "id": "e_fail_retry_no",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "n_location_fail_cond",
+        "target": "n_welcome_pedido",
+        "animated": true,
+        "sourceHandle": "no",
+        "targetHandle": "default"
+      },
+      {
+        "id": "reactflow__edge-node_1775156295950_y4l1y8nuitrue-node_1775152636301_catalog_ret",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1775156295950_y4l1y8nui",
+        "target": "node_1775152636301_catalog_ret",
+        "animated": true,
+        "sourceHandle": "true",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-start-node_1776386088122_2co0m40qc",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "start",
+        "target": "node_1776386088122_2co0m40qc",
+        "animated": true,
+        "sourceHandle": null,
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776386088122_2co0m40qc-node_1775152636301_poll_tipo",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776386088122_2co0m40qc",
+        "target": "node_1775152636301_poll_tipo",
+        "animated": true,
+        "sourceHandle": null,
+        "targetHandle": null
+      }
+    ],
+    "viewport": {},
+    "created_at": "2026-03-31T20:53:17.286897+00:00",
+    "updated_at": "2026-04-13T13:07:05.152+00:00"
+  },
+  {
+    "id": "e01e7f1b-3aea-4638-b5f8-17fc76d345f2",
+    "name": "Bienvenida",
+    "description": null,
+    "trigger_word": "*",
+    "trigger_type": "exact",
+    "is_active": true,
+    "is_default": false,
+    "nodes": [
+      {
+        "id": "node_1776192222118_sa5bywxij",
+        "data": {},
+        "type": "webhookNode",
+        "width": 522,
+        "height": 119,
+        "dragging": false,
+        "position": {
+          "x": 458.46049934385985,
+          "y": -711.384347206497
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 458.46049934385985,
+          "y": -711.384347206497
+        }
+      },
+      {
+        "id": "node_1776222080371_sceezbbus",
+        "data": {
+          "text": "*Bienvenido a El Delirio!.* 🐘\n\n"
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "dragging": false,
+        "position": {
+          "x": 741.3815591932391,
+          "y": -393.94666242213657
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 741.3815591932391,
+          "y": -393.94666242213657
+        }
+      },
+      {
+        "id": "node_1776222100826_402c6fjvw",
+        "data": {
+          "options": [
+            "*Realiza peido*",
+            "*Atencion Humano*",
+            "*Info sobre mi pedido*"
+          ],
+          "question": "¿En que te podemos ayudar?",
+          "variable": "respuesta"
+        },
+        "type": "pollNode",
+        "width": 280,
+        "height": 329,
+        "dragging": false,
+        "position": {
+          "x": 875.0049289728535,
+          "y": -134.2995301636365
+        },
+        "selected": true,
+        "positionAbsolute": {
+          "x": 875.0049289728535,
+          "y": -134.2995301636365
+        }
+      },
+      {
+        "id": "node_1776222129946_5dxi51u2y",
+        "data": {
+          "flowId": "0976f157-fc0f-4d3f-acf6-34b6786fec4c"
+        },
+        "type": "flowLinkNode",
+        "width": 256,
+        "height": 146,
+        "dragging": false,
+        "position": {
+          "x": 1304.7677136748275,
+          "y": -252.4765766884336
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1304.7677136748275,
+          "y": -252.4765766884336
+        }
+      },
+      {
+        "id": "node_1776222130900_hqnuu2gd4",
+        "data": {
+          "flowId": "35a1d061-52ca-4d34-a47a-dead9c20fcf2"
+        },
+        "type": "flowLinkNode",
+        "width": 256,
+        "height": 146,
+        "dragging": false,
+        "position": {
+          "x": 1273.8165824421421,
+          "y": -48.480484473010016
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1273.8165824421421,
+          "y": -48.480484473010016
+        }
+      },
+      {
+        "id": "node_1776222131972_y3cbbetpv",
+        "data": {},
+        "type": "flowLinkNode",
+        "width": 256,
+        "height": 146,
+        "position": {
+          "x": 1532.6805891155072,
+          "y": 142.85378132904242
+        },
+        "positionAbsolute": {
+          "x": 1532.6805891155072,
+          "y": 142.85378132904242
+        }
+      },
+      {
+        "id": "node_1776271350455_so10jk8lb",
+        "data": {
+          "text_handle": "text",
+          "audio_handle": "audio",
+          "output_variable": "media_type"
+        },
+        "type": "mediaTypeDetectorNode",
+        "width": 260,
+        "height": 194,
+        "dragging": false,
+        "position": {
+          "x": 1608.8838529149396,
+          "y": -738.4338568237933
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1608.8838529149396,
+          "y": -738.4338568237933
+        }
+      },
+      {
+        "id": "node_1776271378403_ra91n065q",
+        "data": {
+          "text": "*Lo siento, actualmente no puedo interpretar Audios!*\n\nTe dejo las opciones de nuestro menu de atenciion"
+        },
+        "type": "messageNode",
+        "width": 256,
+        "height": 162,
+        "dragging": false,
+        "position": {
+          "x": 1352.796589274855,
+          "y": -563.2464682913226
+        },
+        "selected": false,
+        "positionAbsolute": {
+          "x": 1352.796589274855,
+          "y": -563.2464682913226
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "reactflow__edge-node_1776222080371_sceezbbus-node_1776222100826_402c6fjvw",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776222080371_sceezbbus",
+        "target": "node_1776222100826_402c6fjvw",
+        "animated": true,
+        "sourceHandle": null,
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776222100826_402c6fjvwoption-0-node_1776222129946_5dxi51u2y",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776222100826_402c6fjvw",
+        "target": "node_1776222129946_5dxi51u2y",
+        "animated": true,
+        "sourceHandle": "option-0",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776222100826_402c6fjvwoption-1-node_1776222130900_hqnuu2gd4",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776222100826_402c6fjvw",
+        "target": "node_1776222130900_hqnuu2gd4",
+        "animated": true,
+        "sourceHandle": "option-1",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776271350455_so10jk8lbaudio-node_1776271378403_ra91n065q",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776271350455_so10jk8lb",
+        "target": "node_1776271378403_ra91n065q",
+        "animated": true,
+        "sourceHandle": "audio",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776222100826_402c6fjvwoption-2-node_1776222131972_y3cbbetpv",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776222100826_402c6fjvw",
+        "target": "node_1776222131972_y3cbbetpv",
+        "animated": true,
+        "sourceHandle": "option-2",
+        "targetHandle": null
+      },
+      {
+        "id": "reactflow__edge-node_1776192222118_sa5bywxijdefault-node_1776222080371_sceezbbus",
+        "style": {
+          "stroke": "#6366f1",
+          "strokeWidth": 2
+        },
+        "source": "node_1776192222118_sa5bywxij",
+        "target": "node_1776222080371_sceezbbus",
+        "animated": true,
+        "sourceHandle": "default",
+        "targetHandle": null
+      }
+    ],
+    "viewport": {},
+    "created_at": "2026-04-14T18:44:38.173038+00:00",
+    "updated_at": "2026-04-14T18:44:38.173038+00:00"
+  }
+]

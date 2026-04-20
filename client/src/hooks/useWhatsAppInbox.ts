@@ -30,15 +30,24 @@ export function useWhatsAppInbox() {
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', address: '' });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Contacts tab state
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('chats');
   const [contacts, setContacts] = useState<Client[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeConvoIdRef = useRef<string | null>(null);
+  const conversationsRef = useRef<WhatsAppConversation[]>([]);
 
   const activeConvo = conversations.find((c) => c.id === activeConvoId);
+
+  // Update refs whenever state changes
+  useEffect(() => {
+    activeConvoIdRef.current = activeConvoId;
+  }, [activeConvoId]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   useEffect(() => {
     loadConversations();
@@ -46,15 +55,43 @@ export function useWhatsAppInbox() {
 
     const unsubscribe = subscribeToMessages(
       (msg) => {
-        setMessages((prev) => {
-          if (msg.conversation_id === activeConvoId) {
-            return [...prev, msg];
-          }
-          return prev;
-        });
-        loadConversations();
+        // Find current conversation state to check status
+        const convo = conversationsRef.current.find(c => c.id === msg.conversation_id);
+        
+        // --- REALTIME AUDIO ALERT ---
+        // If message is inbound and conversation is in HANDOVER mode, play alert sound
+        if (msg.direction === 'INBOUND' && convo?.status === 'HANDOVER') {
+          console.log('🎵 Playing message sound for handover');
+          const audio = new Audio('/sounds/AtencionPersonalizada.mp3');
+          audio.volume = 1.0;
+          audio.play().catch(e => console.warn('Audio play blocked by browser. Interaction required.', e));
+        }
+
+        // Update messages list if it belongs to active conversation
+        if (msg.conversation_id === activeConvoIdRef.current) {
+          setMessages((prev) => [...prev, msg].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+        }
+        
+        loadConversations(); // Update counts in sidebar
       },
-      () => {
+      (convo) => {
+        // --- REALTIME STATUS CHANGE ALERT ---
+        // Play sound if a conversation just transitioned to HANDOVER
+        const oldConvo = conversationsRef.current.find(c => c.id === convo.id);
+        const wasHandover = oldConvo?.status === 'HANDOVER';
+        const isHandover = convo.status === 'HANDOVER';
+
+        if (isHandover && !wasHandover) {
+          console.log('🎵 Playing transition sound to HANDOVER', { id: convo.id, contact: convo.contact_name });
+          const audio = new Audio('/sounds/AtencionPersonalizada.mp3');
+          audio.volume = 1.0;
+          audio.play().catch(e => console.warn('Audio transition play blocked:', e));
+          toast.info(`🔔 ¡Nueva solicitud de atención: ${convo.contact_name}!`, {
+            description: convo.last_message,
+            duration: 5000,
+          });
+        }
+        
         loadConversations();
       }
     );
@@ -69,7 +106,7 @@ export function useWhatsAppInbox() {
       unsubscribe();
       clearInterval(interval);
     };
-  }, [activeConvoId]);
+  }, []); // Run once on mount
 
   // Auto-select first conversation on load
   useEffect(() => {

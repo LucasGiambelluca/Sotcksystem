@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comandera Rediseñada - Preview Funcional</title>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Tailwind CDN with consistent project colors -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+                            500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+                        },
+                        dark: {
+                            bg: '#0f172a', surface: '#1e293b', border: '#334155',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .kanban-column { min-height: calc(100vh - 180px); }
+        .order-card { 
+            cursor: grab; 
+            transition: transform 0.2s, box-shadow 0.2s;
+            user-select: none;
+        }
+        .order-card:active { cursor: grabbing; }
+        .order-card.dragging { opacity: 0.5; transform: scale(0.95); }
+        .drop-zone-active { background-color: rgba(59, 130, 246, 0.05); border: 2px dashed #3b82f6; border-radius: 1rem; }
+        
+        /* Premium Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast {
+            animation: slideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+    </style>
+</head>
+<body class="bg-dark-bg text-slate-200 overflow-hidden">
+
+    <!-- ── TOP BAR ── -->
+    <header class="h-16 border-b border-dark-border bg-dark-surface flex items-center justify-between px-6 shadow-xl z-50">
+        <div class="flex items-center gap-4">
+            <div class="bg-primary-500 p-2 rounded-xl shadow-lg shadow-primary-500/20">
+                <i data-lucide="chef-hat" class="text-white w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-black text-lg tracking-tight uppercase">Comandera <span class="text-primary-400">Pro</span></h1>
+                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                    <span class="flex items-center gap-1"><i data-lucide="activity" class="w-3 h-3"></i> SISTEMA ACTIVO</span>
+                    <span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
+                    <span>12 PEDIDOS EN CURSO</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Command Palette / Search Simulation -->
+        <div class="hidden md:flex items-center bg-dark-bg border border-dark-border px-4 py-2 rounded-2xl w-96 gap-3 group focus-within:border-primary-500 transition-all">
+            <i data-lucide="search" class="w-4 h-4 text-slate-500 group-focus-within:text-primary-400"></i>
+            <input type="text" placeholder="Buscar pedido... (Pruébame)" class="bg-transparent border-none outline-none text-sm w-full font-medium">
+            <kbd class="text-[10px] bg-dark-surface px-1.5 py-0.5 rounded border border-dark-border text-slate-500">⌘K</kbd>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button class="p-2.5 hover:bg-dark-bg rounded-xl text-slate-400 transition-colors"><i data-lucide="bell" class="w-5 h-5"></i></button>
+            <button class="p-2.5 hover:bg-dark-bg rounded-xl text-slate-400 transition-colors"><i data-lucide="settings" class="w-5 h-5"></i></button>
+            <div class="h-8 w-[1px] bg-dark-border mx-2"></div>
+            <div class="flex items-center gap-3 bg-dark-bg p-1.5 pr-4 rounded-2xl border border-dark-border">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-black">L</div>
+                <span class="text-xs font-bold whitespace-nowrap">Dashboard Modo Lucas</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── MAIN CONTENT ── -->
+    <main class="flex h-[calc(100vh-64px)] overflow-hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-64 border-r border-dark-border bg-dark-surface p-4 flex flex-col gap-6 shrink-0">
+            <nav class="space-y-1">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-primary-500/10 text-primary-400 rounded-xl font-bold text-sm">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-dark-bg text-slate-400 rounded-xl font-bold text-sm transition-all">
+                    <i data-lucide="flame" class="w-5 h-5"></i> Cocina
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-dark-bg text-slate-400 rounded-xl font-bold text-sm transition-all">
+                    <i data-lucide="bike" class="w-5 h-5"></i> Despacho
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 hover:bg-dark-bg text-slate-400 rounded-xl font-bold text-sm transition-all">
+                    <i data-lucide="map" class="w-5 h-5"></i> Mapa en Vivo
+                </a>
+            </nav>
+
+            <div class="mt-auto">
+                <div class="bg-dark-bg rounded-2xl p-4 border border-dark-border relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
+                        <i data-lucide="zap" class="w-12 h-12 text-yellow-500"></i>
+                    </div>
+                    <h4 class="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Rendimiento</h4>
+                    <p class="text-xs font-bold text-slate-300 mb-3">Horas Pico: 75% carga</p>
+                    <div class="h-1.5 w-full bg-slate-800 rounded-full mb-3">
+                        <div class="h-full bg-amber-500 w-3/4 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+                    </div>
+                    <button class="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-[10px] font-black transition-colors uppercase">Optimizar Estaciones</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- KANBAN BOARD -->
+        <section class="flex-1 p-6 overflow-x-auto bg-dark-bg/50">
+            <div class="flex gap-6 h-full min-w-[1000px]">
+                
+                <!-- COLUMN: NUEVOS -->
+                <div class="flex-1 flex flex-col gap-4">
+                    <div class="flex items-center justify-between px-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-orange-500 rounded-full shadow-[0_0_8px_rgba(249,115,22,0.4)]"></span>
+                            <h2 class="font-black text-sm uppercase tracking-tighter">Nuevos Pedidos</h2>
+                            <span id="count-new" class="bg-orange-500/20 text-orange-400 px-2.5 py-0.5 rounded-lg text-[10px] font-black border border-orange-500/30">4</span>
+                        </div>
+                        <span class="text-[10px] font-black text-slate-500 bg-dark-surface px-2 py-0.5 rounded-lg border border-dark-border shadow-sm">Shortcut [1]</span>
+                    </div>
+                    <div id="col-new" class="kanban-column flex flex-col gap-4 rounded-2xl transition-colors duration-300" ondrop="drop(event, 'col-new')" ondragover="allowDrop(event)" ondragleave="clearDropEffect(event)">
+                        <!-- CARDS INJECTED BY JS -->
+                    </div>
+                </div>
+
+                <!-- COLUMN: COCINANDO -->
+                <div class="flex-1 flex flex-col gap-4">
+                    <div class="flex items-center justify-between px-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.4)]"></span>
+                            <h2 class="font-black text-sm uppercase tracking-tighter">En Cocina</h2>
+                            <span id="count-cooking" class="bg-red-500/20 text-red-400 px-2.5 py-0.5 rounded-lg text-[10px] font-black border border-red-500/30">2</span>
+                        </div>
+                        <span class="text-[10px] font-black text-slate-500 bg-dark-surface px-2 py-0.5 rounded-lg border border-dark-border shadow-sm">Shortcut [2]</span>
+                    </div>
+                    <div id="col-cooking" class="kanban-column flex flex-col gap-4 rounded-2xl transition-colors duration-300" ondrop="drop(event, 'col-cooking')" ondragover="allowDrop(event)" ondragleave="clearDropEffect(event)">
+                        <!-- CARDS INJECTED BY JS -->
+                    </div>
+                </div>
+
+                <!-- COLUMN: LISTOS -->
+                <div class="flex-1 flex flex-col gap-4">
+                    <div class="flex items-center justify-between px-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]"></span>
+                            <h2 class="font-black text-sm uppercase tracking-tighter">Listos / Envío</h2>
+                            <span id="count-ready" class="bg-green-500/20 text-green-400 px-2.5 py-0.5 rounded-lg text-[10px] font-black border border-green-500/30">1</span>
+                        </div>
+                        <span class="text-[10px] font-black text-slate-500 bg-dark-surface px-2 py-0.5 rounded-lg border border-dark-border shadow-sm">Shortcut [3]</span>
+                    </div>
+                    <div id="col-ready" class="kanban-column flex flex-col gap-4 rounded-2xl transition-colors duration-300" ondrop="drop(event, 'col-ready')" ondragover="allowDrop(event)" ondragleave="clearDropEffect(event)">
+                        <!-- CARDS INJECTED BY JS -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- ── NOTIFICATION TRAY ── -->
+    <div id="toast-container" class="fixed bottom-6 right-6 flex flex-col gap-3 z-[60]">
+        <!-- Toasts here -->
+    </div>
+
+    <!-- ── SCRIPTS ── -->
+    <script>
+        // Mock Data
+        let orders = [
+            { id: '1025', client: 'Lucas Giambelluca', items: ['2x Pollo Brasa', '1x Papas Grandes'], time: '02:15', status: 'new', source: 'whatsapp', total: '$14.500' },
+            { id: '1026', client: 'Maria Luz', items: ['1x Milanesa XL', '1x Coca 1.5L'], time: '01:30', status: 'new', source: 'web', total: '$9.200' },
+            { id: '1027', client: 'Pedro Gomez', items: ['3x Empanada Carne'], time: '12:45', status: 'cooking', source: 'phone', total: '$4.500' },
+            { id: '1028', client: 'Sofi Diaz', items: ['1x Ensalada Cesar'], time: '08:20', status: 'ready', source: 'whatsapp', total: '$3.800' },
+        ];
+
+        const sourceIcons = {
+            whatsapp: 'message-circle',
+            web: 'globe',
+            phone: 'phone'
+        };
+
+        const renderOrders = () => {
+            const cols = {
+                'col-new': orders.filter(o => o.status === 'new'),
+                'col-cooking': orders.filter(o => o.status === 'cooking'),
+                'col-ready': orders.filter(o => o.status === 'ready')
+            };
+
+            Object.keys(cols).forEach(colId => {
+                const el = document.getElementById(colId);
+                el.innerHTML = '';
+                cols[colId].forEach(order => {
+                    const card = document.createElement('div');
+                    card.className = `order-card bg-dark-surface border border-dark-border p-5 rounded-2xl shadow-lg hover:border-primary-500/50 hover:shadow-primary-500/5 hover:bg-slate-800/80 transition-all relative overflow-hidden group`;
+                    card.draggable = true;
+                    card.id = `order-${order.id}`;
+                    card.ondragstart = (e) => drag(e, order.id);
+                    
+                    // Status Border
+                    const statusColor = order.status === 'new' ? '#f97316' : (order.status === 'cooking' ? '#ef4444' : '#10b981');
+                    card.style.borderLeft = `5px solid ${statusColor}`;
+
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="bg-dark-bg text-slate-300 text-[11px] font-black px-3 py-1 rounded-xl border border-dark-border">#${order.id}</span>
+                            <div class="flex items-center gap-2 text-slate-500">
+                                <i data-lucide="${sourceIcons[order.source]}" class="w-4 h-4"></i>
+                                <span class="text-[10px] font-black uppercase tracking-widest">${order.source}</span>
+                            </div>
+                        </div>
+                        <h3 class="font-black text-lg text-slate-100 mb-1 leading-tight mb-3">${order.client}</h3>
+                        <div class="space-y-2 mb-4">
+                            ${order.items.map(item => `
+                                <div class="flex items-center gap-3 text-xs font-bold text-slate-400 bg-dark-bg/40 px-3 py-2 rounded-xl border border-dark-border/30">
+                                    <span class="text-primary-400 font-black text-lg w-6 text-center">${item.split('x')[0]}×</span>
+                                    <span class="flex-1">${item.split('x')[1]}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex items-center justify-between mt-4 pt-4 border-t border-dark-border/40">
+                            <div class="flex items-center gap-2.5">
+                                <div class="bg-dark-bg p-1.5 rounded-lg">
+                                    <i data-lucide="clock" class="w-4 h-4 ${order.status === 'new' ? 'text-orange-400' : 'text-slate-500'}"></i>
+                                </div>
+                                <span class="text-sm font-black ${order.status === 'new' ? 'text-orange-400 animate-pulse' : 'text-slate-500'} font-mono">${order.time}</span>
+                            </div>
+                            <span class="text-sm font-black text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">${order.total}</span>
+                        </div>
+                        
+                        <!-- Premium Action Overlay -->
+                        <div class="absolute inset-0 bg-dark-bg/60 backdrop-blur-md opacity-0 group-hover:opacity-100 flex items-center justify-center gap-4 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
+                            <button onclick="advanceOrder('${order.id}')" title="Siguiente Estado" class="bg-primary-500 text-white p-4 rounded-2xl shadow-2xl shadow-primary-500/40 hover:scale-110 active:scale-90 transition-all transform hover:-rotate-3">
+                                <i data-lucide="${order.status === 'ready' ? 'check-check' : 'arrow-right-circle'}" class="w-7 h-7"></i>
+                            </button>
+                            <button onclick="showToast('Pedido #${order.id} impreso', 'info')" title="Imprimir" class="bg-slate-700 text-white p-4 rounded-2xl hover:bg-slate-600 transition-all shadow-xl">
+                                <i data-lucide="printer" class="w-6 h-6 text-slate-200"></i>
+                            </button>
+                        </div>
+                    `;
+                    el.appendChild(card);
+                });
+                
+                // Update Counts
+                document.getElementById(`count-${colId.split('-')[1]}`).innerText = cols[colId].length;
+            });
+            lucide.createIcons();
+        };
+
+        // DRAG & DROP
+        function allowDrop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.add('drop-zone-active');
+        }
+        function clearDropEffect(ev) {
+            ev.currentTarget.classList.remove('drop-zone-active');
+        }
+        function drag(ev, id) {
+            ev.dataTransfer.setData("orderId", id);
+            document.getElementById(`order-${id}`).classList.add('dragging');
+        }
+        function drop(ev, colId) {
+            ev.preventDefault();
+            ev.currentTarget.classList.remove('drop-zone-active');
+            const id = ev.dataTransfer.getData("orderId");
+            const newStatus = colId === 'col-new' ? 'new' : (colId === 'col-cooking' ? 'cooking' : 'ready');
+            
+            const orderIndex = orders.findIndex(o => o.id === id);
+            if (orderIndex > -1) {
+                const oldStatus = orders[orderIndex].status;
+                if (oldStatus !== newStatus) {
+                    orders[orderIndex].status = newStatus;
+                    renderOrders();
+                    showToast(`Pedido #${id} movido a ${newStatus.toUpperCase()}`, 'success');
+                }
+            }
+        }
+
+        function advanceOrder(id) {
+            const orderIndex = orders.findIndex(o => o.id === id);
+            if (orderIndex === -1) return;
+            
+            const current = orders[orderIndex].status;
+            if (current === 'new') {
+                orders[orderIndex].status = 'cooking';
+                showToast(`Iniciada preparación de #${id} 🔥`, 'info');
+            } else if (current === 'cooking') {
+                orders[orderIndex].status = 'ready';
+                showToast(`Pedido #${id} está LISTO ✅`, 'success');
+            } else {
+                orders.splice(orderIndex, 1);
+                showToast(`Pedido #${id} despachado / archivado 📦`, 'success');
+            }
+            renderOrders();
+        }
+
+        // Toasts (Sonner style)
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast px-6 py-4 bg-dark-surface border border-dark-border rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center gap-4 min-w-[320px] backdrop-blur-xl border-l-4 ${type === 'success' ? 'border-green-500' : 'border-primary-500'}`;
+            
+            const icon = type === 'success' ? 'check-circle' : 'info';
+            const iconColor = type === 'success' ? 'text-green-500' : 'text-primary-500';
+
+            toast.innerHTML = `
+                <div class="${iconColor} bg-dark-bg/50 p-2 rounded-xl"><i data-lucide="${icon}" class="w-5 h-5"></i></div>
+                <div class="flex-1">
+                    <p class="text-[13px] font-black text-slate-100 leading-tight tracking-tight">${msg}</p>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</p>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-600 hover:text-slate-400 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+            `;
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(50px)';
+                toast.style.transition = 'all 0.4s ease-in';
+                setTimeout(() => toast.remove(), 400);
+            }, 4000);
+        }
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '1') {
+                const firstNew = orders.find(o => o.status === 'new');
+                if (firstNew) advanceOrder(firstNew.id);
+            }
+            else if (e.key === '2') {
+                const firstCook = orders.find(o => o.status === 'cooking');
+                if (firstCook) advanceOrder(firstCook.id);
+            }
+            else if (e.key === '3') {
+                const firstReady = orders.find(o => o.status === 'ready');
+                if (firstReady) advanceOrder(firstReady.id);
+            }
+            else if (e.key.toLowerCase() === 'n') {
+                // Simulate new order
+                const newId = Math.floor(Math.random() * 900) + 1100;
+                orders.push({ 
+                    id: newId.toString(), 
+                    client: 'Nuevo Cliente ' + newId, 
+                    items: ['1x Milanesa Napolitana', '1x Sprite 500ml'], 
+                    time: '00:00', 
+                    status: 'new', 
+                    source: 'whatsapp', 
+                    total: '$6.500' 
+                });
+                showToast(`Nuevo pedido entrante #${newId} 🔔`, 'info');
+                renderOrders();
+            }
+        });
+
+        // Initial render
+        renderOrders();
+        lucide.createIcons();
+        
+        // Final Welcome
+        setTimeout(() => showToast("Comandera Pro cargada. Usa [1], [2], [3] o Drag & Drop.", "info"), 500);
+
+    </script>
+</body>
+</html>

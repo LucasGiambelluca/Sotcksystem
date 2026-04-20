@@ -497,8 +497,63 @@ Hola {clientName}, el cadete está en la puerta de tu domicilio con tu pedido. �
       console.log(`Content:\n${message}`);
       console.log(`-------------------------------\n`);
 
-      await whatsappClient.sendMessage(phone, { text: message });
-      console.log(`✅ [OrderNotificationListener] Notification sent for order ${orderId}`);
+      // PREMIUM UI: If it's a common status, use buttons
+      let waPayload: any = { text: message };
+      
+      switch (newStatus) {
+        case 'CONFIRMED':
+          waPayload = {
+            interactive: {
+              type: 'button',
+              body: { text: message },
+              action: {
+                buttons: [
+                  { type: 'reply', reply: { id: 'view_order', title: '📄 Mi Pedido' } },
+                  { type: 'reply', reply: { id: 'help', title: '📞 Soporte' } }
+                ]
+              }
+            }
+          };
+          break;
+        case 'OUT_FOR_DELIVERY':
+        case 'IN_TRANSIT':
+        case 'SHIPPED':
+        case 'ENVIADO':
+          // Se elimina el bloque interactivo para no "volver locos con los envíos"
+          waPayload = { text: message };
+          break;
+        case 'DELIVERED':
+          waPayload = {
+            interactive: {
+              type: 'button',
+              body: { text: message },
+              action: {
+                buttons: [
+                  { type: 'reply', reply: { id: 'rate_excellent', title: '⭐⭐⭐⭐⭐' } },
+                  { type: 'reply', reply: { id: 'order_issue', title: '❌ Tuve un problema' } }
+                ]
+              }
+            }
+          };
+          break;
+        case 'READY_FOR_PICKUP':
+        case 'READY':
+          waPayload = {
+            interactive: {
+              type: 'button',
+              body: { text: message },
+              action: {
+                buttons: [
+                  { type: 'reply', reply: { id: 'view_location', title: '📍 ¿Dónde retiro?' } }
+                ]
+              }
+            }
+          };
+          break;
+      }
+
+      await whatsappClient.sendMessage(phone, waPayload);
+      console.log(`✅ [OrderNotificationListener] Premium Notification sent for order ${orderId}`);
 
     } catch (err) {
       console.error('❌ [OrderNotificationListener] Fatal error:', err);

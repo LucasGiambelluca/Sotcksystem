@@ -192,19 +192,38 @@ export class OfficialWhatsAppClient {
             const headers = this.getHeaders(creds.accessToken);
 
             logger.info(`[OfficialWA] Sending message to ${to}`, { type: payload.type, url: `${baseUrl}/messages` });
-            const response = await axios.post(`${baseUrl}/messages`, payload, { headers });
-            logger.info(`[OfficialWA] Message sent successfully to ${to}. ID: ${response.data.messages[0].id}`);
+            
+            // Use native fetch with a timeout instead of axios for better stability on some systems
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+            const response = await fetch(`${baseUrl}/messages`, {
+                method: 'POST',
+                headers: headers as any,
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`Meta API error (${response.status}): ${JSON.stringify(errorData)}`);
+            }
+
+            const data = await response.json();
+            logger.info(`[OfficialWA] Message sent successfully to ${to}. ID: ${data.messages[0].id}`);
             
             // Save to DB
-            const content = payload.text?.body || payload.image?.caption || payload.document?.caption || '[Media/Poll]';
-            this.saveOutboundMessageDB(cleanTo, content, payload.type, response.data.messages[0].id)
+            const content = payload.text?.body || payload.interactive?.body?.text || '[Media/Poll]';
+            this.saveOutboundMessageDB(cleanTo, content, payload.type, data.messages[0].id)
                 .catch(err => logger.error(`[OfficialWA] Error saving outbound message to DB: ${err.message}`));
 
-            return response.data;
+            return data;
         } catch (error: any) {
             logger.error(`[OfficialWA] Error sending message to ${to}`, { 
-                error: error.response?.data || error.message,
-                payload: message 
+                error: error.message,
+                name: error.name
             });
             throw error;
         }
@@ -265,6 +284,39 @@ export class OfficialWhatsAppClient {
             }
         } catch (e) {
             logger.error('Failed to save official outbound message to DB:', e);
+        }
+    }
+
+    public async saveInboundMessageDB(phone: string, contactName: string, text: string, type: string = 'TEXT', wa_message_id: string = '') {
+        try {
+            let { data: convo } = await supabase.from('whatsapp_conversations').select('id, unread_count').eq('phone', phone).maybeSingle();
+            
+            if (!convo) {
+                const { data: newConvo } = await supabase.from('whatsapp_conversations')
+                    .insert({ phone, contact_name: contactName || phone, unread_count: 1 })
+                    .select('id, unread_count').single();
+                convo = newConvo;
+            } else {
+                await supabase.from('whatsapp_conversations').update({
+                    unread_count: (convo.unread_count || 0) + 1,
+                    last_message: text,
+                    last_message_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }).eq('id', convo.id);
+            }
+
+            if (convo) {
+                await supabase.from('whatsapp_messages').insert({
+                    conversation_id: convo.id,
+                    direction: 'INBOUND',
+                    content: text,
+                    message_type: type.toUpperCase(),
+                    wa_message_id,
+                    is_read: false
+                });
+            }
+        } catch (e) {
+            logger.error('Failed to save official inbound message to DB:', e);
         }
     }
 

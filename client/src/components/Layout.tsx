@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { Toaster, toast } from 'sonner';
 import CommandPalette from './CommandPalette';
 import { supabase } from '../supabaseClient';
-import systemLogo from '../assets/systemlogo.png';
+import systemLogo from '../assets/nuevologo.png';
 import { getTotalUnreadCount } from '../services/whatsappService';
 import NewOrderAlertModal from './NewOrderAlertModal';
 import PrinterBridge from './PrinterBridge';
@@ -37,12 +37,16 @@ export default function Layout() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
          const oldRecord = payload.old as any;
          const newRecord = payload.new as any;
-         if (newRecord.status === 'HANDOVER' && oldRecord.status !== 'HANDOVER') {
+          if (newRecord.status === 'HANDOVER' && oldRecord.status !== 'HANDOVER') {
+             // Play custom alert sound
+             const audio = new Audio('/sounds/AtencionPersonalizada.mp3');
+             audio.play().catch(e => console.error('Error playing handover sound:', e));
+
              toast.error(`Atención requerida: ${newRecord.contact_name || newRecord.phone}`, {
                 description: 'Un cliente solicitó asistencia humana.',
                 duration: 10000,
              });
-         }
+          }
       })
       .subscribe();
 
@@ -67,41 +71,68 @@ export default function Layout() {
     setIsInstallable(false);
   };
 
-  const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    // --- GRUPO 1: Stock y Control de Mercadería ---
-    { name: 'Inventario', path: '/products', icon: Package },
-    { name: 'Reportes de Stock', path: '/stock-reports', icon: FileText },
-    // --- GRUPO 2: Catálogo e Inventario para Venta al Público ---
-    { name: 'Catálogo de Ventas', path: '/catalog-admin', icon: ShoppingBag },
-    { name: 'Recetas', path: '/recipes', icon: FlaskConical },
-    { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
-    { name: 'Comandas', path: '/kitchen', icon: ChefHat },
-    { name: 'Menú Tablet', path: '/tablet-ordering', icon: UtensilsCrossed },
-    // --- GRUPO 3: Atención y Logística ---
-    { name: 'Clientes', path: '/clients', icon: Users },
-    { name: 'Personal', path: '/staff', icon: Users },
-    { name: 'Cadetes', path: '/couriers', icon: Truck },
-    { name: 'Reportes', path: '/claims', icon: MessageCircle },
-    { name: 'Rutas', path: '/routes', icon: MapPin },
-    { name: 'Despacho', path: '/despacho', icon: Navigation },
-    { name: 'Configuración', path: '/settings', icon: Settings },
-    { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle, badge: waUnread },
-    { name: 'Grupos', path: '/whatsapp/groups', icon: Users },
-    { name: 'Bot Builder', path: '/whatsapp/builder', icon: Share2 },
+  const navGroups = [
+    {
+      label: 'General',
+      items: [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+      ]
+    },
+    {
+      label: 'Ventas & Productos',
+      items: [
+        { name: 'Inventario', path: '/products', icon: Package },
+        { name: 'Catálogo', path: '/catalog-admin', icon: ShoppingBag },
+        { name: 'Reportes Stock', path: '/stock-reports', icon: FileText },
+        { name: 'Recetas', path: '/recipes', icon: FlaskConical },
+        { name: 'Pedidos', path: '/orders', icon: ShoppingCart },
+      ]
+    },
+    {
+      label: 'Operaciones',
+      items: [
+        { name: 'Comandas', path: '/kitchen', icon: ChefHat },
+        { name: 'Menú Tablet', path: '/tablet-ordering', icon: UtensilsCrossed },
+        { name: 'Despacho', path: '/despacho', icon: Navigation },
+        { name: 'Rutas', path: '/routes', icon: MapPin },
+      ]
+    },
+    {
+      label: 'Personas',
+      items: [
+        { name: 'Clientes', path: '/clients', icon: Users },
+        { name: 'Personal', path: '/staff', icon: Users },
+        { name: 'Cadetes', path: '/couriers', icon: Truck },
+      ]
+    },
+    {
+      label: 'Canales',
+      items: [
+        { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle, badge: waUnread },
+        { name: 'Grupos', path: '/whatsapp/groups', icon: Users },
+        { name: 'Bot Builder', path: '/whatsapp/builder', icon: Share2 },
+      ]
+    },
+    {
+      label: 'Soporte',
+      items: [
+        { name: 'Reportes', path: '/claims', icon: MessageCircle },
+        { name: 'Configuración', path: '/settings', icon: Settings },
+      ]
+    }
   ];
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 overflow-hidden w-full relative">
+    <div className="min-h-screen bg-gray-50 flex font-sans text-slate-900 overflow-hidden w-full relative">
       {/* Mobile Header */}
       <div className="xl:hidden fixed top-0 left-0 right-0 bg-dark-bg text-white p-4 flex justify-between items-center z-40 shadow-md">
         <div className="flex items-center space-x-2">
           <img src={systemLogo} alt="StockSystem Logo" className="h-8 w-auto" />
           <h1 className="text-xl font-bold tracking-tight">
-            Stock<span className="text-primary-500">System</span>
+            Stock<span className="text-primary-600">System</span>
           </h1>
         </div>
         <button onClick={toggleMobileMenu} className="p-2 hover:bg-dark-surface rounded-lg transition-colors focus:outline-none">
@@ -122,51 +153,56 @@ export default function Layout() {
         "fixed pl-4 inset-y-0 left-0 z-50 w-72 bg-dark-bg text-white flex flex-col shadow-xl transition-transform duration-300 ease-in-out xl:translate-x-0 xl:static xl:h-screen",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-8 hidden xl:block">
-          <div className="flex items-center space-x-3 mb-2">
-            <img src={systemLogo} alt="StockSystem Logo" className="h-10 w-auto" />
-            <h1 className="text-2xl font-bold tracking-tight">
-              Stock<span className="text-primary-500">System</span>
-            </h1>
+        <div className="p-8 hidden xl:block flex flex-col items-center">
+          <div className="flex justify-center mb-4">
+            <img src={systemLogo} alt="StockSystem Logo" className="h-24 w-auto drop-shadow-xl" />
           </div>
-          <p className="text-xs text-gray-400 uppercase tracking-wider pl-1">Panel de Control</p>
+          <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-700 to-transparent mb-4" />
         </div>
 
-        <div className="p-6 xl:hidden mt-12 mb-4">
-          <div className="flex items-center space-x-3 mb-2">
-            <img src={systemLogo} alt="StockSystem Logo" className="h-8 w-auto" />
-            <span className="text-xl font-bold text-white tracking-tight">Stock<span className="text-primary-500">System</span></span>
+        <div className="p-6 xl:hidden mt-12 mb-4 flex flex-col items-center">
+          <div className="flex justify-center mb-4">
+            <img src={systemLogo} alt="StockSystem Logo" className="h-16 w-auto" />
           </div>
-          <p className="text-xs text-gray-400 uppercase tracking-wider">Menú Principal</p>
+          <div className="h-[1px] w-4/5 bg-slate-700/50 mb-2" />
         </div>
         
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-6">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={closeMobileMenu}
-                className={clsx(
-                  'flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 group',
-                  isActive 
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20' 
-                    : 'text-gray-400 hover:bg-dark-surface hover:text-white'
-                )}
-              >
-                <Icon size={22} className={clsx(isActive ? 'text-white' : 'text-gray-500 group-hover:text-white')} />
-                <span className="font-medium flex-1">{item.name}</span>
-                {(item as any).badge > 0 && (
-                  <span className="bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {(item as any).badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-4 space-y-6 overflow-y-auto min-h-0 pb-6">
+          {navGroups.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-4 pb-2">
+                {group.label}
+              </h3>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={closeMobileMenu}
+                      className={clsx(
+                        'flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+                        isActive 
+                          ? 'bg-primary-600 text-white shadow-lg shadow-primary-900/20' 
+                          : 'text-slate-400 hover:bg-dark-surface hover:text-white'
+                      )}
+                    >
+                      <Icon size={20} className={clsx(isActive ? 'text-white' : 'text-slate-500 group-hover:text-white')} />
+                      <span className="font-medium flex-1 text-sm">{item.name}</span>
+                      {(item as any).badge > 0 && (
+                        <span className="bg-primary-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {(item as any).badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         
         <div className="p-4 mx-4 mb-4 space-y-2">

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { ShoppingCart, X, Plus, Minus, ChevronLeft, ChevronRight, MessageCircle, Search, Store } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import type { PublicCatalogItem } from '../types';
+import systemLogo from '../assets/nuevologo.png';
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface CartItem {
@@ -77,7 +78,7 @@ export default function Catalog() {
   const [customerName, setCustomerName] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('Delivery');
   const [address, setAddress] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'Efectivo' | 'Transf / MP'>('Efectivo');
+  const [paymentMethod, setPaymentMethod] = useState<'Efectivo' | 'Transf / MP' | 'Débito'>('Efectivo');
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [distanceInfo, setDistanceInfo] = useState<{ blocks: number | null, error?: string } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -727,18 +728,24 @@ export default function Catalog() {
               {/* Payment Method */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Método de Pago</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button type="button" onClick={() => setPaymentMethod('Efectivo')}
-                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Efectivo' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    className={`py-3 px-2 rounded-xl border-2 font-medium text-xs transition-all ${paymentMethod === 'Efectivo' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
                     style={paymentMethod === 'Efectivo' ? { backgroundColor: accent } : {}}
                   >
                     Efectivo
                   </button>
                   <button type="button" onClick={() => setPaymentMethod('Transf / MP')}
-                    className={`py-3 px-4 rounded-xl border-2 font-medium text-sm transition-all ${paymentMethod === 'Transf / MP' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    className={`py-3 px-2 rounded-xl border-2 font-medium text-xs transition-all ${paymentMethod === 'Transf / MP' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
                     style={paymentMethod === 'Transf / MP' ? { backgroundColor: accent } : {}}
                   >
                     Transf. / MP
+                  </button>
+                  <button type="button" onClick={() => setPaymentMethod('Débito')}
+                    className={`py-3 px-2 rounded-xl border-2 font-medium text-xs transition-all ${paymentMethod === 'Débito' ? 'border-transparent text-white shadow-md' : 'border-gray-100 text-gray-600 bg-white hover:border-gray-200'}`}
+                    style={paymentMethod === 'Débito' ? { backgroundColor: accent } : {}}
+                  >
+                    Débito
                   </button>
                 </div>
               </div>
@@ -759,6 +766,13 @@ export default function Catalog() {
       )}
 
 
+      {/* ── FOOTER ── */}
+      <footer className="py-16 bg-white border-t border-gray-100 flex flex-col items-center justify-center opacity-60 hover:opacity-100 transition-opacity">
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Power by</span>
+          <img src={systemLogo} alt="StockSystem Logo" className="h-20 w-auto" />
+        </div>
+      </footer>
     </div>
   );
 }

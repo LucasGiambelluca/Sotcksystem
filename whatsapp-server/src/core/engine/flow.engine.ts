@@ -1,5 +1,6 @@
 import { supabase } from '../../config/database'; 
 import { FlowDefinition, FlowExecution } from '../../flows/types/flow.types';
+import { ShortcutsManager } from '../../services/ShortcutsManager';
 import { logger } from '../../utils/logger';
 import { validateNode } from './node.validator';
 import { sessionAuditor } from './session.auditor';
@@ -18,6 +19,11 @@ export class FlowEngine {
     public orderService: any;
     public slotService: any;
 
+    // In-memory caches for performance
+    private static flowCache = new Map<string, { definition: FlowDefinition, timestamp: number }>();
+    private static flowListCache: { data: any[], timestamp: number } | null = null;
+    private static CACHE_TTL = 120000; // 2 minutes
+
     constructor(dbClient?: any, orderServiceInstance?: any, slotServiceInstance?: any) {
         this.db = dbClient || supabase;
         this.orderService = orderServiceInstance;
@@ -28,7 +34,7 @@ export class FlowEngine {
     /**
      * Entry point for messages. Routes to the appropriate session queue.
      */
-    async processMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
+    async processMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string, initialState?: { session: Session | null, conversation: any } } = {}): Promise<any> {
         const remoteJid = context.remoteJid || PhoneUtils.toJid(phone);
         const cleanPhone = PhoneUtils.normalize(phone);
         const sessionId = remoteJid.endsWith('@g.us') ? `group:${remoteJid}` : `1to1:${cleanPhone}`;
@@ -45,7 +51,7 @@ export class FlowEngine {
     /**
      * Internal execution logic, called sequentially by the queue.
      */
-    private async executeMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string } = {}): Promise<any> {
+    private async executeMessage(phone: string, messageText: string, context: any = {}, options: { flowId?: string, startNodeId?: string, initialState?: { session: Session | null, conversation: any } } = {}): Promise<any> {
         const startTime = Date.now();
         const cleanPhone = PhoneUtils.normalize(phone);
         const remoteJid = context.remoteJid || PhoneUtils.toJid(phone);
@@ -53,81 +59,53 @@ export class FlowEngine {
 
         logger.info(`[FlowEngine] Processing message in queue`, { sessionId, text: messageText.substring(0, 50) });
 
-        // 0. GLOBAL INTERRUPTS (Reset logic)
-        const globalTriggers = ['hola', 'menu', 'menú', 'cancelar', 'inicio', 'salir', 'testai'];
-        const normalizedMsg = messageText.trim()
-            .replace(/[\u200B-\u200D\uFEFF]/g, '')
-            .replace(/[^\w\sáéíóúüñ]/gi, '')
-            .toLowerCase();
-        
-        let isGlobalTrigger = globalTriggers.includes(normalizedMsg);
+        const normalizedMsg = this.normalizeInput(messageText);
 
-        // EXTRA: If not a hardcoded global trigger, check if it's an EXACT trigger for ANY other flow.
-        // This allows 'testai' or any new flow to "break" an old stuck session.
-        if (!isGlobalTrigger) {
-            const { data: matchedFlow } = await this.db.from('flows')
-                .select('id')
-                .eq('is_active', true)
-                .or(`trigger_word.ilike.${normalizedMsg},trigger_word.ilike.%${normalizedMsg}%`)
-                .maybeSingle();
-            
-            if (matchedFlow) {
-                isGlobalTrigger = true;
-                logger.info(`[FlowEngine] Dynamic global trigger detected: "${normalizedMsg}" matches flow ${matchedFlow.id}`);
-            }
+        // --- GLOBAL SHORTCUTS INTERCEPTOR ---
+        const shortcutMessages = await ShortcutsManager.handle(messageText, phone) || await ShortcutsManager.handle(normalizedMsg, phone);
+        if (shortcutMessages) {
+            logger.info(`[FlowEngine] GLOBAL Shortcut handled: ${normalizedMsg}. Sending priority response.`);
+            return { currentStateDefinition: { message_template: shortcutMessages.join('\n') }, messages: shortcutMessages };
+        }
+
+        // 1. RUN INITIAL CHECKS IN PARALLEL (only if not pre-fetched)
+        const [fetchedSession, handoverStatus, matchedFlowResult] = await Promise.all([
+            this.sessionRepository.findActiveSession(sessionId),
+            this.db.from('whatsapp_conversations').select('status').eq('phone', cleanPhone).maybeSingle(),
+            this.findFlowByTrigger(normalizedMsg)
+        ]);
+        
+        let session: Session | null = fetchedSession;
+        const conversation = handoverStatus.data;
+        const { flow: matchedFlow, isWildcard } = matchedFlowResult;
+
+        let isGlobalTrigger = !!matchedFlow;
+        
+        // --- WILDCARD PROTECTION ---
+        // If it's a wildcard match (*) but we have an active session waiting for input, 
+        // we IGNORE the global trigger to prevent resetting the flow.
+        if (isGlobalTrigger && isWildcard && session && session.status === 'waiting_input') {
+            logger.info(`[FlowEngine] Wildcard trigger matched but session is active at node ${session.currentNodeId}. Ignoring wildcard.`);
+            isGlobalTrigger = false;
         }
 
         if (isGlobalTrigger) {
-            logger.info(`[FlowEngine] Resetting session for ${phone} due to trigger: ${messageText}`);
+            logger.info(`[FlowEngine] Global trigger detected: "${normalizedMsg}" matches flow ${matchedFlow!.id} (Wildcard: ${isWildcard})`);
             await this.sessionRepository.forceReset(cleanPhone);
             
             // Clear handover status if present to resume bot control
-            await this.db.from('whatsapp_conversations')
-                .update({ status: 'active', updated_at: new Date().toISOString() })
-                .eq('phone', cleanPhone)
-                .eq('status', 'HANDOVER');
+            if (conversation?.status === 'HANDOVER') {
+                await this.db.from('whatsapp_conversations')
+                    .update({ status: 'active', updated_at: new Date().toISOString() })
+                    .eq('phone', cleanPhone);
+            }
+            session = null; // Forces recalculation of flow
         }
 
-        // 0.5. CHECK HANDOVER STATUS
-        const { data: conversation } = await this.db.from('whatsapp_conversations').select('status').eq('phone', cleanPhone).maybeSingle();
+        // Check handover AFTER trigger check (Reset allows breaking handover)
         if (conversation?.status === 'HANDOVER' && !isGlobalTrigger) {
             logger.info(`[FlowEngine] Session in HANDOVER Mode for ${phone}. Skipping bot processing.`);
             return null;
-        }
-
-        // 1. Get/Create Session
-        let session: Session | null = null;
-        if (!isGlobalTrigger) {
-            try {
-                // Find active session
-                const query = this.db
-                    .from('flow_executions')
-                    .select('*')
-                    .eq('session_id', sessionId)
-                    .in('status', ['active', 'waiting_input'])
-                    // If expires_at exists, we ignore sessions that are already expired
-                    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-                    // Prioritize 'waiting_input' since it's the most likely intentional state
-                    .order('status', { ascending: false }) 
-                    .order('updated_at', { ascending: false })
-                    .limit(1);
-                
-                const { data: existingArray, error } = await query;
-                const existing = existingArray && existingArray.length > 0 ? existingArray[0] : null;
-
-                if (error) {
-                    logger.error(`[FlowEngine] Query error for ${sessionId}`, { error: error.message, code: error.code });
-                }
-
-                if (existing) {
-                    session = Session.fromJSON(existing);
-                    logger.info(`[FlowEngine] Session found: ${session.id} | Node: ${session.currentNodeId} | Status: ${session.status}`);
-                } else {
-                    logger.info(`[FlowEngine] No active session found for JID: ${sessionId}`);
-                }
-            } catch (err: any) {
-                logger.error(`[FlowEngine] Error matching session`, { error: err.message, sessionId });
-            }
         }
 
         try {
@@ -140,34 +118,19 @@ export class FlowEngine {
 
             // If no session exists, we must resolve the flow
             if (!session) {
-                if (session) {
-                    // This case should be rare now that Router doesn't create PENDING sessions
-                    logger.info(`[FlowEngine] Re-resolving session for ${sessionId}`);
-                }
                 let flowId = options.flowId;
                 let flow = null;
 
                 if (flowId) {
-                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                    const isUuid = uuidRegex.test(flowId);
-                    if (isUuid) {
-                        const { data: fetchedFlow } = await this.db.from('flows').select('id, name').eq('id', flowId).maybeSingle();
-                        flow = fetchedFlow;
-                    }
-                    if (!flow) {
-                        const { data: nameFlow } = await this.db.from('flows').select('id, name').eq('name', flowId).limit(1).maybeSingle();
-                        flow = nameFlow;
-                    }
-                } else {
-                    flow = await this.findFlowByTrigger(messageText);
+                    flow = await this.getFlowDefinition(flowId);
+                } else if (isGlobalTrigger) {
+                    flow = matchedFlow;
                 }
 
                 if (!flow) {
                     // --- WEBHOOK HOOK FALLBACK (Phase 5) ---
-                    // If no trigger word matches, look for a flow that starts with a 'webhookNode'
-                    const { data: webhookFlows } = await this.db.from('flows')
-                        .select('id, nodes, name')
-                        .eq('is_active', true);
+                    // Using cached flow list to avoid expensive DB scan
+                    const { data: webhookFlows } = await this.getAllActiveFlows();
                     
                     const hookFlow = webhookFlows?.find((f: any) => 
                         f.nodes?.some((n: any) => n.type === 'webhookNode')
@@ -188,13 +151,16 @@ export class FlowEngine {
 
                 let businessContext: Record<string, any> = {};
                 try {
-                    const appConfig = await ConfigurationService.getFullConfig();
-                    const { data: products } = await this.db.from('products').select('id, name, price').eq('available', true).limit(50);
+                    const [appConfig, productsResponse] = await Promise.all([
+                        ConfigurationService.getFullConfig(),
+                        this.db.from('products').select('id, name, price').eq('available', true).limit(50)
+                    ]);
                     
+                    const products = productsResponse.data;
                     businessContext = {
                         catalog_business_name: appConfig.business_name || 'Tu Negocio',
                         business_address: appConfig.store_address || '',
-                        horario_negocio: 'Consultar', // Se podría expandir en ConfigurationService si es necesario
+                        horario_negocio: 'Consultar', 
                         zona_delivery: appConfig.shipping_policy || 'Consultar zona de cobertura',
                         catalog_summary: products?.map((p: any) => `${p.name} ($${p.price})`).join(', ') || 'Sin productos disponibles'
                     };
@@ -203,8 +169,8 @@ export class FlowEngine {
                 }
 
                 // --- DYNAMIC START NODE (Webhook priority) ---
-                const { data: flowData } = await this.db.from('flows').select('nodes').eq('id', flowId).single();
-                const webhookNode = flowData?.nodes?.find((n: any) => n.type === 'webhookNode');
+                const fullFlow = await this.getFlowDefinition(flowId);
+                const webhookNode = fullFlow?.nodes?.find((n: any) => n.type === 'webhookNode');
                 const effectiveStartNodeId = options.startNodeId || webhookNode?.id || 'start';
 
                 session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId, {
@@ -229,31 +195,30 @@ export class FlowEngine {
                 session.getContext().metadata.expiresAt = expirationDate;
                 
                 if (!(options.startNodeId && options.startNodeId !== 'start')) {
-                    const nodes = flowData?.nodes || [];
+                    const nodes = fullFlow?.nodes || [];
                     const startNode = nodes.find((n: any) => n.id === session.currentNodeId);
                     if (!(startNode && ['intentResolverNode', 'groqNode', 'questionNode', 'webhookNode'].includes(startNode.type))) {
                         await this.handleInput(session, this.normalizeInput(messageText));
                     }
                 }
-            } else {
-                if (session.status === 'waiting_input') {
-                    await this.handleInput(session, this.normalizeInput(messageText));
-                    
-                    // IF INTELLIGENT ESCAPE TRIGGERED: Abort this chain and return special flag 
-                    // so the Router starts over from the Start Hook.
-                    if ((session as any)._exitToAI) {
-                        logger.info(`[FlowEngine] [EXIT_AI] Signal received. Terminating flow to allow Global AI routing.`);
-                        return { currentStateDefinition: { message_template: null, _restart_ai: true, _aiResult: (session as any)._aiResult } };
-                    }
-
-                    if ((session as any)._pendingMessages) {
-                        accumulatedMessages.push(...(session as any)._pendingMessages);
-                        delete (session as any)._pendingMessages;
-                    }
-                }
             }
 
             if (!session) throw new Error('Session initialization failed');
+
+            if (session.status === 'waiting_input') {
+                await this.handleInput(session, normalizedMsg);
+                
+                // IF INTELLIGENT ESCAPE TRIGGERED: Abort this chain
+                if ((session as any)._exitToAI) {
+                    logger.info(`[FlowEngine] [EXIT_AI] Signal received. Terminating flow to allow Global AI routing.`);
+                    return { currentStateDefinition: { message_template: null, _restart_ai: true, _aiResult: (session as any)._aiResult } };
+                }
+
+                if ((session as any)._pendingMessages) {
+                    accumulatedMessages.push(...(session as any)._pendingMessages);
+                    delete (session as any)._pendingMessages;
+                }
+            }
 
             // 2. Execute Node Chain (Only if moved or now active)
             if (session.currentNodeId !== previousNodeId || session.status === 'active') {
@@ -278,10 +243,14 @@ export class FlowEngine {
     }
 
     private async handleInput(session: Session, input: string): Promise<void> {
+        console.log(`\x1b[41m [FLOW-TRACE] handleInput START | Node: ${session.currentNodeId} | Input: "${input}" | SessionStatus: ${session.status} \x1b[0m`);
         session.status = 'active'; // Mark as active now that we got input
         const flowId = session.getContext().metadata.flowId;
-        const { data: flow } = await this.db.from('flows').select('nodes, edges').eq('id', flowId).single();
-        if (!flow) return;
+        const flow = await this.getFlowDefinition(flowId);
+        if (!flow) {
+            logger.error(`[FlowEngine] [handleInput] Flow not found: ${flowId}`);
+            return;
+        }
 
         const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
         if (!currentNode) return;
@@ -291,8 +260,10 @@ export class FlowEngine {
 
         // 1. Specialized input handling via Executor
         const executor = nodeExecutorFactory.getExecutor(currentNode.type);
+        console.log(`\x1b[43m [FLOW-TRACE] Executor: ${currentNode.type} | hasHandleInput: ${!!executor.handleInput} | Input: "${input}" \x1b[0m`);
         if (executor.handleInput) {
             const result = await executor.handleInput(input, currentNode.data, session.getAllVariablesForCurrentFlow() as any);
+            console.log(`\x1b[43m [FLOW-TRACE] executor.handleInput result: isValid=${result.isValidInput}, updatedKeys=${result.updatedContext ? Object.keys(result.updatedContext) : 'none'}, msgs=${result.messages?.length || 0} \x1b[0m`);
             
             // Apply context updates from executor
             if (result.updatedContext) {
@@ -320,25 +291,25 @@ export class FlowEngine {
                 const numericMatch = input.replace(/[\*_]/g, '').match(/\d+/);
                 let index = numericMatch ? parseInt(numericMatch[0]) - 1 : -1;
                 
-                if (index < 0 || index >= options.length) {
-                    // Try exact ignore-case match
-                    const exactIndex = options.findIndex((o: string) => o.toLowerCase().trim() === input.toLowerCase().trim());
-                    if (exactIndex !== -1) {
-                        index = exactIndex;
-                    } else {
-                        // 🔥 IA DESACTIVADA 🔥 Semántica y Dios desactivados.
-                        /*
-                        try {
-                            const { AIExtractor } = require('../nlu/AIExtractor');
-                            const aiIndex = await AIExtractor.resolveMenuOption(input, options);
-                            if (aiIndex !== -1) {
-                                index = aiIndex;
-                                logger.info(`[FlowEngine] [AI INPUT] Semantically resolved "${input}" to option ${index + 1}: "${options[index]}"`);
-                            }
-                        } catch (e) {
-                            logger.error('[FlowEngine] Error resolving semantic poll input', e);
-                        }
-                        */
+                // 1. Direct match (Normalized)
+                const cleanInput = input.replace(/[^\w\sáéíóúüñ]/gi, '').toLowerCase().trim();
+                
+                const exactIndex = options.findIndex((o: string) => {
+                    const cleanOpt = o.replace(/[^\w\sáéíóúüñ]/gi, '').toLowerCase().trim();
+                    return cleanOpt === cleanInput;
+                });
+
+                if (exactIndex !== -1) {
+                    index = exactIndex;
+                } else if (cleanInput.length > 1) {
+                    // 2. Partial/Fuzzy match
+                    const partialIndex = options.findIndex((o: string) => {
+                        const cleanOpt = o.replace(/[^\w\sáéíóúüñ]/gi, '').toLowerCase().trim();
+                        return cleanOpt.includes(cleanInput) || cleanInput.includes(cleanOpt);
+                    });
+                    if (partialIndex !== -1) {
+                        index = partialIndex;
+                        logger.info(`[FlowEngine] [INPUT] Fuzzy poll match: "${input}" => option ${index + 1}: "${options[index]}"`);
                     }
                 }
 
@@ -400,12 +371,21 @@ export class FlowEngine {
             // Use the handle stored during input processing
             advanceHandle = session.getVariable(`_poll_selected_handle_${currentNode.id}`);
             logger.info(`[FlowEngine] [INPUT] Poll selected handle: "${advanceHandle}"`);
+        } else if (currentNode.type === 'locationValidatorNode') {
+            advanceHandle = session.getVariable('location_validation_result');
+            logger.info(`[FlowEngine] [INPUT] LocationValidator result: "${advanceHandle}"`);
         }
 
         const nextNodeId = this.findNextNodeId(flow, currentNode.id, advanceHandle);
+        console.log(`\x1b[36m[DEBUG-FLOW] NodeType: ${currentNode.type} | Handle: "${advanceHandle}" | Next Node: "${nextNodeId}" | Available edges from ${currentNode.id}: ${(flow.edges || []).filter((e: any) => e.source === currentNode.id).map((e: any) => `${e.sourceHandle || 'default'}->${e.target}`).join(', ')}\x1b[0m`);
         if (nextNodeId) {
             session.currentNodeId = nextNodeId;
             logger.info(`[FlowEngine] [INPUT] Advancing session from ${currentNode.id} to ${nextNodeId} (Type: ${currentNode.type}, Handle: ${advanceHandle || 'default'})`);
+        } else {
+            logger.error(`[FlowEngine] [INPUT] ⚠️ STALL DETECTED: No next node found for ${currentNode.id} (${currentNode.type}) with handle "${advanceHandle}". Reverting to waiting_input.`);
+            // CRITICAL FIX: Revert to waiting_input so executeNodeChain doesn't
+            // re-execute the same node (which would resend the prompt in a loop)
+            session.status = 'waiting_input';
         }
     }
 
@@ -416,23 +396,16 @@ export class FlowEngine {
         let iterations = 0;
         const MAX_ITERATIONS = 50;
 
-        let flow: any = null;
-        
         while (iterations < MAX_ITERATIONS) {
             iterations++;
             
             const flowId = session.getContext().metadata.flowId;
-            
-            // Optimization: Only fetch flow once per execution chain if same flowId
-            if (!flow || flow.id !== flowId) {
-                const { data: fetchedFlow } = await this.db.from('flows').select('*').eq('id', flowId).single();
-                if (!fetchedFlow) {
-                    logger.error(`[FlowEngine] Flow not found: ${flowId}. Forcing session reset.`);
-                    await this.sessionRepository.forceReset(session.userPhone);
-                    accumulatedMessages.push('⚠️ Tu sesión anterior expiró o el menú cambió. Por favor, escribí "hola" para empezar de nuevo.');
-                    break;
-                }
-                flow = fetchedFlow;
+            const flow = await this.getFlowDefinition(flowId);
+            if (!flow) {
+                logger.error(`[FlowEngine] Flow definition not found for session ${session.id}`, { flowId });
+                await this.sessionRepository.forceReset(session.userPhone);
+                accumulatedMessages.push('⚠️ Tu sesión anterior expiró o el menú cambió. Por favor, escribí "hola" para empezar de nuevo.');
+                break;
             }
 
             const currentNode = (flow.nodes || []).find((n: any) => n.id === session.currentNodeId);
@@ -550,14 +523,14 @@ export class FlowEngine {
                 // 1. Direct match
                 if (srcHandle === normalizedHandle) return true;
 
-                // 2. Boolean synonyms (SUCCESS/TRUE/OK/CENTRO)
-                const isPositive = ['true', 'yes', 'ok', 'success', 'centro', '1'].includes(normalizedHandle);
-                const srcPositive = ['true', 'yes', 'ok', 'success', 'centro', '1'].includes(srcHandle);
+                // 2. Boolean synonyms (SUCCESS/TRUE/OK/CENTRO/CONFIRMED)
+                const isPositive = ['true', 'yes', 'ok', 'success', 'centro', '1', 'confirmed', 'correcto'].includes(normalizedHandle);
+                const srcPositive = ['true', 'yes', 'ok', 'success', 'centro', '1', 'confirmed', 'correcto'].includes(srcHandle);
                 if (isPositive && srcPositive) return true;
 
-                // 3. Negative synonyms (FAIL/FALSE/ERROR/FUERA DE ZONA)
-                const isNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0'].includes(normalizedHandle);
-                const srcNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0'].includes(srcHandle);
+                // 3. Negative synonyms (FAIL/FALSE/ERROR/FUERA DE ZONA/CANCELAR)
+                const isNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0', 'cancel', 'cancelar'].includes(normalizedHandle);
+                const srcNegative = ['false', 'no', 'fail', 'error', 'fuera de zona', 'fuera', '0', 'cancel', 'cancelar'].includes(srcHandle);
                 if (isNegative && srcNegative) return true;
 
                 return false;
@@ -586,16 +559,50 @@ export class FlowEngine {
         return edge ? edge.target : null;
     }
 
-    private async findFlowByTrigger(text: string): Promise<FlowDefinition | null> {
-        const cleanText = (text || '').trim().toLowerCase();
-        
-        // 1. Fetch all active flows to perform a smart match in memory
+    private async getAllActiveFlows(): Promise<{ data: any[] }> {
+        const now = Date.now();
+        if (FlowEngine.flowListCache && (now - FlowEngine.flowListCache.timestamp < FlowEngine.CACHE_TTL)) {
+            return { data: FlowEngine.flowListCache.data };
+        }
+
         const { data, error } = await this.db
             .from('flows')
-            .select('id, name, trigger_word, is_active')
+            .select('id, name, trigger_word, is_active, nodes')
             .eq('is_active', true);
+        
+        if (data) {
+            FlowEngine.flowListCache = { data, timestamp: now };
+        }
+        return { data: data || [] };
+    }
 
-        if (error || !data || data.length === 0) return null;
+    private async getFlowDefinition(flowId: string): Promise<FlowDefinition | null> {
+        if (!flowId) return null;
+        
+        const now = Date.now();
+        const cached = FlowEngine.flowCache.get(flowId);
+        if (cached && (now - cached.timestamp < FlowEngine.CACHE_TTL)) {
+            return cached.definition;
+        }
+
+        const { data: flow, error } = await this.db
+            .from('flows')
+            .select('*')
+            .eq('id', flowId)
+            .maybeSingle();
+        
+        if (error || !flow) return null;
+
+        FlowEngine.flowCache.set(flowId, { definition: flow, timestamp: now });
+        return flow;
+    }
+
+    private async findFlowByTrigger(text: string): Promise<{ flow: FlowDefinition | null, isWildcard: boolean }> {
+        const cleanText = (text || '').trim().toLowerCase();
+        
+        // 1. Fetch from cached list
+        const { data } = await this.getAllActiveFlows();
+        if (!data || data.length === 0) return null;
         
         // 2. Try EXACT match first
         const exactMatch = data.find((f: any) => {
@@ -603,7 +610,7 @@ export class FlowEngine {
             const triggers = f.trigger_word.toLowerCase().split(',').map((t: string) => t.trim());
             return triggers.includes(cleanText);
         });
-        if (exactMatch) return exactMatch;
+        if (exactMatch) return { flow: exactMatch, isWildcard: false };
 
         // 3. Try PARTIAL match (if message contains the trigger word)
         const partialMatch = data.find((f: any) => {
@@ -611,7 +618,7 @@ export class FlowEngine {
             const triggers = f.trigger_word.toLowerCase().split(',').map((t: string) => t.trim());
             return triggers.some((t: string) => cleanText.includes(t) && t.length > 2); // Avoid matching tiny words
         });
-        if (partialMatch) return partialMatch;
+        if (partialMatch) return { flow: partialMatch, isWildcard: false };
 
         // 4. ✨ WILDCARD / CATCH-ALL match (* or empty string) ✨
         // Any flow with no trigger word, or an asterisk, is considered a catch-all.
@@ -623,14 +630,10 @@ export class FlowEngine {
         
         if (wildcardMatch) {
             logger.info(`[FlowEngine] No specific trigger match for "${cleanText}". Routing to Catch-all flow: "${wildcardMatch.name}" (*)`);
-            return wildcardMatch;
+            return { flow: wildcardMatch, isWildcard: true };
         }
-
-        // 5. Final Fallback: Return null.
-        // We do NOT return 'Tomar Pedido' anymore. If there is no exact match, partial match, or catch-all,
-        // we shouldn't force the user into a flow they didn't ask for.
-        logger.info(`[FlowEngine] No active flow matches "${cleanText}", and no valid catch-all found.`);
-        return null;
+        
+        return { flow: null, isWildcard: false };
     }
 
     /**
@@ -677,13 +680,19 @@ export class FlowEngine {
         const extractedNum = numericMatch ? numericMatch[0] : null;
         const optionIndex = extractedNum ? parseInt(extractedNum) - 1 : -1;
 
+        const cleanIncoming = incoming.replace(/[^\w\s]/g, '').trim().toLowerCase();
+
         for (let i = 0; i < options.length; i++) {
             const opt = options[i];
+            const cleanOpt = opt.replace(/[^\w\s]/g, '').trim().toLowerCase();
+            
+            // 1. Hash match (for actual Poll votes)
             const shasum = crypto.createHash('sha256');
             shasum.update(opt);
             const hash = shasum.digest('hex').toUpperCase();
 
-            if (hash === incoming || incoming.includes(hash) || i === optionIndex) {
+            // 2. Text match (for text fallbacks)
+            if (hash === incoming || incoming.includes(hash) || i === optionIndex || cleanOpt === cleanIncoming || cleanOpt.includes(cleanIncoming)) {
                 return opt;
             }
         }

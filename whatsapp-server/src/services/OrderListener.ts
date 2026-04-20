@@ -259,7 +259,7 @@ export class OrderListener {
     }
   }
 
-  private async enqueueNotification(order: any, status: string, message: string, priority: number) {
+  private async enqueueNotification(order: any, status: string, message: any, priority: number) {
     const dedupKey = `order:${order.id}:${status}`;
     const isDuplicate = await RedisDedup.isDuplicate(this.context, dedupKey, 300);
     if (isDuplicate) {
@@ -298,50 +298,11 @@ export class OrderListener {
            ctxLower.includes('local');
   }
 
-  private async buildConsolidatedMessage(order: any, states: string[]): Promise<string | null> {
+  private async buildConsolidatedMessage(order: any, states: string[]): Promise<any | null> {
     const rawStatus = states[states.length - 1]?.toUpperCase() || '';
-    const orderNumber = order.order_number || order.id.slice(0, 8);
-    const isPickup = this.detectPickup(order);
-
-    const appConfig = await ConfigurationService.getFullConfig();
-    const clientName = order.client?.name || order.chat_context?.pushName || 'Cliente';
-    const deliveryAddress = order.delivery_address || '';
-
-    // MEJORA V2.8: Mapeo de estados multi-idioma (Inglés/Español)
-    const isPreparing = rawStatus === 'IN_PREPARATION' || rawStatus === 'PREPARING' || rawStatus.includes('PREPARACION');
-    const isTransit = rawStatus === 'OUT_FOR_DELIVERY' || rawStatus === 'IN_TRANSIT' || rawStatus.includes('ENTREGA') || states.some(s => s.toUpperCase().includes('ENTREGA') || s.toUpperCase().includes('TRANSIT') || s.toUpperCase().includes('OUT_FOR'));
-    const isReady = rawStatus === 'READY' || rawStatus === 'READY_FOR_PICKUP' || rawStatus.includes('LISTO');
-    const isDelivered = rawStatus === 'DELIVERED' || rawStatus === 'COMPLETED' || rawStatus.includes('ENTREGADO');
-    
-    if (isPreparing) {
-        const prepMsg = appConfig.template_preparation ? appConfig.template_preparation : `✅ *Pedido #{orderId} Actualizado*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya fue confirmado y está siendo preparado en cocina. 👨‍🍳`;
-        return prepMsg
-            .replace(/\{orderId\}/g, orderNumber)
-            .replace(/\{clientName\}/g, clientName);
-    }
-
-    if ((isTransit || isReady) && !isDelivered) {
-        if (isPickup) {
-            const template = appConfig.template_ready || `🥡 *Pedido #{orderId} Listo*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo para que lo pases a retirar. ¡Te esperamos! 🎉`;
-            return template
-                .replace(/\{orderId\}/g, orderNumber)
-                .replace(/\{clientName\}/g, clientName);
-        } else {
-            const template = appConfig.template_transit || `🚚 *Pedido #{orderId} en camino*\r\n\r\n¡Buenas noticias {clientName}! Tu pedido ya está listo y salió hacia tu domicilio: {deliveryAddress}. 🛵`;
-            return template
-                .replace(/\{orderId\}/g, orderNumber)
-                .replace(/\{clientName\}/g, clientName)
-                .replace(/\{deliveryAddress\}/g, deliveryAddress);
-        }
-    }
-
-    if (isDelivered) {
-        const template = appConfig.template_delivered || `✅ *Pedido #{orderId} Entregado*\r\n\r\n¡Tu pedido ya fue entregado! Gracias por confiar en nosotros. 🎉`;
-        return template
-            .replace(/\{orderId\}/g, orderNumber)
-            .replace(/\{clientName\}/g, clientName);
-    }
-    return null;
+    // Consolidate means we take the final status as the truth
+    const { message } = await this.buildNotification({...order, status: rawStatus}, null);
+    return message;
   }
 
   /**
@@ -350,7 +311,7 @@ export class OrderListener {
   private async buildNotification(order: any, oldStatus: string | null): Promise<{
     type: 'order_new' | 'status_change';
     priority: number;
-    message: string | null;
+    message: any | null;
   }> {
     const isNew = oldStatus === null || oldStatus === undefined;
     const status = order.status;
@@ -371,10 +332,15 @@ export class OrderListener {
         template = `✅ Pedido recibido! Número: {orderId}. Te avisamos cuando esté listo.`;
         break;
       case 'CONFIRMED':
-        template = appConfig.template_confirmed || `✅ Pedido {orderId} ha sido CONFIRMADO. ¡Gracias!`;
-        break;
       case 'IN_PREPARATION':
-        template = appConfig.template_preparation || `👨‍🍳 Tu pedido {orderId} está en preparación.`;
+        // Concat total if confirmed
+        const total = order.total || order.chat_context?.total || '0';
+        const destination = order.delivery_address || order.chat_context?.direccion || order.chat_context?.address || 'Retiro en Local';
+        template = (appConfig.template_confirmed || `✅ *¡Pedido confirmado!*`) + 
+                   `\n\n🆔 *Orden:* {orderId}` +
+                   `\n💰 *Total:* $${total}` +
+                   `\n📍 *Destino:* ${destination}` +
+                   `\n\n👨‍🍳 Ya enviamos tu pedido a cocina. 🔥`;
         break;
       case 'IN_TRANSIT':
       case 'OUT_FOR_DELIVERY':
@@ -396,19 +362,50 @@ export class OrderListener {
       case 'CANCELLED':
         template = appConfig.template_cancelled || `❌ Lo sentimos, tu pedido {orderId} ha sido cancelado.`;
         break;
-      case 'ARRIVED':
-        template = appConfig.template_arrived || `🔔 ¡Llegó tu pedido!\nEl cadete está en la puerta.`;
-        break;
     }
 
     if (!template) {
         return { type: isNew ? 'order_new' : 'status_change', priority: 20, message: null };
     }
 
-    let message = template
+    let messageText = template
       .replace(/\{clientName\}/g, clientName)
       .replace(/\{orderId\}/g, orderNumber)
       .replace(/\{deliveryAddress\}/g, deliveryAddress);
+
+    // PREMIUM WRAPPER: Convert text to Interactive Buttons
+    let finalPayload: any = { text: messageText };
+
+    if (status === 'CONFIRMED' || status === 'IN_PREPARATION') {
+        finalPayload = {
+            interactive: {
+                type: 'button',
+                body: { text: messageText },
+                action: {
+                    buttons: [
+                        { type: 'reply', reply: { id: 'view_order', title: '📄 Mi Pedido' } },
+                        { type: 'reply', reply: { id: 'help', title: '📞 Soporte' } }
+                    ]
+                }
+            }
+        };
+    } else if (status === 'OUT_FOR_DELIVERY' || status === 'IN_TRANSIT') {
+        // Se elimina el bloque interactivo para no "volver locos con los envíos"
+        finalPayload = { text: messageText };
+    } else if (status === 'DELIVERED') {
+        finalPayload = {
+            interactive: {
+                type: 'button',
+                body: { text: messageText },
+                action: {
+                    buttons: [
+                        { type: 'reply', reply: { id: 'rate_5', title: '⭐⭐⭐⭐⭐' } },
+                        { type: 'reply', reply: { id: 'order_issue', title: '❌ Tuve un problema' } }
+                    ]
+                }
+            }
+        };
+    }
 
     let type: 'order_new' | 'status_change' = isNew ? 'order_new' : 'status_change';
     let priority = 20;
@@ -419,7 +416,7 @@ export class OrderListener {
       priority = 5;
     }
 
-    return { type, priority, message };
+    return { type, priority, message: finalPayload };
   }
 
   private async createInternalNotification(order: any) {
