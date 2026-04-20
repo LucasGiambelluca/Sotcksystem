@@ -190,13 +190,20 @@ app.post('/api/notify/at-door', async (req, res) => {
 const CATALOG_SLUG = process.env.CATALOG_SLUG || 'elpollocomilon';
 const clientBuildPath = path.join(__dirname, '../../../client/dist');
 
+console.log(`🚀 [STATIC-SERVER] Initializing for slug: /${CATALOG_SLUG}`);
+
+// Essential: Accept exact slug path without trailing slash
+app.get(`/${CATALOG_SLUG}`, (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+});
+
 app.use(`/${CATALOG_SLUG}`, (req, res, next) => {
-    console.log(`[DEBUG-STATIC] Requesting: ${req.url}`);
+    // console.log(`[DEBUG-STATIC] Requesting: ${req.url}`);
     next();
 }, express.static(clientBuildPath));
 
 // Catch-all route to serve index.html for React Router handling
-app.get(`/${CATALOG_SLUG}/ping`, (req, res) => res.send('Static Hosting OK!'));
+app.get(`/${CATALOG_SLUG}/ping`, (req, res) => res.send(`Static Hosting OK for ${CATALOG_SLUG}!`));
 
 app.get(`/${CATALOG_SLUG}/*`, (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
