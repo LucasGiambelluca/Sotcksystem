@@ -1,23 +1,22 @@
 import winston from 'winston';
 import path from 'path';
 
+const LOG_DIR = path.join(__dirname, '../../../logs');
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
+const MAX_FILES = 7; // Keep last 7 rotated files
+
 const logFormat = winston.format.printf((info) => {
     const { level, message, timestamp, ...metadata } = info;
     
-    // Color codes in 'level' can interfere with some logic, but we just want to print it.
     let msg = `${timestamp} [${level}] : ${message} `;
     
     const cleanMeta = { ...metadata };
-    // Winston-added metadata is often in info[Symbol.for('message')] or similar, 
-    // but the rest spread should have captured it.
-    
     delete cleanMeta.timestamp;
     delete cleanMeta.level;
     delete cleanMeta.message;
-    delete cleanMeta.metadata; // If fillWith: ['metadata'] was used
+    delete cleanMeta.metadata;
 
     if (Object.keys(cleanMeta).length > 0) {
-        // Safe stringify to handle circular references (like from Axios errors)
         const getCircularReplacer = () => {
           const seen = new WeakSet();
           return (key: string, value: any) => {
@@ -35,23 +34,63 @@ const logFormat = winston.format.printf((info) => {
     return msg;
 });
 
+// JSON format for production file logs (easy to parse/search)
+const jsonFormat = winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.json()
+);
+
+// Colorized format for console
+const consoleFormat = winston.format.combine(
+    winston.format.timestamp({ format: 'HH:mm:ss' }),
+    winston.format.colorize(),
+    logFormat
+);
+
 export const logger = winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
-    format: winston.format.combine(
-        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        winston.format.colorize(),
-        logFormat
-    ),
     transports: [
-        new winston.transports.Console(),
-        new winston.transports.File({ 
-            filename: path.join(__dirname, '../../../logs/error.log'), 
-            level: 'error' 
+        // Console: colorized, readable
+        new winston.transports.Console({
+            format: consoleFormat
         }),
+        // Error log: only errors, rotated
         new winston.transports.File({ 
-            filename: path.join(__dirname, '../../../logs/combined.log') 
+            filename: path.join(LOG_DIR, 'error.log'), 
+            level: 'error',
+            format: jsonFormat,
+            maxsize: MAX_FILE_SIZE,
+            maxFiles: MAX_FILES,
+            tailable: true
+        }),
+        // Combined log: all levels, rotated
+        new winston.transports.File({ 
+            filename: path.join(LOG_DIR, 'app.log'),
+            format: jsonFormat,
+            maxsize: MAX_FILE_SIZE,
+            maxFiles: MAX_FILES,
+            tailable: true
+        }),
+        // Bot-specific log: WhatsApp events
+        new winston.transports.File({
+            filename: path.join(LOG_DIR, 'bot.log'),
+            format: jsonFormat,
+            maxsize: MAX_FILE_SIZE,
+            maxFiles: MAX_FILES,
+            tailable: true
         })
     ]
 });
+
+/**
+ * Bot-specific logger that tags all messages with [BOT] prefix
+ * and writes to the dedicated bot.log file.
+ */
+export const botLogger = {
+    info: (msg: string, meta?: Record<string, unknown>) => logger.info(`[BOT] ${msg}`, meta),
+    warn: (msg: string, meta?: Record<string, unknown>) => logger.warn(`[BOT] ${msg}`, meta),
+    error: (msg: string, meta?: Record<string, unknown>) => logger.error(`[BOT] ${msg}`, meta),
+    debug: (msg: string, meta?: Record<string, unknown>) => logger.debug(`[BOT] ${msg}`, meta),
+};
 
 export default logger;
