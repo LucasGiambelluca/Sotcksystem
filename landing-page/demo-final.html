@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sotcksystem | Automatizá los pedidos de tu local con WhatsApp</title>
+    <meta name="description" content="Tu bot de pedidos inteligente. Gestioná stock, clientes y pedidos desde un solo lugar.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+/* 
+   Sotcksystem Landing Page - Styles
+   Identity: Premium, Modern, Dark/Light Hybrid 
+*/
+
+:root {
+    --primary: #e11d48;
+    --primary-hover: #be123c;
+    --primary-light: #fff1f2;
+    --bg-dark: #0f172a;
+    --bg-surface: #1e293b;
+    --border-dark: #334155;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --white: #ffffff;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--text-main);
+    line-height: 1.6;
+    overflow-x: hidden;
+    background-color: var(--white);
+}
+
+/* ── PREMIUM SCROLLBAR ── */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ── LAYOUT ── */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+section {
+    padding: 80px 0;
+}
+
+/* ── NAVIGATION ── */
+nav {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+nav .container {
+    height: 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
+.logo-img {
+    height: 40px;
+    width: auto;
+}
+
+.nav-links {
+    display: flex;
+    gap: 20px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.nav-links a:hover {
+    color: var(--primary);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--white);
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: var(--transition);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.2);
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+}
+
+/* ── HERO ── */
+.hero {
+    padding-top: 160px;
+    padding-bottom: 100px;
+    background: radial-gradient(circle at top right, var(--primary-light), transparent),
+                radial-gradient(circle at bottom left, #f8fafc, transparent);
+    text-align: center;
+}
+
+.hero h1 {
+    font-size: 3.5rem;
+    line-height: 1.1;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, var(--bg-dark), var(--primary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero p {
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    max-width: 700px;
+    margin: 0 auto 2.5rem;
+}
+
+/* ── DEMO GRID ── */
+.demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 968px) {
+    .demo-grid { grid-template-columns: 1fr; }
+}
+
+.client-device, .admin-device {
+    background: var(--white);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 6px solid var(--bg-dark);
+}
+
+/* WhatsApp Styling */
+.chat-header {
+    background: #075e54;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chat-body {
+    height: 400px;
+    background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.message.bot { background: white; align-self: flex-start; }
+.message.user { background: #dcf8c6; align-self: flex-end; }
+
+.chat-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin: 2px;
+}
+
+/* Admin Styling */
+.admin-header {
+    background: var(--bg-dark);
+    color: white;
+    padding: 1rem;
+    font-weight: 600;
+}
+
+.comandera {
+    height: 400px;
+    background: #f1f5f9;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.ticket {
+    background: white;
+    width: 250px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transform: translateY(50px);
+    opacity: 0;
+    transition: all 0.5s ease;
+}
+
+.ticket.active { transform: translateY(0); opacity: 1; }
+
+.ticket h3 { text-align: center; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem; }
+.ticket-row { display: flex; justify-content: space-between; font-family: monospace; font-size: 0.8rem; }
+
+/* Popup Notification */
+.popup {
+    position: fixed;
+    top: 20px;
+    right: -350px;
+    width: 300px;
+    background: white;
+    padding: 15px;
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: right 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 9999;
+    border-left: 5px solid var(--primary);
+}
+
+.popup.active { right: 20px; }
+
+/* Simple sections to keep it short */
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.feature-card { padding: 30px; border: 1px solid #eee; border-radius: 20px; text-align: center; }
+
+footer { padding: 40px; text-align: center; background: #f8fafc; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <div id="new-order-popup" class="popup">
+        <div style="background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-bell"></i>
+        </div>
+        <div>
+            <h4 style="margin:0; font-size: 0.9rem;">¡Nuevo Pedido!</h4>
+            <p id="popup-text" style="margin:0; font-size: 0.8rem; color: #666;">Pizza Pepperoni - Mesa 5</p>
+        </div>
+    </div>
+
+    <nav>
+        <div class="container">
+            <a href="#" class="logo-container">
+                <img src="images/logo.png" alt="Logo" class="logo-img">
+                <span>Sotcksystem</span>
+            </a>
+            <div class="nav-links">
+                <a href="#funciones">Funciones</a>
+                <a href="#demo">Demo</a>
+                <a href="#precios">Precios</a>
+            </div>
+            <a href="#contacto" class="btn-primary">Empezar Ahora</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Automatizá tu local con WhatsApp</h1>
+            <p>Tus clientes piden, el bot gestiona, vos recibís la comanda. Sin errores, sin esperas.</p>
+            <a href="#demo" class="btn-primary" style="font-size: 1.1rem; padding: 1rem 2.5rem;">Ver Demo Real</a>
+        </div>
+    </section>
+
+    <section id="demo" style="background: #f8fafc;">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2.5rem;">Mirá cómo funciona</h2>
+            <div class="demo-grid">
+                <!-- Cliente Side -->
+                <div>
+                    <h3 style="margin-bottom: 1rem; color: #666; font-size: 0.9rem; text-transform: uppercase;">Vista del Cliente (WhatsApp)</h3>
+                    <div class="client-device">
+                        <div class="chat-header">
+                            <i class="fab fa-whatsapp" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <div style="font-weight: 700; font-size: 0.9rem;">Sotcksystem Bot</div>
+                                <div style="font-size: 0.7rem; opacity: 0.8;">En línea</div>
+                            </div>
+                        </div>
+                        <div id="chat-body" class="chat-body"></div>
+                    </div>
+                </div>
+
+                <!-- Admin Side -->
+                <div>
+                    <h3 style="margin-bottom: 1rem; color: #666; font-size: 0.9rem; text-transform: uppercase;">Vista del Local (Admin)</h3>
+                    <div class="admin-device">
+                        <div class="admin-header">
+                            <i class="fas fa-desktop" style="margin-right: 10px;"></i> Panel de Control
+                        </div>
+                        <div class="comandera">
+                            <div id="ticket" class="ticket">
+                                <h3>SOTCKSYSTEM</h3>
+                                <div id="ticket-content"></div>
+                                <div style="border-top: 1px dashed black; margin-top: 10px; padding-top: 5px; font-weight: 700; text-align: right;" id="ticket-total"></div>
+                            </div>
+                            <div id="waiting-msg" style="color: #999; text-align: center;">
+                                <i class="fas fa-print" style="font-size: 3rem; display: block; margin-bottom: 10px; opacity: 0.2;"></i>
+                                Esperando pedido...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 2rem;">
+                <button onclick="restartDemo()" class="btn-primary" style="background: #334155;">Reiniciar Demo</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="funciones">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 3rem;">Funciones Principales</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="fas fa-robot" style="font-size: 2rem; color: var(--primary); margin-bottom: 15px;"></i>
+                    <h3>Bot 24/7</h3>
+                    <p>Atiende a tus clientes aunque estés durmiendo.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-clipboard-list" style="font-size: 2rem; color: var(--primary); margin-bottom: 15px;"></i>
+                    <h3>Gestión Stock</h3>
+                    <p>Control de inventario en tiempo real.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-chart-line" style="font-size: 2rem; color: var(--primary); margin-bottom: 15px;"></i>
+                    <h3>Reportes</h3>
+                    <p>Ventas detalladas y estadísticas de tu negocio.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Sotcksystem. Todos los derechos reservados.</p>
+    </footer>
+
+    <script>
+        const chatBody = document.getElementById('chat-body');
+        const ticket = document.getElementById('ticket');
+        const ticketContent = document.getElementById('ticket-content');
+        const ticketTotal = document.getElementById('ticket-total');
+        const waitingMsg = document.getElementById('waiting-msg');
+        const popup = document.getElementById('new-order-popup');
+        const popupText = document.getElementById('popup-text');
+
+        const flow = {
+            start: {
+                text: "¡Hola! Bienvenido a Rotisería El Delirio 🍕. ¿Qué te gustaría pedir?",
+                btns: ["Ver Menú 📋", "Sugerencia del día 🌟"]
+            },
+            menu: {
+                text: "Tenemos estas delicias hoy:\n1. Pizza Pepperoni - $5200\n2. Hamburguesa Especial - $4800\n3. Empanadas (x12) - $3600",
+                btns: ["Pedir Pizza 🍕", "Pedir Burguer 🍔"]
+            },
+            address: {
+                text: "¡Excelente elección! Pasame tu dirección para el delivery.",
+                btns: ["Calle Falsa 123 🏠", "Retiro en local 🏪"]
+            },
+            final: {
+                text: "¡Listo! Tu pedido fue recibido por el local. En 30-40 min llega a tu puerta. ¡Gracias!",
+                btns: ["Hacer otro pedido 🔄"]
+            }
+        };
+
+        let currentSelection = "";
+        let currentPrice = 0;
+
+        function addMsg(text, side) {
+            const div = document.createElement('div');
+            div.className = `message ${side}`;
+            div.innerText = text;
+            chatBody.appendChild(div);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        function addBtns(labels, next) {
+            const div = document.createElement('div');
+            div.style.marginTop = "5px";
+            labels.forEach(l => {
+                const b = document.createElement('button');
+                b.className = 'chat-btn';
+                b.innerText = l;
+                b.onclick = () => {
+                    div.remove();
+                    handleChoice(l, next);
+                };
+                div.appendChild(b);
+            });
+            chatBody.appendChild(div);
+        }
+
+        function handleChoice(label, next) {
+            addMsg(label, 'user');
+            if(label.includes("Pizza")) { currentSelection = "Pizza Pepperoni"; currentPrice = 5200; }
+            if(label.includes("Burguer")) { currentSelection = "Hamburguesa Especial"; currentPrice = 4800; }
+
+            setTimeout(() => {
+                if(next === 'restart') restartDemo();
+                else startFlow(next);
+            }, 800);
+        }
+
+        function startFlow(step) {
+            const s = flow[step];
+            addMsg(s.text, 'bot');
+            
+            let next = 'menu';
+            if(step === 'menu') next = 'address';
+            if(step === 'address') next = 'final';
+            if(step === 'final') next = 'restart';
+
+            setTimeout(() => {
+                addBtns(s.btns, next);
+            }, 500);
+
+            if(step === 'final') {
+                // Trigger Admin View
+                setTimeout(() => {
+                    // Show Popup
+                    popupText.innerText = `${currentSelection} - Delivery`;
+                    popup.classList.add('active');
+                    
+                    // Print Ticket
+                    waitingMsg.style.display = 'none';
+                    ticketContent.innerHTML = `<div class="ticket-row"><span>1x ${currentSelection}</span><span>$${currentPrice}</span></div>`;
+                    ticketTotal.innerText = `TOTAL: $${currentPrice}`;
+                    ticket.classList.add('active');
+
+                    setTimeout(() => popup.classList.remove('active'), 4000);
+                }, 1000);
+            }
+        }
+
+        function restartDemo() {
+            chatBody.innerHTML = "";
+            ticket.classList.remove('active');
+            setTimeout(() => {
+                waitingMsg.style.display = 'block';
+                startFlow('start');
+            }, 500);
+        }
+
+        startFlow('start');
+    </script>
+</body>
+</html>

@@ -1,8 +1,7 @@
-const fs = require('fs');
 
-const point = { lat: -38.7186095, lng: -62.2658254 }; // chiclana 60
+const isPointInPolygon = (point, geojson) => {
+    if (!geojson || !geojson.type || !geojson.coordinates) return false;
 
-function isPointInPolygon(point, geojson) {
     const checkRing = (coords) => {
         let inside = false;
         for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
@@ -16,25 +15,35 @@ function isPointInPolygon(point, geojson) {
         return inside;
     };
 
-    if (geojson.type === 'Polygon') return checkRing(geojson.coordinates[0]);
-    if (geojson.type === 'MultiPolygon') {
-        return geojson.coordinates.some(polygonCoords => checkRing(polygonCoords[0]));
-    }
+    if (geojson.type === 'Polygon') {
+        return checkRing(geojson.coordinates[0]);
+    } 
     return false;
-}
+};
 
-const data = JSON.parse(fs.readFileSync('./client/src/data/bahia-neighborhoods.json', 'utf8'));
+// Test 1: Point inside a simple square
+const poly1 = {
+    type: 'Polygon',
+    coordinates: [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]] // [lng, lat]
+};
+const point1 = { lat: 15, lng: 15 };
+console.log('Test 1 (Inside):', isPointInPolygon(point1, poly1)); // Expect true
 
-// The user might have meant a variation of Loreto
-const loretos = data.features.filter(f => f.properties.name.toUpperCase().includes('LORETO'));
+// Test 2: Point outside
+const point2 = { lat: 5, lng: 5 };
+console.log('Test 2 (Outside):', isPointInPolygon(point2, poly1)); // Expect false
 
-console.log("Found matches for LORETO:", loretos.map(f => f.properties.name));
-
-for (const feature of loretos) {
-    const isInside = isPointInPolygon(point, feature.geometry);
-    console.log(`Is Chiclana 60 inside ${feature.properties.name}?`, isInside);
-}
-
-// Let's also check all features to see which one chiclana 60 is actually inside!
-const insideFeatures = data.features.filter(f => isPointInPolygon(point, f.geometry));
-console.log("Chiclana 60 is actually inside:", insideFeatures.map(f => f.properties.name));
+// Test 3: Bahia Blanca real-ish poly
+// Bahia Blanca is roughly around -38.7, -62.2
+const bahiapoly = {
+    type: 'Polygon',
+    coordinates: [[
+        [-62.28, -38.72],
+        [-62.25, -38.72],
+        [-62.25, -38.70],
+        [-62.28, -38.70],
+        [-62.28, -38.72]
+    ]]
+};
+const addressPoint = { lat: -38.71, lng: -62.27 }; // Inside
+console.log('Test 3 (BB Inside):', isPointInPolygon(addressPoint, bahiapoly)); // Expect true

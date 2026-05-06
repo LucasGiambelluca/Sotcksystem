@@ -10,7 +10,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Save, Trash2, Download, Upload } from 'lucide-react';
+import { Save, Trash2, Download, Upload, Menu, X, Plus, ChevronLeft, Settings as SettingsIcon } from 'lucide-react';
 // ... existing imports ...
 
 // ... inside BotBuilder component ...
@@ -39,6 +39,7 @@ import HandoverNode from '../components/bot-builder/HandoverNode';
 import BusinessHoursNode from '../components/bot-builder/BusinessHoursNode';
 import SendCatalogNode from '../components/bot-builder/SendCatalogNode';
 import SendMediaNode from '../components/bot-builder/SendMediaNode';
+import MobileNodeSelector from '../components/bot-builder/MobileNodeSelector';
 import OrderStatusNode from '../components/bot-builder/OrderStatusNode';
 import GroqNode from '../components/bot-builder/GroqNode';
 import IntentResolverNode from '../components/bot-builder/IntentResolverNode';
@@ -120,6 +121,10 @@ export default function BotBuilder() {
   const [flowName, setFlowName] = useState('Nuevo Flujo');
   const [trigger, setTrigger] = useState('hola');
   const [isActive, setIsActive] = useState(true);
+  
+  // Mobile states
+  const [isNodeSelectorOpen, setIsNodeSelectorOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Load flows list on mount
   useEffect(() => {
@@ -242,22 +247,19 @@ export default function BotBuilder() {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
 
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (typeof type === 'undefined' || !type) return;
 
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
+  const addNodeByType = useCallback((type: string, position?: { x: number, y: number }) => {
+      const pos = position || (reactFlowInstance ? reactFlowInstance.getViewport() : { x: 0, y: 0, zoom: 1 });
+      const finalPosition = position || { 
+          x: (-pos.x + window.innerWidth / 2) / pos.zoom, 
+          y: (-pos.y + window.innerHeight / 2) / pos.zoom 
+      };
 
       const newNode: Node = {
         id: getId(),
         type,
-        position,
+        position: finalPosition,
         data: { 
             // Default data
             text: type === 'messageNode' || type === 'mediaUploadNode' ? '' : undefined,
@@ -328,10 +330,25 @@ export default function BotBuilder() {
       };
 
       setNodes((nds) => nds.concat(newNode));
+  }, [reactFlowInstance, setNodes, deleteNode, updateNodeData]);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData('application/reactflow');
+      if (typeof type === 'undefined' || !type) return;
+
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      addNodeByType(type, position);
     },
-    [reactFlowInstance, setNodes]
+    [reactFlowInstance, addNodeByType]
   );
-  
+
   const handleSave = async () => {
     if (!reactFlowInstance) return;
     const flow = reactFlowInstance.toObject();
@@ -473,9 +490,9 @@ export default function BotBuilder() {
   return (
     <div className="flex h-screen w-full">
       <ReactFlowProvider>
-        <div className="flex-1 flex flex-col h-full bg-gray-50" ref={reactFlowWrapper}>
-            {/* Header */}
-            <div className="h-16 bg-white border-b flex items-center justify-between px-4 z-10 shadow-sm">
+        <div className="flex-1 flex flex-col h-full bg-gray-50 overflow-hidden" ref={reactFlowWrapper}>
+            {/* Header - Desktop */}
+            <div className="hidden lg:flex h-16 bg-white border-b items-center justify-between px-4 z-10 shadow-sm">
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col">
                         <label className="text-xs text-gray-500 font-semibold mb-1">Mis Flujos</label>
@@ -484,19 +501,11 @@ export default function BotBuilder() {
                             value={currentFlowId === null ? '' : (currentFlowId ?? '')}
                             onChange={(e) => {
                                 const val = e.target.value;
-                                console.log('🔄 Selected ID:', val);
                                 if (val === '') {
                                     createNewFlow();
                                 } else {
-                                    // IDs can be UUIDs (strings) or Numbers. strict comparison might fail if types differ.
-                                    // We compare as strings to be safe.
                                     const flow = flows.find(f =>String(f.id) === String(val));
-                                    console.log('🔄 Found Flow:', flow);
-                                    if (flow) {
-                                        loadFlow(flow);
-                                    } else {
-                                        toast.error('Error al cargar flujo ' + val);
-                                    }
+                                    if (flow) loadFlow(flow);
                                 }
                             }}
                         >
@@ -579,8 +588,35 @@ export default function BotBuilder() {
                 </div>
             </div>
 
+            {/* Header - Mobile */}
+            <div className="lg:hidden h-14 bg-[#6366f1] flex items-center justify-between px-4 z-20 shadow-md">
+                <div className="flex items-center gap-3">
+                    <button onClick={() => window.history.back()} className="text-white">
+                        <ChevronLeft size={24} />
+                    </button>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-white/70 uppercase font-bold tracking-wider">Flujo Actual</span>
+                        <h1 className="text-white font-bold text-sm truncate max-w-[150px]">{flowName}</h1>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleSave}
+                        className="p-2 bg-white/20 text-white rounded-lg active:scale-95 transition"
+                    >
+                        <Save size={20} />
+                    </button>
+                    <button 
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        className="p-2 bg-white/20 text-white rounded-lg active:scale-95 transition"
+                    >
+                        <Menu size={20} />
+                    </button>
+                </div>
+            </div>
+
             {/* Canvas */}
-            <div className="flex-1 w-full h-full">
+            <div className="flex-1 w-full h-full relative">
                 <ReactFlow
                     key={currentFlowId || 'initial'}
                     nodes={nodes}
@@ -603,10 +639,118 @@ export default function BotBuilder() {
                         setEdges((eds) => eds.filter((e) => e.id !== edge.id));
                     }}
                     fitView
+                    // Mobile adjustments for touch
+                    paneMoveable={true}
+                    zoomOnPinch={true}
+                    zoomOnDoubleClick={false}
                 >
-                    <Controls />
+                    <Controls className="hidden lg:block" />
                     <Background color="#aaa" gap={16} />
                 </ReactFlow>
+
+                {/* FAB - Mobile */}
+                <button 
+                    onClick={() => setIsNodeSelectorOpen(true)}
+                    className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#6366f1] text-white rounded-full shadow-xl flex items-center justify-center z-30 active:scale-90 transition-transform"
+                >
+                    <Plus size={28} />
+                </button>
+
+                {/* Mobile Flow Management Drawer */}
+                {isMobileMenuOpen && (
+                    <div className="fixed inset-0 z-[110] bg-black/50 animate-in fade-in duration-300">
+                        <div className="absolute inset-y-0 right-0 w-[80%] max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+                            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+                                <h3 className="font-bold text-gray-800">Ajustes de Flujo</h3>
+                                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-200 rounded-full">
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            
+                            <div className="p-4 flex-1 overflow-y-auto space-y-6">
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase">Nombre</label>
+                                        <input 
+                                            className="w-full border-gray-300 rounded-xl p-3 bg-gray-50"
+                                            value={flowName}
+                                            onChange={(e) => setFlowName(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-500 font-bold uppercase">Palabra Clave</label>
+                                        <input 
+                                            className="w-full border-gray-300 rounded-xl p-3 bg-gray-50 font-mono text-blue-600"
+                                            value={trigger}
+                                            onChange={(e) => setTrigger(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                        <span className="text-sm font-medium text-gray-700">Estado Activo</span>
+                                        <label className="flex items-center cursor-pointer relative">
+                                            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="sr-only peer" />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t space-y-3">
+                                    <label className="text-xs text-gray-500 font-bold uppercase block mb-2">Cambiar de Flujo</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <button 
+                                            onClick={() => { createNewFlow(); setIsMobileMenuOpen(false); }}
+                                            className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-gray-300 text-blue-600 font-medium text-sm hover:bg-blue-50"
+                                        >
+                                            <Plus size={18} /> Nuevo Flujo
+                                        </button>
+                                        {flows.map(f => (
+                                            <button 
+                                                key={f.id}
+                                                onClick={() => { loadFlow(f); setIsMobileMenuOpen(false); }}
+                                                className={`flex items-center justify-between p-3 rounded-xl border ${String(f.id) === String(currentFlowId) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-100 text-gray-700'}`}
+                                            >
+                                                <span className="text-sm font-medium truncate">{f.name}</span>
+                                                <div className={`w-2 h-2 rounded-full ${f.is_active ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t grid grid-cols-2 gap-3">
+                                    <button 
+                                        onClick={handleExport}
+                                        className="flex flex-col items-center justify-center gap-2 p-4 bg-gray-50 rounded-2xl text-gray-600 active:bg-gray-100"
+                                    >
+                                        <Download size={20} />
+                                        <span className="text-xs font-bold">Exportar</span>
+                                    </button>
+                                    <label className="flex flex-col items-center justify-center gap-2 p-4 bg-gray-50 rounded-2xl text-gray-600 active:bg-gray-100 cursor-pointer">
+                                        <Upload size={20} />
+                                        <span className="text-xs font-bold">Importar</span>
+                                        <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+                                    </label>
+                                </div>
+
+                                {currentFlowId && (
+                                    <button 
+                                        onClick={() => { handleDelete(); setIsMobileMenuOpen(false); }}
+                                        className="w-full p-4 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center gap-2 font-bold border border-red-100 mt-4"
+                                    >
+                                        <Trash2 size={18} />
+                                        Eliminar Flujo
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Mobile Node Selector */}
+                <MobileNodeSelector 
+                    isOpen={isNodeSelectorOpen} 
+                    onClose={() => setIsNodeSelectorOpen(false)} 
+                    onSelect={(type) => addNodeByType(type)} 
+                />
             </div>
         </div>
         <Sidebar />

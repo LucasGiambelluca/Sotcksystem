@@ -1,0 +1,24 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: stock-proxy-master
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./sites-enabled:/etc/caddy/sites-enabled
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    external: true
+    name: stocksystem-proxy-net
+
+volumes:
+  caddy_data:
+  caddy_config:

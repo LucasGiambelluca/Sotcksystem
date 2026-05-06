@@ -1,24 +1,5 @@
 services:
   # ==========================================
-  # CADDY - Reverse proxy con HTTPS automático (Let's Encrypt)
-  # ==========================================
-  caddy:
-    image: caddy:2-alpine
-    container_name: stock-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - stock-network
-    restart: unless-stopped
-    depends_on:
-      - app
-
-  # ==========================================
   # APP - Node.js + Express (sirve React y API)
   # ==========================================
   app:
@@ -30,10 +11,8 @@ services:
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
         - VITE_APP_SLUG=${VITE_APP_SLUG:-eldelirio}
-    container_name: stock-app
     env_file:
       - .env
-    # Puerto NO expuesto directamente — acceso solo vía Caddy
     expose:
       - "3001"
     environment:
@@ -80,7 +59,6 @@ services:
   # ==========================================
   redis:
     image: redis:7-alpine
-    container_name: stock-redis
     volumes:
       - redis_data:/data
     networks:
@@ -95,16 +73,10 @@ services:
 
 volumes:
   baileys_sessions:
-    driver: local
   backend_logs:
-    driver: local
   redis_data:
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
-    driver: local
 
 networks:
   stock-network:
-    driver: bridge
+    external: true
+    name: stocksystem-proxy-net

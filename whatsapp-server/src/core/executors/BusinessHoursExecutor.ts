@@ -58,6 +58,25 @@ export class BusinessHoursExecutor implements NodeExecutor {
             const currentDay = weekdayMap[weekdayStr] ?? now.getDay();
             const currentMinutes = toMinutes(parseInt(hourStr, 10), parseInt(minuteStr, 10));
 
+            // 2.1 Check for Special Closures (Holidays/Vacations)
+            const specialClosures = businessHours.specialClosures || [];
+            const datePartsFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone || 'America/Argentina/Buenos_Aires',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const dParts = datePartsFormatter.formatToParts(now);
+            const y = dParts.find(p => p.type === 'year')?.value;
+            const m = dParts.find(p => p.type === 'month')?.value;
+            const d = dParts.find(p => p.type === 'day')?.value;
+            const currentDateStr = `${y}-${m}-${d}`;
+
+            if (specialClosures.includes(currentDateStr)) {
+                console.log(`[BusinessHoursExecutor] ❌ CLOSED: Special closure detected for date ${currentDateStr}`);
+                return { messages: [], wait_for_input: false, conditionResult: false };
+            }
+
             const isDayOpen = (days as number[]).includes(currentDay);
             if (!isDayOpen) {
                 console.log(`[BusinessHoursExecutor] ❌ CLOSED: Day ${weekdayStr}(${currentDay}) not in open days [${days}]`);

@@ -93,14 +93,14 @@ export class LocationService {
                     const normalizedAddress = address.replace(/([a-zA-Z])(\d)/g, '$1 $2');
                     
                     const { GeocodingService } = require('./GeocodingService');
-                    const geo = await GeocodingService.geocode(normalizedAddress, 'Bahia Blanca, Argentina');
+                    const geo = await GeocodingService.geocode(normalizedAddress);
                     
                     if (geo) {
                         clientLocation = { lat: geo.lat, lng: geo.lng };
-                        logger.info(`[LocationService] Geocodificado "${normalizedAddress}" a ${geo.lat}, ${geo.lng} (Google)`);
+                        logger.info(`[LocationService] Geocodificado "${normalizedAddress}" a ${geo.lat}, ${geo.lng} (Google Fallback)`);
                     }
                 } catch (e: any) {
-                    logger.error(`[LocationService] Geocoding (Google) failed: ${e.message}`);
+                    logger.error(`[LocationService] Geocoding (Google Fallback) failed: ${e.message}`);
                 }
             }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
-import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store, Globe, Shield, ShieldOff, MapPin, Search, Loader2, Printer } from 'lucide-react';
+import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store, Globe, Shield, ShieldOff, MapPin, Search, Loader2, Printer, Calendar } from 'lucide-react';
 import ShippingMap from '../components/ShippingMap';
 import type { ShippingZone } from '../types';
 
@@ -981,6 +981,83 @@ export default function Settings() {
                                         className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 font-bold"
                                     />
                                     <span className="text-sm text-gray-500">Ej: 20 min antes del cierre no se aceptan más pedidos.</span>
+                                </div>
+                             </div>
+
+                             <div className="pt-4 border-t border-gray-100 mt-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-800">Cierres Especiales (Feriados / Vacaciones)</label>
+                                        <p className="text-[10px] text-gray-500">El local permanecerá cerrado durante todo el día en las fechas seleccionadas.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="date" 
+                                            id="special-closure-date"
+                                            className="text-sm border rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                const dateInput = document.getElementById('special-closure-date') as HTMLInputElement;
+                                                const date = dateInput.value;
+                                                if (!date) {
+                                                    toast.error('Seleccione una fecha');
+                                                    return;
+                                                }
+                                                
+                                                const currentClosures = waConfig.business_hours?.specialClosures || [];
+                                                if (currentClosures.includes(date)) {
+                                                    toast.error('Esta fecha ya está programada');
+                                                    return;
+                                                }
+
+                                                setWaConfig({
+                                                    ...waConfig,
+                                                    business_hours: {
+                                                        ...(waConfig.business_hours || { isActive: false, days: [], timezone: 'America/Argentina/Buenos_Aires' }),
+                                                        specialClosures: [...currentClosures, date].sort()
+                                                    }
+                                                });
+                                                dateInput.value = '';
+                                                toast.success('Fecha agregada');
+                                            }}
+                                            className="bg-red-600 text-white px-4 py-1.5 rounded-lg hover:bg-red-700 flex items-center gap-2 text-sm font-medium transition shadow-sm"
+                                        >
+                                            <Plus size={16} /> Programar
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                    {(waConfig.business_hours?.specialClosures || []).map(date => (
+                                        <div key={date} className="flex items-center gap-2 bg-white text-red-700 px-3 py-1.5 rounded-lg border border-red-100 text-sm shadow-sm hover:shadow-md transition-all group">
+                                            <Calendar size={14} className="text-red-400" />
+                                            <span className="font-semibold">
+                                                {new Date(date + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400">{new Date(date + 'T00:00:00').getFullYear()}</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const newClosures = (waConfig.business_hours?.specialClosures || []).filter(d => d !== date);
+                                                    setWaConfig({
+                                                        ...waConfig,
+                                                        business_hours: { ...waConfig.business_hours!, specialClosures: newClosures }
+                                                    });
+                                                    toast.success('Fecha eliminada');
+                                                }}
+                                                className="text-gray-300 hover:text-red-600 ml-1 p-0.5 rounded-full transition-colors"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(waConfig.business_hours?.specialClosures || []).length === 0 && (
+                                        <div className="flex items-center gap-2 text-gray-400 w-full justify-center py-2">
+                                            <Clock size={14} className="opacity-50" />
+                                            <p className="text-xs italic">No hay cierres especiales programados.</p>
+                                        </div>
+                                    )}
                                 </div>
                              </div>
                          </div>

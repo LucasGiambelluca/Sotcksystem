@@ -333,6 +333,7 @@ export interface WhatsAppConfig {
     shifts?: { startTime: string; endTime: string }[];
     cutoffMinutes?: number;
     timezone: string;
+    specialClosures?: string[];
   };
   catalog_banner_url?: string;
   catalog_logo_url?: string;

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquare, HelpCircle, GitFork, BarChart2, Store, ShoppingCart, ShoppingBag, CheckCircle, ArrowRightCircle, MousePointerClick, UploadCloud, FileText, PauseCircle, Clock, ChevronLeft, ChevronRight, AlertTriangle, PackageSearch, Image, Search, Brain, MapPin, Trash2, Mic, Bot, Zap, Database, Scissors, Spline } from 'lucide-react';
 
-const nodeItems = [
+export const nodeItems = [
   { type: 'webhookNode', icon: Zap, label: 'Hook / Inicio', desc: 'Gatillo de entrada.', bg: 'bg-amber-100', text: 'text-amber-600' },
   { type: 'mediaTypeDetectorNode', icon: Mic, label: 'Detector Media', desc: '¿Audio o Texto?', bg: 'bg-violet-100', text: 'text-violet-600' },
   { type: 'keywordNode', icon: Search, label: 'Keyword Switch', desc: 'Busca palabras clave y ramifica.', bg: 'bg-indigo-100', text: 'text-indigo-600' },
@@ -49,7 +49,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`${collapsed ? 'w-12' : 'w-52'} bg-white border-l border-gray-200 flex flex-col h-full transition-all duration-200 relative`}>
+    <aside className={`${collapsed ? 'w-12' : 'w-52'} hidden lg:flex bg-white border-l border-gray-200 flex-col h-full transition-all duration-200 relative`}>
       {/* Toggle button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
