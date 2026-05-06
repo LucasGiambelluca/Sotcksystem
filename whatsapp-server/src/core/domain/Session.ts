@@ -12,7 +12,7 @@ export interface SessionContext {
       [key: string]: any;
     };
     // Shared variables across all flows (Phase 3)
-    shared?: {
+    shared: {
       [key: string]: any;
     };
   };

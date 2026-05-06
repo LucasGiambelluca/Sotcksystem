@@ -819,15 +819,15 @@ export class ConversationRouter {
         let bestMatch: any = null;
         let bestScore = 0;
         const normalizedInput = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const inputTokens = normalizedInput.split(/\s+/).filter(w => w.length > 2);
+        const inputTokens = normalizedInput.split(/\s+/).filter((w: string) => w.length > 2);
 
         for (const opt of options) {
             const normOpt = opt.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const optTokens = normOpt.split(/\s+/).filter(w => w.length > 2);
+            const optTokens = normOpt.split(/\s+/).filter((w: string) => w.length > 2);
             
             let matchCount = 0;
             for (const it of inputTokens) {
-                if (optTokens.some(ot => ot.includes(it) || it.includes(ot))) matchCount++;
+                if (optTokens.some((ot: string) => ot.includes(it) || it.includes(ot))) matchCount++;
             }
             
             const score = inputTokens.length > 0 ? matchCount / inputTokens.length : 0;

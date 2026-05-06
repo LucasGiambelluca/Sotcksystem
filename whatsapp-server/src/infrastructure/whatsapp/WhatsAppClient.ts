@@ -132,7 +132,7 @@ class WhatsAppClient {
                 
                 if (!process.env.PAIRING_PHONE_NUMBER) {
                     console.log('📱 QR Code generated. Scan it below:');
-                    qrcode.toString(qr, { type: 'terminal', small: true }, (err, url) => {
+                    qrcode.toString(qr, { type: 'terminal', small: true }, (err: Error | null, url: string) => {
                         if (err) console.error(err);
                         else console.log(url);
                     });

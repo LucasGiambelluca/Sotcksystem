@@ -95,7 +95,7 @@ export class OrderService {
         }
 
         // 4. Crear los Items (con catalog_item_id para el trigger de comandas)
-        let fallbackProductId = null;
+        let fallbackProductId: string | null = null;
 
         const orderItemsData = items.map(item => {
             const row: any = {
@@ -187,7 +187,7 @@ export class OrderService {
         }
 
         // 2. Obtener carga actual de cada preparador
-        const preparerLoads = await Promise.all(preparers.map(async (p) => {
+        const preparerLoads = await Promise.all(preparers.map(async (p: any) => {
             const { count } = await this.db
                 .from('orders')
                 .select('*', { count: 'exact', head: true })

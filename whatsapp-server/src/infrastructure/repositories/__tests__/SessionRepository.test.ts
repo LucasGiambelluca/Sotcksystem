@@ -38,7 +38,7 @@ describe('SessionRepository', () => {
       const session = new Session(
         'sess-123', '123', '123',
         { 
-          variables: { global: { phoneNumber: '123', chatJid: '123', startedAt: 'now' } },
+          variables: { shared: {}, global: { phoneNumber: '123', chatJid: '123', startedAt: 'now' } },
           interactionLog: [],
           metadata: { flowId: 'f', flowVersion: 1, entryPoint: 'trigger' }
         },

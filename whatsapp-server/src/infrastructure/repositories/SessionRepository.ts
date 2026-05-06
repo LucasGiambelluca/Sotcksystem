@@ -65,6 +65,7 @@ export class SessionRepository {
   ): Promise<Session> {
     const context: SessionContext = {
       variables: {
+        shared: initialContext?.variables?.shared || {},
         global: {
           phoneNumber: userPhone,
           chatJid: sessionId.includes(':') ? sessionId.split(':')[1] : userPhone,

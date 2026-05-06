@@ -401,17 +401,17 @@ export class OrderNotificationListener {
       }
 
       // 2. Fetch WhatsApp Config for templates
-      const waConfigRaw = await ConfigurationService.getFullConfig();
+      const waConfigRaw: Record<string, any> = await ConfigurationService.getFullConfig() as any;
       // Emulate the structure expected by the original code (or refactor to use appConfig directly)
       const waConfig = {
-          template_confirmed: waConfigRaw['template_confirmed' as any], 
-          template_preparation: waConfigRaw['template_preparation' as any],
-          template_delivered: waConfigRaw['template_delivered' as any],
-          template_cancelled: waConfigRaw['template_cancelled' as any],
-          template_ready: waConfigRaw['template_ready' as any],
-          template_transit: waConfigRaw['template_transit' as any] || waConfigRaw['template_out_delivery' as any],
-          template_picked_up: waConfigRaw['template_picked_up' as any],
-          template_arrived: waConfigRaw['template_arrived' as any]
+          template_confirmed: waConfigRaw['template_confirmed'], 
+          template_preparation: waConfigRaw['template_preparation'],
+          template_delivered: waConfigRaw['template_delivered'],
+          template_cancelled: waConfigRaw['template_cancelled'],
+          template_ready: waConfigRaw['template_ready'],
+          template_transit: waConfigRaw['template_transit'] || waConfigRaw['template_out_delivery'],
+          template_picked_up: waConfigRaw['template_picked_up'],
+          template_arrived: waConfigRaw['template_arrived']
       };
 
       // 3. Select Template

@@ -80,7 +80,7 @@ export class InventoryManager {
                 .gt('stock', 0)
                 .limit(limit);
 
-            return (alternatives || []).map(a => ({
+            return (alternatives || []).map((a: any) => ({
                 productId: a.id,
                 name: a.name,
                 price: a.price,

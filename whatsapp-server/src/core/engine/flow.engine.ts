@@ -164,17 +164,18 @@ export class FlowEngine {
                         zona_delivery: appConfig.shipping_policy || 'Consultar zona de cobertura',
                         catalog_summary: products?.map((p: any) => `${p.name} ($${p.price})`).join(', ') || 'Sin productos disponibles'
                     };
-                } catch (e) {
-                    logger.error(`[FlowEngine] Error building business context: ${e.message}`);
+                } catch (e: any) {
+                    logger.error(`[FlowEngine] Error building business context: ${(e as Error).message}`);
                 }
 
                 // --- DYNAMIC START NODE (Webhook priority) ---
-                const fullFlow = await this.getFlowDefinition(flowId);
+                const fullFlow = await this.getFlowDefinition(flowId!);
                 const webhookNode = fullFlow?.nodes?.find((n: any) => n.type === 'webhookNode');
                 const effectiveStartNodeId = options.startNodeId || webhookNode?.id || 'start';
 
-                session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId, {
+                session = await this.sessionRepository.getOrCreate(sessionId, phone, flowId!, {
                     variables: { 
+                        shared: {},
                         global: { 
                             ...context, 
                             ...businessContext, 
@@ -187,7 +188,7 @@ export class FlowEngine {
                             _is_audio: context?._isAudio || false
                         } 
                     },
-                    metadata: { flowId: flowId, flowVersion: 1, entryPoint: flowId === options.flowId ? 'manual' : 'trigger' }
+                    metadata: { flowId: flowId!, flowVersion: 1, entryPoint: flowId === options.flowId ? 'manual' : 'trigger' }
                 }, effectiveStartNodeId);
                 
                 const expirationDate = new Date();
@@ -196,7 +197,7 @@ export class FlowEngine {
                 
                 if (!(options.startNodeId && options.startNodeId !== 'start')) {
                     const nodes = fullFlow?.nodes || [];
-                    const startNode = nodes.find((n: any) => n.id === session.currentNodeId);
+                    const startNode = nodes.find((n: any) => n.id === session!.currentNodeId);
                     if (!(startNode && ['intentResolverNode', 'groqNode', 'questionNode', 'webhookNode'].includes(startNode.type))) {
                         await this.handleInput(session, this.normalizeInput(messageText));
                     }
@@ -602,7 +603,7 @@ export class FlowEngine {
         
         // 1. Fetch from cached list
         const { data } = await this.getAllActiveFlows();
-        if (!data || data.length === 0) return null;
+        if (!data || data.length === 0) return { flow: null, isWildcard: false };
         
         // 2. Try EXACT match first
         const exactMatch = data.find((f: any) => {

@@ -92,11 +92,11 @@ export class DeliverySlotService {
             return [];
         }
 
-        return (data || []).map(slot => ({
+        return (data || []).map((slot: any) => ({
             ...slot,
             remaining: slot.max_orders - slot.orders_count,
             display: this.formatSlotDisplay(new Date(slot.date + 'T00:00:00'), slot.time_start, slot.time_end)
-        })).filter(s => (s.remaining || 0) > 0);
+        })).filter((s: any) => (s.remaining || 0) > 0);
     }
 
     /**

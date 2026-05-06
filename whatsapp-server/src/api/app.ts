@@ -92,7 +92,7 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-    origin: function (origin, callback) {
+    origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         // Permitir requests sin origin (e.g. Postman, curl, mobile apps, mismo servidor)
         if (!origin) return callback(null, true);
         
@@ -108,7 +108,7 @@ app.use(cors({
 }));
 
 app.use(express.json({
-    verify: (req: any, _res, buf) => {
+    verify: (req: any, _res: any, buf: Buffer) => {
         if (req.originalUrl && req.originalUrl.includes('webhook')) {
             req.rawBody = buf;
             console.log(`[Debug] Captured rawBody for ${req.originalUrl}, length: ${buf.length}`);
