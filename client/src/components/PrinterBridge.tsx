@@ -19,40 +19,25 @@ export default function PrinterBridge() {
       console.log('🖨️ Nuevo trabajo detectado:', job.id);
       
       try {
-        await printerService.printToRawBT(job.raw_content);
-        await printerService.markAsPrinted(job.id);
-      } catch (err) {
+        const success = await printerService.printToRawBT(job.raw_content);
+        if (success) {
+          await printerService.updateJobStatus(job.id, 'printed');
+        } else {
+          await printerService.updateJobStatus(job.id, 'failed', 'Error al enviar a RawBT');
+        }
+      } catch (err: any) {
         console.error('Error en el puente:', err);
+        await printerService.updateJobStatus(job.id, 'failed', err.message);
       }
     });
 
     const checkRawBT = async () => {
-      const ports = ['127.0.0.1', 'localhost'];
-      let found = false;
-
-      for (const host of ports) {
-        if (found) break;
-        try {
-          const socket = new WebSocket(`ws://${host}:40213`);
-          
-          socket.onopen = () => {
-            setIsConnected(true);
-            found = true;
-            socket.close();
-          };
-          
-          // Esperamos un poquito a ver si conecta
-          await new Promise(r => setTimeout(r, 500));
-        } catch (e) {
-          // Falló este intento
-        }
-      }
-      
-      if (!found) setIsConnected(false);
+      const available = await printerService.checkRawBT();
+      setIsConnected(available);
     };
 
     checkRawBT();
-    const interval = setInterval(checkRawBT, 10000);
+    const interval = setInterval(checkRawBT, 15000); // Check every 15s
 
     return () => {
       subscription.unsubscribe();

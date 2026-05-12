@@ -62,15 +62,22 @@ $DOMAIN {
 EOF
 
 # 3. Preparar variables de entorno para el Build
-# Nota: Aquí podrías copiar un .env base si existe
-echo -e "${YELLOW}Preparando entorno...${NC}"
+ENV_FILE=".env.${TENANT_ID}"
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "${RED}❌ Archivo de entorno no encontrado: $ENV_FILE${NC}"
+    echo -e "${YELLOW}Por favor, crea un archivo $ENV_FILE con las variables para este tenant.${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}Preparando entorno usando $ENV_FILE...${NC}"
 export VITE_API_URL="https://$DOMAIN"
 export VITE_APP_SLUG="$SLUG"
 export CATALOG_SLUG="$SLUG"
+export TENANT_ENV_FILE="$ENV_FILE"
 
 # 4. Construir y Levantar
 echo -e "${CYAN}🏗️ Construyendo y levantando instancia...${NC}"
-docker compose -f docker-compose.prod.yml -p "$TENANT_ID" up -d --build
+docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" -p "$TENANT_ID" up -d --build
 
 # 5. Recargar Proxy Maestro
 echo -e "${YELLOW}Recargando Proxy Maestro...${NC}"

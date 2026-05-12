@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
 import { Save, Plus, Trash2, Clock, Map, MessageSquare, Power, Store, Globe, Shield, ShieldOff, MapPin, Search, Loader2, Printer, Calendar } from 'lucide-react';
 import ShippingMap from '../components/ShippingMap';
+import { printerService } from '../services/printerService';
 import type { ShippingZone } from '../types';
 
 
@@ -43,11 +44,23 @@ export default function Settings() {
     print_shipping_fee: boolean;
     printer_connection_type: 'USB' | 'NETWORK';
     printer_ip: string;
+    paper_width: number;
   } | null>(null);
 
   
   const [loading, setLoading] = useState(true);
   const [geocodingLoading, setGeocodingLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    const checkRawBT = async () => {
+      const available = await printerService.checkRawBT();
+      setIsConnected(available);
+    };
+    checkRawBT();
+    const interval = setInterval(checkRawBT, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
 
   useEffect(() => {
@@ -295,6 +308,7 @@ export default function Settings() {
           print_shipping_fee: printerConfig.print_shipping_fee,
           printer_connection_type: printerConfig.printer_connection_type,
           printer_ip: printerConfig.printer_ip,
+          paper_width: printerConfig.paper_width,
           updated_at: new Date().toISOString()
         })
         .eq('id', printerConfig.id);
@@ -1381,6 +1395,34 @@ export default function Settings() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
+                {/* Nueva Sección: Detección RawBT */}
+                <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-bold text-blue-900 text-sm flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                      Estado de RawBT (Android)
+                    </h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {isConnected ? 'Conectado' : 'No detectado'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-700 leading-tight mb-2">
+                    {isConnected 
+                      ? 'La conexión directa está activa. Los tickets se imprimirán automáticamente sin ventanas emergentes.'
+                      : 'Asegúrate de tener abierta la App RawBT en este dispositivo Android para una mejor experiencia.'}
+                  </p>
+                  {!isConnected && (
+                    <a 
+                      href="https://play.google.com/store/apps/details?id=ru.a40213.rawbtprinter" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-blue-600 font-bold hover:underline"
+                    >
+                      Descargar RawBT en Google Play →
+                    </a>
+                  )}
+                </div>
+
                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -1400,6 +1442,29 @@ export default function Settings() {
                       />
                     </button>
                   </div>
+                </div>
+
+                {/* Nuevo: Ancho de Papel */}
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Ancho del Papel (Thermal)</label>
+                    <div className="flex gap-2">
+                        {[58, 80].map(width => (
+                            <button
+                                key={width}
+                                onClick={() => setPrinterConfig({...printerConfig, paper_width: width})}
+                                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all border ${
+                                    printerConfig.paper_width === width 
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                }`}
+                            >
+                                {width}mm
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-2">
+                        * La mayoría de las impresoras portátiles/Android usan 58mm. Las de escritorio usan 80mm.
+                    </p>
                 </div>
 
                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -1503,78 +1568,14 @@ export default function Settings() {
                       placeholder="¡Gracias por su compra!"
                     />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Margen Superior (Líneas)</label>
-                      <input 
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={printerConfig.margin_top}
-                        onChange={(e) => setPrinterConfig({...printerConfig, margin_top: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Margen Inferior (Corte)</label>
-                      <input 
-                        type="number"
-                        min="0"
-                        max="20"
-                        value={printerConfig.margin_bottom}
-                        onChange={(e) => setPrinterConfig({...printerConfig, margin_bottom: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Conexion Impresora */}
-                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mt-6">
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-900 text-sm">Conexión local (Printer Bridge)</h3>
-                      <p className="text-xs text-gray-500">Configura cómo se conecta tu PC a la impresora en el local.</p>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo de Conexión</label>
-                          <select 
-                            value={printerConfig.printer_connection_type || 'USB'}
-                            onChange={(e) => setPrinterConfig({...printerConfig, printer_connection_type: e.target.value as any})}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
-                          >
-                              <option value="USB">Cable USB Directo</option>
-                              <option value="NETWORK">Wi-Fi / Red Local (Network)</option>
-                          </select>
-                        </div>
-
-                        {printerConfig.printer_connection_type === 'NETWORK' && (
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Dirección IP de la Impresora</label>
-                                <input 
-                                    type="text"
-                                    value={printerConfig.printer_ip || ''}
-                                    onChange={(e) => setPrinterConfig({...printerConfig, printer_ip: e.target.value})}
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Ej: 192.168.1.100"
-                                />
-                                <p className="text-[10px] text-gray-500 mt-1">
-                                    La IP que tiene conectada tu impresora en el Wi-Fi actual del local.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                  </div>
-
                 </div>
               </div>
 
               <div className="bg-gray-100 p-6 rounded-2xl border-2 border-dashed border-gray-300 relative overflow-hidden flex flex-col items-center">
                 <div className="absolute top-0 left-0 right-0 bg-gray-200 h-2" />
-                <div className="text-[10px] text-gray-400 font-mono mb-4">VISTA PREVIA DEL TICKET</div>
+                <div className="text-[10px] text-gray-400 font-mono mb-4 uppercase tracking-widest">Vista Previa ({printerConfig.paper_width}mm)</div>
                 
-                <div className="w-full max-w-[240px] bg-white shadow-lg p-4 font-mono text-[11px] space-y-3 text-gray-800 border-b-2 border-gray-200">
+                <div className={`w-full ${printerConfig.paper_width === 58 ? 'max-w-[180px]' : 'max-w-[240px]'} bg-white shadow-lg p-4 font-mono text-[10px] space-y-3 text-gray-800 border-b-2 border-gray-200 transition-all duration-500`}>
                   {/* Margen Top visual */}
                   {Array.from({ length: Math.min(printerConfig.margin_top, 3) }).map((_, i) => (
                     <div key={i} className="h-2" />
@@ -1591,17 +1592,17 @@ export default function Settings() {
                   <div className="mb-2">
                     <div className="font-bold">CLIENTE: Juan Pérez</div>
                     <div className="flex items-center gap-1 uppercase">🛵 DELIVERY</div>
-                    <div className="italic break-words">Dirección: Av. San Martín 123, Bahía Blanca</div>
+                    <div className="italic break-words">Dirección: Av. San Martín 123...</div>
                   </div>
                   
                   <div className="border-t border-dashed border-gray-400 pt-1"></div>
                   
                   <div className="flex justify-between">
-                    <span>2x Hamburguesa Clásica</span>
+                    <span>2x Hamburguesa...</span>
                     <span>$12000</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>1x Coca Cola 500ml</span>
+                    <span>1x Coca Cola...</span>
                     <span>$1500</span>
                   </div>
                   
@@ -1610,14 +1611,16 @@ export default function Settings() {
                     <span>$13500</span>
                   </div>
 
-                  <div className="text-center italic mt-4 px-2 whitespace-pre-wrap">{printerConfig.footer_message}</div>
+                  <div className="text-center italic mt-4 px-2 whitespace-pre-wrap leading-tight">{printerConfig.footer_message}</div>
 
                    {/* Margen Bottom visual */}
                    {Array.from({ length: Math.min(printerConfig.margin_bottom, 3) }).map((_, i) => (
                     <div key={i} className="h-2" />
                   ))}
                 </div>
-                <div className="mt-4 text-[10px] text-gray-400 italic">El tamaño real dependerá del papel (58mm/80mm)</div>
+                <div className="mt-4 text-[10px] text-gray-400 italic text-center px-4">
+                  * Esta es una representación aproximada. El ticket real se ajustará a tu impresora.
+                </div>
                 <button 
                   onClick={handleTestPrint}
                   className="mt-6 flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-all text-xs"

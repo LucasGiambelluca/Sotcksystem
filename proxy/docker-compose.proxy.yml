@@ -12,12 +12,12 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     networks:
-      - proxy-net
+      - stock-proxy-net
 
 networks:
-  proxy-net:
-    external: true
+  stock-proxy-net:
     name: stocksystem-proxy-net
+    driver: bridge
 
 volumes:
   caddy_data:

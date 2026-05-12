@@ -2,7 +2,7 @@ services:
   # ==========================================
   # APP - Node.js + Express (sirve React y API)
   # ==========================================
-  app:
+  stock-app:
     build:
       context: .
       dockerfile: Dockerfile.unified
@@ -12,7 +12,7 @@ services:
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
         - VITE_APP_SLUG=${VITE_APP_SLUG:-eldelirio}
     env_file:
-      - .env
+      - ${TENANT_ENV_FILE:-.env}
     expose:
       - "3001"
     environment:

@@ -1,0 +1,12 @@
+# Plantilla para Aplicación Secundaria (ej: VibraTickets)
+# ============================================================
+
+# Cambia 'vibratickets.com' por tu dominio real
+# vibratickets.com {
+#     # 'vibratickets-app' es el nombre del servicio en su docker-compose
+#     reverse_proxy vibratickets-app:3000 {
+#         transport http {
+#             dial_timeout 10s
+#         }
+#     }
+# }

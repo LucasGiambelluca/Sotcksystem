@@ -2,5 +2,5 @@
     email info@stocksystemspp.com
 }
 
-# Importar configuraciones específicas de cada tenant
+# Importar configuraciones específicas de cada aplicación/tenant
 import /etc/caddy/sites-enabled/*.caddy

@@ -1,0 +1,17 @@
+# Configuración para StockSystem
+# ============================================================
+
+stocksystemspp.com {
+    # Ruteo a la aplicación (contenedor stock-app en la red compartida)
+    reverse_proxy stock-app:3001 {
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 60s
+        }
+    }
+
+    # Logs específicos para este dominio (opcional)
+    log {
+        output file /data/stocksystemspp.log
+    }
+}
