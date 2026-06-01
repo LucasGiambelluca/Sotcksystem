@@ -1,19 +1,24 @@
 import Nav from './components/Nav';
 import Footer from './components/Footer';
+import Hero from './components/Hero';
 import InteractiveDemo from './components/InteractiveDemo';
+import Features from './components/Features';
+import Testimonials from './components/Testimonials';
+import Pricing from './components/Pricing';
+import Faq from './components/Faq';
 import ContactForm from './components/ContactForm';
 
 export default function App() {
   return (
     <div className="overflow-x-hidden">
       <Nav />
-      <main className="pt-20">
-        {/* Hero (Task 6) */}
+      <main>
+        <Hero />
         <InteractiveDemo />
-        {/* Features (Task 7) */}
-        {/* Testimonials (Task 8) */}
-        {/* Pricing (Task 9) */}
-        {/* Faq (Task 10) */}
+        <Features />
+        <Testimonials />
+        <Pricing />
+        <Faq />
         <ContactForm />
       </main>
       <Footer />
