@@ -45,7 +45,16 @@ export class FlowEngine {
             this.sessionQueues.set(sessionId, queue);
         }
 
-        return queue.enqueue({ phone, text: messageText, context, options });
+        const result = await queue.enqueue({ phone, text: messageText, context, options });
+        // Evict idle queue to prevent unbounded map growth (one entry per phone forever).
+        // Safe to check now: enqueue resolves only after THIS job's processor settles and
+        // the FIFO slot is released; if another message for this session is queued,
+        // queueLength > 0 and we correctly skip eviction.
+        const status = queue.getStatus();
+        if (status.queueLength === 0 && !status.processing) {
+            this.sessionQueues.delete(sessionId);
+        }
+        return result;
     }
 
     /**
