@@ -36,10 +36,18 @@ export class ConditionExecutor implements NodeExecutor {
             result = (val1 !== val2 && valRaw !== val2 && !isNumericMatch && !isLooseMatch && valIndex !== val2);
         } else if (operator === 'contains') {
             result = val1.includes(val2) || valRaw.includes(val2);
-        } else if (operator === 'greater_than') {
-            result = Number(val1) > Number(val2);
-        } else if (operator === 'less_than') {
-            result = Number(val1) < Number(val2);
+        } else if (operator === 'greater_than' || operator === 'less_than') {
+            const a = Number(val1); const b = Number(val2);
+            if (isNaN(a) || isNaN(b)) {
+                console.warn(`[ConditionExecutor] Non-numeric compare "${val1}" ${operator} "${val2}" → false`);
+                result = false;
+            } else {
+                result = operator === 'greater_than' ? a > b : a < b;
+            }
+        } else {
+            // Unknown operator → safest default is equals semantics
+            console.warn(`[ConditionExecutor] Unknown operator "${operator}" → using equals.`);
+            result = (val1 === val2 || valRaw === val2 || isNumericMatch || isLooseMatch || valIndex === val2);
         }
         
         console.log(`[ConditionExecutor] Result: ${result} (Numeric: ${isNumericMatch}, Loose: ${isLooseMatch})`);
