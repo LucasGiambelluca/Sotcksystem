@@ -61,13 +61,17 @@ export class SendCatalogExecutor implements NodeExecutor {
         const analysis = await AIExtractor.analyze(input);
         
         if (analysis && (analysis.intent === 'order' || analysis.items.length > 0)) {
-            const items = analysis.items.map(item => ({
-                id: item.resolvedProduct?.id,
-                name: item.resolvedProduct?.name || item.rawName,
-                price: item.resolvedProduct?.price || 0,
-                qty: item.quantity,
-                total: (item.resolvedProduct?.price || 0) * item.quantity
-            }));
+            const items = analysis.items
+                .filter(item => item.resolvedProduct && Number(item.resolvedProduct.price) > 0)
+                .map(item => ({
+                    id: item.resolvedProduct!.id,
+                    name: item.resolvedProduct!.name,
+                    price: Number(item.resolvedProduct!.price),
+                    qty: item.quantity,
+                    total: Number(item.resolvedProduct!.price) * item.quantity,
+                }));
+            const dropped = analysis.items.length - items.length;
+            if (dropped > 0) logger.warn(`[SendCatalogExecutor] Dropped ${dropped} unresolved item(s) to avoid $0 undercharge.`);
 
             logger.info(`[SendCatalogExecutor] Successfully parsed ${items.length} items from catalog message.`);
 

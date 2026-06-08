@@ -20,9 +20,9 @@ export class AddToCartExecutor implements NodeExecutor {
         let qty = 1;
         if (qtyVar && context[qtyVar]) {
             const parsed = parseInt(String(context[qtyVar]).trim());
-            qty = isNaN(parsed) ? 1 : parsed;
+            qty = isNaN(parsed) || parsed < 1 ? 1 : parsed;
         } else if (stockResult.requested_qty) {
-            qty = stockResult.requested_qty;
+            qty = Math.max(1, Number(stockResult.requested_qty) || 1);
         }
 
         // Read optional detail (size, weight, variant)
@@ -32,7 +32,7 @@ export class AddToCartExecutor implements NodeExecutor {
         const cartItem: any = {
             product_id: stockResult.product_id,
             name: stockResult.product_name,
-            price: stockResult.price,
+            price: Number(stockResult.price) || 0,
             qty: qty,
         };
         if (detail) {
@@ -48,7 +48,7 @@ export class AddToCartExecutor implements NodeExecutor {
         const cartCount = currentItems.length;
 
         // Build confirmation message
-        let msg = `✅ Agregado: *${qty}x ${cartItem.name}* — $${cartItem.price * qty}`;
+        let msg = `✅ Agregado: *${qty}x ${cartItem.name}* — $${(Number(cartItem.price) || 0) * qty}`;
         msg += `\n🛒 Carrito: ${cartCount} item${cartCount > 1 ? 's' : ''} — Total: *$${total}*`;
 
         return {
