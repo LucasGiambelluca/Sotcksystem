@@ -8,19 +8,26 @@ export class OrderValidatorExecutor implements NodeExecutor {
         // 1. Get items from context or draft order
         let items = Array.isArray(context.order_items) ? context.order_items : [];
         if (context.draft_order_id && items.length === 0) {
-            const { supabase } = require('../../config/database');
-            const { data: draftOrder } = await supabase
-                .from('draft_orders')
-                .select('items, total, delivery_fee')
-                .eq('id', context.draft_order_id)
-                .single();
-            
-            if (draftOrder && draftOrder.items) {
-                items = draftOrder.items;
-                // If it's a catalog order, prioritize the delivery fee saved in the draft
-                if (draftOrder.delivery_fee > 0) {
-                    context.shipping_cost = draftOrder.delivery_fee;
+            try {
+                const { supabase } = require('../../config/database');
+                const { data: draftOrder, error } = await supabase
+                    .from('draft_orders')
+                    .select('items, total, delivery_fee')
+                    .eq('id', context.draft_order_id)
+                    .single();
+
+                if (error) {
+                    logger.warn(`[OrderValidator] draft_orders read failed: ${error.message}`);
+                } else if (draftOrder && draftOrder.items) {
+                    items = draftOrder.items;
+                    // If it's a catalog order, prioritize the delivery fee saved in the draft
+                    if (draftOrder.delivery_fee > 0) {
+                        context.shipping_cost = draftOrder.delivery_fee;
+                    }
                 }
+            } catch (e: any) {
+                logger.error(`[OrderValidator] draft_orders query threw: ${e?.message || e}`);
+                // proceed with empty draft → existing "no draft" path handles it
             }
         }
 
@@ -65,7 +72,7 @@ export class OrderValidatorExecutor implements NodeExecutor {
             const lineTotal = price * qty;
             total += lineTotal;
             // Normalize H/F suffixes to uppercase for professional look
-            const displayName = item.name.replace(/ ([hf])$/i, (m: string, p1: string) => ' ' + p1.toUpperCase());
+            const displayName = String(item.name || item.product_name || 'Producto').replace(/ ([hf])$/i, (m: string, p1: string) => ' ' + p1.toUpperCase());
             summaryText += `• ${qty}x ${displayName} — $${lineTotal}\n`;
             if (item.notes) summaryText += `  _(Notas: ${item.notes})_\n`;
         }
@@ -79,12 +86,19 @@ export class OrderValidatorExecutor implements NodeExecutor {
         summaryText += `\n\n¿El pedido es correcto o te gustaría sumar algo más?\n`;
 
         // 3. Build a dynamic numbered menu based on available categories
-        const { supabase: sb } = require('../../config/database');
-        const { data: categories } = await sb
-            .from('catalog_items')
-            .select('category')
-            .eq('is_active', true);
-        
+        let categories: any[] = [];
+        try {
+            const { supabase: sb } = require('../../config/database');
+            const { data, error } = await sb
+                .from('catalog_items')
+                .select('category')
+                .eq('is_active', true);
+            if (error) logger.warn(`[OrderValidator] catalog_items read failed: ${error.message}`);
+            else categories = data || [];
+        } catch (e: any) {
+            logger.error(`[OrderValidator] catalog_items query threw: ${e?.message || e}`);
+        }
+
         const availableCategories = new Set(
             (categories || []).map((c: any) => (c.category || '').toLowerCase().trim())
         );
@@ -135,12 +149,19 @@ export class OrderValidatorExecutor implements NodeExecutor {
         // 2. Numeric fallback (when user types a number instead of pressing button)
         if (!selectedId) {
             // Build dynamic numbered options matching what was actually sent to the user
-            const { supabase: sb } = require('../../config/database');
-            const { data: categories } = await sb
-                .from('catalog_items')
-                .select('category')
-                .eq('is_active', true);
-            
+            let categories: any[] = [];
+            try {
+                const { supabase: sb } = require('../../config/database');
+                const { data, error } = await sb
+                    .from('catalog_items')
+                    .select('category')
+                    .eq('is_active', true);
+                if (error) logger.warn(`[OrderValidator] catalog_items read failed: ${error.message}`);
+                else categories = data || [];
+            } catch (e: any) {
+                logger.error(`[OrderValidator] catalog_items query threw: ${e?.message || e}`);
+            }
+
             const availableCategories = new Set(
                 (categories || []).map((c: any) => (c.category || '').toLowerCase().trim())
             );
