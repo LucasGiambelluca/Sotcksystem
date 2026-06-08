@@ -2,6 +2,9 @@ import { NodeExecutor, NodeExecutionResult, ExecutionContext } from './types';
 
 export class SlotExecutor implements NodeExecutor {
     async execute(data: any, context: ExecutionContext, engine: any): Promise<NodeExecutionResult> {
+        if (!engine?.slotService) {
+            return { messages: ["⚠️ El servicio de horarios no está disponible ahora."], wait_for_input: false };
+        }
         const slots = await engine.slotService.getAvailableSlots();
         if (!slots || slots.length === 0) {
             return { 
@@ -16,10 +19,30 @@ export class SlotExecutor implements NodeExecutor {
         });
         msg += "\n*Responde con el número de tu opción.*";
 
-        return { 
+        return {
             messages: [msg],
             wait_for_input: true,
             updatedContext: { _temp_slots: slots }
+        };
+    }
+
+    async handleInput(input: string, _data: any, context: ExecutionContext): Promise<{ updatedContext?: Partial<ExecutionContext>; messages?: string[]; isValidInput?: boolean; }> {
+        const slots = (context as any)._temp_slots;
+        if (!Array.isArray(slots) || slots.length === 0) {
+            return { isValidInput: false, messages: ["⚠️ No hay horarios para elegir. Escribí de nuevo para ver las opciones."] };
+        }
+        const choice = parseInt(String(input).trim(), 10);
+        if (isNaN(choice) || choice < 1 || choice > slots.length) {
+            return { isValidInput: false, messages: [`⚠️ Opción inválida. Respondé con un número del 1 al ${slots.length}.`] };
+        }
+        const selected = slots[choice - 1];
+        return {
+            isValidInput: true,
+            updatedContext: {
+                selected_slot_id: selected.id,
+                selected_slot_label: `${(selected.time_start || '').slice(0, 5)} a ${(selected.time_end || '').slice(0, 5)}`,
+                _temp_slots: null,
+            },
         };
     }
 }
