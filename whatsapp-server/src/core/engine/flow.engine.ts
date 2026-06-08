@@ -219,6 +219,10 @@ export class FlowEngine {
                     accumulatedMessages.push(...(session as any)._pendingMessages);
                     delete (session as any)._pendingMessages;
                 }
+
+                // Persist the input-driven advance BEFORE running side-effecting executors,
+                // so a chain failure cannot lose the user's progress.
+                await this.sessionRepository.update(session);
             }
 
             // 2. Execute Node Chain (Only if moved or now active)
@@ -239,6 +243,7 @@ export class FlowEngine {
 
         } catch (err: any) {
             logger.error(`[FlowEngine] Critical error`, { error: err.message });
+            try { if (session) await this.sessionRepository.update(session); } catch (_) { /* best-effort */ }
             return { currentStateDefinition: { message_template: '⚠️ Ocurrió un error. Reintentá en un momento.' } };
         }
     }
