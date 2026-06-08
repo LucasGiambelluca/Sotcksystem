@@ -97,7 +97,12 @@ export class NodeExecutorFactory {
   getExecutor(type: string): NodeExecutor {
     const executor = this.executors.get(type);
     if (!executor) {
-      throw new Error(`[NodeExecutorFactory] No executor found for type: ${type}`);
+      console.warn(`[NodeExecutorFactory] No executor for type "${type}" — using no-op pass-through.`);
+      return {
+        async execute() {
+          return { messages: [], wait_for_input: false };
+        },
+      };
     }
     return executor;
   }
