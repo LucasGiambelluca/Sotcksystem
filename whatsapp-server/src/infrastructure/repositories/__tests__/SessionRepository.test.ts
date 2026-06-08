@@ -67,6 +67,37 @@ describe('SessionRepository', () => {
 
       await expect(repository.update(session)).rejects.toThrow('CONCURRENCY_CONFLICT');
     });
+
+    it('should bump in-memory version so a second same-turn update matches the new DB row', async () => {
+      const session = new Session(
+        'sess-double', '123', '123',
+        {
+          variables: { shared: {}, global: { phoneNumber: '123', chatJid: '123', startedAt: 'now' } },
+          interactionLog: [],
+          metadata: { flowId: 'f', flowVersion: 1, entryPoint: 'trigger' }
+        },
+        'node-1', 'active', new Date(), 0
+      );
+
+      // Capture every version passed to .eq('version', X) on success.
+      const versionEqCalls: number[] = [];
+      const chain: any = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn((field: string, value: any) => {
+          if (field === 'version') versionEqCalls.push(value);
+          return chain;
+        }),
+        select: vi.fn().mockResolvedValue({ data: [{ id: 'updated' }], error: null }),
+      };
+      (supabase.from as any).mockReturnValue(chain);
+
+      await expect(repository.update(session)).resolves.toBeUndefined();
+      await expect(repository.update(session)).resolves.toBeUndefined();
+
+      // First update locks on version 0; second must lock on the bumped version 1.
+      expect(versionEqCalls).toEqual([0, 1]);
+      expect(session.version).toBe(2);
+    });
   });
 
   describe('getOrCreate', () => {

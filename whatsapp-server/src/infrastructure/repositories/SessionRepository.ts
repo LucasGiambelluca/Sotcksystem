@@ -157,7 +157,8 @@ export class SessionRepository {
       throw new Error(`CONCURRENCY_CONFLICT: Session ${session.id} was modified by another process (version mismatch).`);
     }
     
-    // Update local version if needed (instance usually discarded after turn)
+    // Bump in-memory version so a subsequent update() in the same turn matches the DB row.
+    session.version = nextVersion;
   }
 
   /**

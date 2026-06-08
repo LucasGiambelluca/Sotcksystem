@@ -55,7 +55,7 @@ export class Session {
     public currentNodeId: string,
     public status: 'active' | 'waiting_input' | 'paused' | 'completed' | 'error' | 'archived',
     public lastActivity: Date,
-    public readonly version: number = 0,
+    public version: number = 0,
     public readonly createdAt: Date = new Date(),
     public readonly uuid?: string // DB Primary Key
   ) {}
