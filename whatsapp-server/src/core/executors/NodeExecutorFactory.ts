@@ -97,12 +97,14 @@ export class NodeExecutorFactory {
   getExecutor(type: string): NodeExecutor {
     const executor = this.executors.get(type);
     if (!executor) {
-      console.warn(`[NodeExecutorFactory] No executor for type "${type}" — using no-op pass-through.`);
-      return {
+      console.warn(`[NodeExecutorFactory] No executor for type "${type}": using no-op pass-through.`);
+      const noop: NodeExecutor = {
         async execute() {
           return { messages: [], wait_for_input: false };
         },
       };
+      this.executors.set(type, noop); // cache so the warn fires only once per type
+      return noop;
     }
     return executor;
   }

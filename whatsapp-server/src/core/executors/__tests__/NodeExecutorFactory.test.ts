@@ -40,5 +40,6 @@ describe('NodeExecutorFactory.getExecutor', () => {
   it('still returns the real executor for a known type', () => {
     const ex = nodeExecutorFactory.getExecutor('conditionNode');
     expect(ex).toBeDefined();
+    expect(typeof ex.execute).toBe('function');
   });
 });
