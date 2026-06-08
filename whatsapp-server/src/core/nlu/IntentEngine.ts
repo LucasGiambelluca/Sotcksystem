@@ -12,7 +12,8 @@ export interface ParsedEntities {
 export const INTENT_PATTERNS = {
     ORDER: [
         /(?:quería|queria|quisiera|me gustaría|podría|hago|hacer|hacerte|hacerle)\s+(?:hacer|pedir|comprar|un|tu|el|un)\s*(?:pedido|compra|orden)?/i,
-        /(?:quiero|mandame|pedi|pido|traeme|una|unas|dos|tres|cuatro|cinco)\s+(.+)/i,
+        /(?:quiero|mandame|pedi|pido|traeme)\s+(.+)/i,
+        /(?:una|unas|dos|tres|cuatro|cinco)\s+(?:empanada|empanadas|hamburguesa|milanesa|pizza|coca|sprite|pollo|parrilla|chori|mila|napo|muzza|porcion|porciones|docena)(.*)/i,
         /(?:sumame|agregame|mete|poné|pone|anota|anotame)\s+(.+)/i,
         /(?:para (?:comer|llevar)|delivery|para aca|retiro)/i,
         /^(?:\d+|una|unas|dos|tres|cuatro|cinco)\s+(?:empanada|hamburguesa|milanesa|pizza|coca|sprite|pollo|parrilla|chori|mila|napo|muzza)/i
@@ -25,7 +26,7 @@ export const INTENT_PATTERNS = {
     ],
     
     QUERY: [
-        /(?:cuanto|precio|vale|cuesta|esta|está)\s+(.+)/i,
+        /(?:cuanto|precio|vale|cuesta)\s+(.+)/i,
         /(?:tenes|hay|queda|quedan)\s+(.+)/i,
         /(?:que|cuales)\s+(?:hay|tenes|incluye)/i
     ],
@@ -98,8 +99,8 @@ export class IntentEngine {
             let qtyStr = (matches[1] || '1').trim().toLowerCase();
             let qty = 1;
 
-            if (qtyStr === 'una' || qtyStr === 'un') qty = 1;
-            else if (qtyStr === 'unas' || qtyStr === 'dos') qty = 2;
+            if (qtyStr === 'una' || qtyStr === 'un' || qtyStr === 'unas') qty = 1;
+            else if (qtyStr === 'dos') qty = 2;
             else if (qtyStr === 'tres') qty = 3;
             else if (qtyStr === 'cuatro') qty = 4;
             else if (qtyStr === 'cinco') qty = 5;
