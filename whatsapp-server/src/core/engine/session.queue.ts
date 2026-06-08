@@ -56,37 +56,58 @@ export class SessionQueue extends EventEmitter {
     const job = this.queue.shift()!;
     this.currentJobId = job.id;
 
+    // Guard so the caller's promise is settled exactly once: either by the
+    // timeout OR by the processor (success/error), whichever wins the race.
+    let promiseSettled = false;
+    const settleOnce = (fn: () => void): void => {
+      if (promiseSettled) return;
+      promiseSettled = true;
+      fn();
+    };
+
+    // The slot (this.processing / currentJobId) is released exactly ONCE, and
+    // ONLY when the real processor settles. A timeout rejects the caller but
+    // must NOT advance the queue while the processor is still in-flight (JS
+    // can't cancel promises): doing so would let a second job for the same
+    // session run concurrently and clobber shared state.
+    let slotReleased = false;
+    const releaseSlot = (): void => {
+      if (slotReleased) return;
+      slotReleased = true;
+      this.processing = false;
+      this.currentJobId = null;
+      setImmediate(() => this.processNext());
+    };
+
     const timeout = setTimeout(() => {
       this.emit('timeout', { jobId: job.id, duration: this.timeoutMs });
-      job.reject(new Error(`Timeout processing message after ${this.timeoutMs}ms (Session: ${this.sessionId})`));
-      this.processing = false;
-      this.processNext();
+      settleOnce(() => {
+        job.reject(new Error(`Timeout processing message after ${this.timeoutMs}ms (Session: ${this.sessionId})`));
+      });
+      // NOTE: intentionally do NOT release the slot here. The orphaned processor
+      // is still running; the queue only advances once it actually settles below.
     }, this.timeoutMs);
 
     const startTime = Date.now();
 
     try {
       this.emit('processing', { jobId: job.id });
-      
+
       const result = await this.processor(job.message);
-      
+
+      clearTimeout(timeout);
       const duration = Date.now() - startTime;
       this.emit('completed', { jobId: job.id, duration });
-      
-      job.resolve(result);
-      
+      settleOnce(() => job.resolve(result));
     } catch (error) {
+      clearTimeout(timeout);
       const duration = Date.now() - startTime;
       this.emit('error', { jobId: job.id, error, duration });
-      job.reject(error);
-      
+      settleOnce(() => job.reject(error));
     } finally {
-      clearTimeout(timeout);
-      this.processing = false;
-      this.currentJobId = null;
-      
-      // Schedule next processing on next tick
-      setImmediate(() => this.processNext());
+      // Slot is released only here — i.e. only when the processor has truly
+      // finished — guaranteeing at most one processor body runs per session.
+      releaseSlot();
     }
   }
 
