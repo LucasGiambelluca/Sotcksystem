@@ -323,6 +323,10 @@ export class ConversationRouter {
             const engineResponse = await this.flowEngine.processMessage(phone, text, { ...context, pushName, remoteJid }, {
                 initialState: { session, conversation: convo }
             });
+            if (engineResponse?.currentStateDefinition?._no_flow_match) {
+                logger.info(`[Router] No flow matched "${text}" — using friendly AI fallback.`);
+                return await this.generateFriendlyFallback(phone, text, pushName, context);
+            }
             return this.extractMessages(engineResponse);
 
         } catch (err: any) {
