@@ -70,6 +70,12 @@ export class SessionQueue extends EventEmitter {
     // must NOT advance the queue while the processor is still in-flight (JS
     // can't cancel promises): doing so would let a second job for the same
     // session run concurrently and clobber shared state.
+    //
+    // LIVENESS CONTRACT: the queue slot is released ONLY when the real processor settles
+    // (success/error). On timeout we reject the caller but keep the slot, so a late-settling
+    // processor can never run concurrently with the next job (prevents session-state corruption).
+    // Consequence: if `processor` NEVER settles, this session's queue is stuck forever — the
+    // processor MUST enforce its own I/O timeout/abort. Recovery is only via clear()/reset.
     let slotReleased = false;
     const releaseSlot = (): void => {
       if (slotReleased) return;
