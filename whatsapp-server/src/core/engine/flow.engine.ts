@@ -553,7 +553,7 @@ export class FlowEngine {
         // OR if the node is NOT a branching node.
         if (!edge) {
             const node = (flow.nodes || []).find((n: any) => n.id === currentNodeId);
-            const isBranchingNode = ['pollNode', 'conditionNode', 'locationValidatorNode', 'orderValidatorNode', 'arraySwitchNode', 'switchNode'].includes(node?.type || '');
+            const isBranchingNode = ['pollNode', 'conditionNode', 'locationValidatorNode', 'orderValidatorNode', 'arraySwitchNode', 'switchNode', 'keywordNode', 'intentResolverNode'].includes(node?.type || '');
             
             if (!handle || !isBranchingNode) {
                 edge = edges.find((e: any) => e.source === currentNodeId);
