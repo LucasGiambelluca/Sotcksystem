@@ -102,10 +102,11 @@ export class CreateOrderExecutor implements NodeExecutor {
                         distanceKm = locResult.distance_km;
                         total += shippingCost;
                         
+                        const zoneLabel = (locResult as any).barrio || locResult.zone.name;
                         if (clientLoc) {
-                            finalAddressString = `GPS (${distanceKm?.toFixed(1)}km): ` + (address ? `"${address}"` : locResult.zone.name);
+                            finalAddressString = `GPS (${distanceKm?.toFixed(1)}km): ` + (address ? `"${address}"` : zoneLabel);
                         } else {
-                            finalAddressString = `Zona: ${locResult.zone.name} (${address || 'Sin detalles'})`;
+                            finalAddressString = `Zona: ${zoneLabel} (${address || 'Sin detalles'})`;
                         }
                         
                         // Si era modo SMART y mandó texto, agregar posible fee de validación si configurado en zona

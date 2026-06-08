@@ -82,7 +82,7 @@ export class LocationService {
         clientLocation?: LatLng, 
         storeLocation?: LatLng,
         address?: string | null
-    ): Promise<{ zone: ShippingZone | null, distance_km: number | null, allowed: boolean, error?: string }> {
+    ): Promise<{ zone: ShippingZone | null, distance_km: number | null, allowed: boolean, error?: string, barrio?: string | null }> {
         
         const activeZones = zones.filter(z => z.is_active);
         
@@ -172,13 +172,18 @@ export class LocationService {
             };
         }
 
-        // Devolver la zona: Priorizamos RADIUS (por cuadras) si existe, 
+        // El barrio (polígono) se usa solo para mostrar en la comandera; el precio
+        // sigue determinándose por la zona elegida (radius para tarifa por distancia).
+        const barrioZone = eligibleZones.find(z => z.zone_type === 'polygon');
+        const barrio = barrioZone?.name || null;
+
+        // Devolver la zona: Priorizamos RADIUS (por cuadras) si existe,
         // de lo contrario la más barata aplicable.
         const radiusZones = eligibleZones.filter(z => z.zone_type === 'radius');
         if (radiusZones.length > 0) {
             // Entre los radios que cubren la distancia, elegimos el de menor radio (el más ajustado)
             radiusZones.sort((a, b) => (a.max_radius_km || 0) - (b.max_radius_km || 0));
-            return { zone: radiusZones[0], distance_km: distanceKm, allowed: true };
+            return { zone: radiusZones[0], distance_km: distanceKm, allowed: true, barrio };
         }
 
         // Si no hay radios, usamos polígonos ordenados por costo
@@ -188,14 +193,15 @@ export class LocationService {
         // NEW: If distance is extremely small (within 100m of the store), force 0 cost
         if (distanceKm !== null && distanceKm < 0.1) {
             logger.info(`[LocationService] Distance is very small (${distanceKm.toFixed(3)}km). Forcing cost to 0.`);
-            return { 
-                zone: { ...finalZone, cost: 0, name: 'Local/Misma Cuadra' }, 
-                distance_km: distanceKm, 
-                allowed: true 
+            return {
+                zone: { ...finalZone, cost: 0, name: 'Local/Misma Cuadra' },
+                distance_km: distanceKm,
+                allowed: true,
+                barrio
             };
         }
 
-        return { zone: finalZone, distance_km: distanceKm, allowed: true };
+        return { zone: finalZone, distance_km: distanceKm, allowed: true, barrio };
     }
 }
 
