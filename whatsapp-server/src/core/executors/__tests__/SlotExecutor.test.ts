@@ -26,4 +26,16 @@ describe('SlotExecutor.handleInput', () => {
     const res = await ex.handleInput!('mañana', {}, { phone: 'x', _temp_slots: slots } as any);
     expect(res.isValidInput).toBe(false);
   });
+
+  it('rejects malformed numeric input like "2abc"', async () => {
+    const ex = new SlotExecutor();
+    const res = await ex.handleInput!('2abc', {}, { phone: 'x', _temp_slots: slots } as any);
+    expect(res.isValidInput).toBe(false);
+  });
+
+  it('returns invalid when context has no slots', async () => {
+    const ex = new SlotExecutor();
+    const res = await ex.handleInput!('1', {}, { phone: 'x' } as any);
+    expect(res.isValidInput).toBe(false);
+  });
 });

@@ -31,7 +31,8 @@ export class SlotExecutor implements NodeExecutor {
         if (!Array.isArray(slots) || slots.length === 0) {
             return { isValidInput: false, messages: ["⚠️ No hay horarios para elegir. Escribí de nuevo para ver las opciones."] };
         }
-        const choice = parseInt(String(input).trim(), 10);
+        const trimmed = String(input).trim();
+        const choice = /^\d+$/.test(trimmed) ? parseInt(trimmed, 10) : NaN;
         if (isNaN(choice) || choice < 1 || choice > slots.length) {
             return { isValidInput: false, messages: [`⚠️ Opción inválida. Respondé con un número del 1 al ${slots.length}.`] };
         }
