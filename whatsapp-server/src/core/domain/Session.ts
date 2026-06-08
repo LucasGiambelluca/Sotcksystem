@@ -35,6 +35,14 @@ export interface SessionContext {
     parentSessionId?: string;
     expiresAt?: Date;
     conversationalState?: string;
+    // Transient runtime signals persisted so they survive serialize/reload
+    // (concurrency retry / session resume). NOT a DB column — lives inside the
+    // `context` JSON blob.
+    _transient?: {
+      _pendingMessages?: any;
+      _exitToAI?: any;
+      _aiResult?: any;
+    };
   };
 }
 
@@ -106,6 +114,24 @@ export class Session {
   }
 
   toJSON(): any {
+    // Persist transient session signals (re-prompts / AI handover) inside the
+    // existing `context` JSON column so they survive serialize -> reload without
+    // adding new top-level keys (which SessionRepository would send as DB columns).
+    const self = this as any;
+    const transient: any = {};
+    if (self._pendingMessages !== undefined) transient._pendingMessages = self._pendingMessages;
+    if (self._exitToAI !== undefined) transient._exitToAI = self._exitToAI;
+    if (self._aiResult !== undefined) transient._aiResult = self._aiResult;
+
+    if (this.context.metadata) {
+      if (Object.keys(transient).length > 0) {
+        this.context.metadata._transient = transient;
+      } else if (this.context.metadata._transient) {
+        // Nothing pending anymore: clear stale transient state so it doesn't linger.
+        delete this.context.metadata._transient;
+      }
+    }
+
     return {
       session_id: this.id,
       phone: this.userPhone,
@@ -149,7 +175,7 @@ export class Session {
         context.variables.shared = data.global_variables;
     }
 
-    return new Session(
+    const session = new Session(
       data.session_id,
       data.phone || data.user_phone,
       data.phone || data.chat_jid,
@@ -161,6 +187,18 @@ export class Session {
       new Date(data.created_at || Date.now()),
       data.id // The UUID primary key
     );
+
+    // Restore transient runtime signals persisted inside context.metadata so
+    // re-prompts / AI-handover survive a serialize -> reload cycle.
+    const transient = context.metadata?._transient;
+    if (transient) {
+      const s = session as any;
+      if (transient._pendingMessages !== undefined) s._pendingMessages = transient._pendingMessages;
+      if (transient._exitToAI !== undefined) s._exitToAI = transient._exitToAI;
+      if (transient._aiResult !== undefined) s._aiResult = transient._aiResult;
+    }
+
+    return session;
   }
 
   getConversationalState(): string {
