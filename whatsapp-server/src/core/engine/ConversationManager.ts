@@ -1,53 +1,5 @@
-import { createMachine, createActor } from 'xstate';
 import { Session } from '../domain/Session';
 import { logger } from '../../utils/logger';
-
-export const conversationMachine = createMachine({
-  id: 'conversation',
-  initial: 'IDLE',
-  states: {
-    IDLE: {
-      on: {
-        ORDER_START: 'TAKING_ORDER',
-        HELP_REQUEST: 'IDLE',
-        CANCEL: 'IDLE'
-      }
-    },
-    TAKING_ORDER: {
-      on: {
-        ITEMS_ADDED: 'TAKING_ORDER',
-        AMBIGUITY_DETECTED: 'CLARIFYING',
-        ORDER_READY: 'CONFIRMING',
-        CANCEL: 'IDLE'
-      }
-    },
-    CLARIFYING: {
-      on: {
-        ITEM_RESOLVED: 'CONFIRMING',
-        STILL_AMBIGUOUS: 'CLARIFYING',
-        CANCEL: 'IDLE'
-      }
-    },
-    CONFIRMING: {
-      on: {
-        CONFIRMED: 'PAYMENT',
-        REJECTED: 'TAKING_ORDER',
-        CANCEL: 'IDLE'
-      }
-    },
-    PAYMENT: {
-      on: {
-        PAID: 'COMPLETED',
-        CANCEL: 'IDLE'
-      }
-    },
-    COMPLETED: {
-      after: {
-        1000: 'IDLE'
-      }
-    }
-  }
-});
 
 export class ConversationManager {
     static async handleTransition(session: Session, event: string): Promise<string> {
