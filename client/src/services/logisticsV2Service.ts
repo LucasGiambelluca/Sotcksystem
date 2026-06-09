@@ -141,8 +141,7 @@ export const logisticsV2Service = {
   async updateCadeteStatus(cadeteId: string, isOnline: boolean) {
     const { error } = await supabase
       .from('cadete_metadata')
-      .update({ is_online: isOnline })
-      .eq('employee_id', cadeteId);
+      .upsert({ employee_id: cadeteId, is_online: isOnline }, { onConflict: 'employee_id' });
     if (error) console.error('Error updating cadete status:', error);
   },
 
