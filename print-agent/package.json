@@ -1,0 +1,14 @@
+{
+  "name": "local-print-agent",
+  "version": "1.0.0",
+  "description": "Pure-TCP local print agent that consumes Supabase print_queue and prints to a network thermal printer (port 9100). Replaces the RawBT Android app.",
+  "private": true,
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5"
+  }
+}

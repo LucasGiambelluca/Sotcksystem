@@ -9,7 +9,7 @@ import { supabase } from '../supabaseClient';
 import systemLogo from '../assets/nuevologo.png';
 import { getTotalUnreadCount } from '../services/whatsappService';
 import NewOrderAlertModal from './NewOrderAlertModal';
-import PrinterBridge from './PrinterBridge';
+// import PrinterBridge from './PrinterBridge'; // disabled: replaced by local TCP print agent (print-agent/)
 
 export default function Layout() {
   const { signOut } = useAuth();
@@ -206,7 +206,10 @@ export default function Layout() {
         </nav>
         
         <div className="p-4 mx-4 mb-4 space-y-2">
-          <PrinterBridge />
+          {/* RawBT browser bridge disabled — printing is now handled by the local
+              TCP print agent (print-agent/, runs in Termux on the LAN). Re-enable
+              only if reverting to RawBT, and never run both at once (double print). */}
+          {/* <PrinterBridge /> */}
           {isInstallable && (
             <button
               onClick={handleInstallClick}
