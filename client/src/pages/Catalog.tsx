@@ -708,7 +708,21 @@ export default function Catalog() {
         )}
       </div>
 
-      {/* ── FLOATING CART BUTTON (mobile) ── */}
+      {/* ── FOOTER ── */}
+      <footer className="py-16 bg-white border-t border-gray-100 flex flex-col items-center justify-center opacity-60 hover:opacity-100 transition-opacity">
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Power by</span>
+          <img src={systemLogo} alt="StockSystem Logo" className="h-20 w-auto" />
+        </div>
+      </footer>
+        </div>
+
+      {/* ── FLOATING CART BUTTON (mobile) ──
+           Kept OUTSIDE the .animate-content-reveal wrapper on purpose: that wrapper
+           ends on `transform: translateY(0)` (animation-fill-mode: forwards), which
+           makes it the containing block for position:fixed children. Inside it,
+           `fixed bottom-5` anchored to the bottom of the tall content div (off-screen
+           on mobile) instead of the viewport. Out here it pins to the viewport. */}
       {cartCount > 0 && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 md:hidden">
           <button
@@ -735,15 +749,6 @@ export default function Catalog() {
           {cartCount > 0 && <span className="ml-1 font-bold">{fmt(cartTotal)}</span>}
         </button>
       </div>
-
-      {/* ── FOOTER ── */}
-      <footer className="py-16 bg-white border-t border-gray-100 flex flex-col items-center justify-center opacity-60 hover:opacity-100 transition-opacity">
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Power by</span>
-          <img src={systemLogo} alt="StockSystem Logo" className="h-20 w-auto" />
-        </div>
-      </footer>
-        </div>
 
       {/* ── PRODUCT MODAL ── */}
       {selectedProduct && (
