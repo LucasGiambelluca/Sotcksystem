@@ -253,6 +253,8 @@ export default function Settings() {
           catalog_accent_color: waConfig.catalog_accent_color,
           catalog_logo_url: waConfig.catalog_logo_url,
           catalog_banner_url: waConfig.catalog_banner_url,
+          catalog_worldcup_skin: waConfig.catalog_worldcup_skin,
+          catalog_loader_video: waConfig.catalog_loader_video,
           whatsapp_phone: waConfig.whatsapp_phone,
           shipping_policy: waConfig.shipping_policy,
           store_lat: waConfig.store_lat,
@@ -276,6 +278,8 @@ export default function Settings() {
         catalog_logo_url: waConfig.catalog_logo_url,
         catalog_banner_url: waConfig.catalog_banner_url,
         catalog_accent_color: waConfig.catalog_accent_color,
+        // NOTE: the toggles persist via the whatsapp_config update above;
+        // public_branding is a read-only VIEW (LIMIT 1) so it isn't written here.
       };
 
       const { data: currentPublic } = await supabase.from('public_branding').select('id').maybeSingle();
@@ -1223,6 +1227,46 @@ export default function Settings() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Ej: Mi Pizzería"
                 />
+              </div>
+
+              {/* ── World Cup 2026 toggles ── */}
+              <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏆</span>
+                  <h3 className="text-sm font-semibold text-sky-900">Mundial 2026 🇦🇷</h3>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Skin mundialista</p>
+                    <p className="text-xs text-gray-500">Banderines, franja celeste/blanco y fondo festivo en el catálogo.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={waConfig.catalog_worldcup_skin !== false}
+                      onChange={(e) => setWaConfig({ ...waConfig, catalog_worldcup_skin: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-sky-300 peer-checked:bg-sky-600 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Video de carga</p>
+                    <p className="text-xs text-gray-500">Clip del Mundial (5s) al abrir el catálogo público.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={waConfig.catalog_loader_video !== false}
+                      onChange={(e) => setWaConfig({ ...waConfig, catalog_loader_video: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-sky-300 peer-checked:bg-sky-600 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+                  </label>
+                </div>
               </div>
 
               <div>

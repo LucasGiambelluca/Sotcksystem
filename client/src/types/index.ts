@@ -339,6 +339,10 @@ export interface WhatsAppConfig {
   catalog_logo_url?: string;
   catalog_business_name?: string;
   catalog_accent_color?: string;
+  /** World Cup 2026 catalog skin (bunting, tricolor, festive bg). Default on. */
+  catalog_worldcup_skin?: boolean;
+  /** World Cup 2026 loader video on the public catalog. Default on. */
+  catalog_loader_video?: boolean;
   whatsapp_phone?: string;
   shipping_policy?: 'flex' | 'smart' | 'secure';
   store_lat?: number;
