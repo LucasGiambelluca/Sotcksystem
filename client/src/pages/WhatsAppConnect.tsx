@@ -11,6 +11,10 @@ import { ArrowLeft, WifiOff, QrCode, RefreshCw, CheckCircle2, Settings, MessageS
 import { toast } from 'sonner';
 
 const WA_SERVER = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Tenant API base for our own backend. Bare /api/... URLs fall through Caddy's
+// default route to the primary tenant — meta-config reads/writes would then hit
+// the OTHER business's WhatsApp credentials.
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // ngrok free tier shows a browser warning page - this header bypasses it
 const waFetch = (url: string, options: RequestInit = {}) => fetch(url, {
@@ -132,7 +136,7 @@ export default function WhatsAppConnect() {
       // under a special 'extras' field if using Embedded Signup.
       // If not, the backend can discover them via GET /me/whatsapp_business_accounts
       
-      const res = await fetch('/api/embedded-signup', {
+      const res = await fetch(`${API_BASE}/api/embedded-signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -172,7 +176,7 @@ export default function WhatsAppConnect() {
 
   async function loadMetaConfig() {
     try {
-      const res = await fetch('/api/meta-config');
+      const res = await fetch(`${API_BASE}/api/meta-config`);
       const data = await res.json();
       if (data) {
         setMetaConfigured(data.configured);
@@ -193,7 +197,7 @@ export default function WhatsAppConnect() {
     setTestingMeta(true);
     setMetaTestResult(null);
     try {
-      const res = await fetch('/api/meta-config/test', {
+      const res = await fetch(`${API_BASE}/api/meta-config/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cloud_token: metaCloudToken, phone_number_id: metaPhoneNumberId }),
@@ -218,7 +222,7 @@ export default function WhatsAppConnect() {
     }
     setSavingMeta(true);
     try {
-      const res = await fetch('/api/meta-config', {
+      const res = await fetch(`${API_BASE}/api/meta-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

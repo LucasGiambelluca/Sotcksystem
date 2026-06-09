@@ -56,13 +56,18 @@ async function getProviderConfig() {
   }
 
   if (provider === 'OFFICIAL') {
-    return { provider, idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: '' };
+    // Multi-tenant: OFFICIAL hits our own backend, so the URL must carry this
+    // tenant's API base (e.g. /eldelirio-api). An empty apiUrl makes callers
+    // (take-control, broadcast, catalog/send, resolve-handover) fall back to a
+    // bare /api/... which Caddy routes to the default tenant — messages then go
+    // out from the WRONG number.
+    return { provider, idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: import.meta.env.VITE_API_URL || '' };
   }
 
   if (!data?.instance_name || !data?.api_key || !data?.api_url) {
     // If we're on a VPS and it's not configured, maybe we want to use the local API
     if (window.location.hostname !== 'localhost') {
-        return { provider: 'OFFICIAL', idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: '' };
+        return { provider: 'OFFICIAL', idInstance: 'OFFICIAL', apiToken: 'OFFICIAL', apiUrl: import.meta.env.VITE_API_URL || '' };
     }
     throw new Error('WhatsApp no configurado. Ve a WhatsApp → Conectar.');
   }
