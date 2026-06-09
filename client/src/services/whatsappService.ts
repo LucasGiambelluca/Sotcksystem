@@ -401,8 +401,11 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
   let result;
 
   if (provider === 'OFFICIAL') {
-    // Official API via our own backend
-    const url = `/api/send-message`;
+    // Official API via our own backend.
+    // Must use VITE_API_URL so multi-tenant routing hits THIS tenant's backend
+    // (e.g. /eldelirio-api). A bare relative /api/send-message falls through
+    // Caddy's default route to the primary tenant and sends from the wrong number.
+    const url = `${import.meta.env.VITE_API_URL || ''}/api/send-message`;
     
     const res = await fetch(url, {
       method: 'POST',

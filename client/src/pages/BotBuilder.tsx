@@ -10,7 +10,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Save, Trash2, Download, Upload, Menu, X, Plus, ChevronLeft, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Trash2, Download, Upload, Menu, X, Plus, ChevronLeft } from 'lucide-react';
 // ... existing imports ...
 
 // ... inside BotBuilder component ...
