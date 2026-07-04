@@ -11,8 +11,9 @@ export class ShortcutsManager {
    */
   static async handle(id: string, phone: string): Promise<any[] | null> {
     const rawId = id || '';
-    // Strip markdown (*, _) and accents, then lowercase
-    const normalizedId = rawId.replace(/[\*_]/g, '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    // Strip markdown wrappers (*hola*, _hola_) only at the edges: inner underscores
+    // are significant (button IDs like rate_5, order_issue). Then accents + lowercase.
+    const normalizedId = rawId.replace(/^[\*_]+|[\*_]+$/g, '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
     console.log(`\x1b[35m[ShortcutsManager] Handling shortcut: RAW="${rawId}" NORMALIZED="${normalizedId}" for ${phone}\x1b[0m`);
     logger.info(`[ShortcutsManager] Handling shortcut: RAW="${rawId}" NORMALIZED="${normalizedId}" for ${phone}`);
@@ -44,28 +45,74 @@ export class ShortcutsManager {
 
       case 'rate_5':
       case 'rate_excellent':
+        await this.saveRating(phone, 5);
         return [
           "🎉 ¡Muchas gracias por elegirnos y por tu calificación! Nos encanta saber que disfrutaste tu pedido. ¡Te esperamos pronto! 😊🙌"
         ];
-      
+
       case 'rate_4':
       case 'rate_3':
       case 'rate_2':
       case 'rate_1':
       case 'rate_good':
+        await this.saveRating(phone, normalizedId === 'rate_good' ? 4 : parseInt(normalizedId.split('_')[1], 10));
         return [
           "🙏 ¡Gracias por elegirnos! Tomamos nota de tu feedback para seguir mejorando. ¡Te esperamos pronto! 😊"
         ];
 
       case 'order_issue':
         // Generate a report (log to DB)
-        this.reportIssue(phone);
+        await this.reportIssue(phone);
         return [
           "❌ Lamentamos el inconveniente, pronto nos comunicaremos con vos para solucionarlo."
         ];
 
       default:
         return null;
+    }
+  }
+
+  private static async saveRating(phone: string, rating: number): Promise<void> {
+    try {
+      // Vincular al último pedido del cliente (si existe)
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, order_number')
+        .eq('phone', phone)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { error } = await supabase.from('order_ratings').insert({
+        phone,
+        order_id: order?.id || null,
+        order_number: order?.order_number || null,
+        rating,
+        source: 'whatsapp_button',
+        created_at: new Date().toISOString()
+      });
+
+      if (error) {
+        logger.error(`[ShortcutsManager] Error saving rating: ${error.message}`);
+      } else {
+        logger.info(`[ShortcutsManager] Rating ${rating}⭐ saved for ${phone} (Order: ${order?.order_number || 'None'})`);
+      }
+    } catch (e: any) {
+      logger.error(`[ShortcutsManager] Error saving rating: ${e.message}`);
+    }
+  }
+
+  private static async notifyTeam(title: string, message: string, type: string, metadata: any = {}): Promise<void> {
+    try {
+      await supabase.from('notifications').insert({
+        title,
+        message,
+        type,
+        metadata,
+        read: false
+      });
+    } catch (e: any) {
+      logger.error(`[ShortcutsManager] Error creating internal notification: ${e.message}`);
     }
   }
 
@@ -83,7 +130,15 @@ export class ShortcutsManager {
       await supabase.from('whatsapp_conversations')
         .update({ status: 'HANDOVER', updated_at: new Date().toISOString() })
         .eq('phone', phone);
-        
+
+      // 3. Avisar al equipo: sin esto el cliente queda esperando un asesor que nadie sabe que debe atender
+      await this.notifyTeam(
+        '📞 Soporte solicitado',
+        `El cliente ${phone} pidió hablar con un asesor por WhatsApp. El bot quedó pausado para ese chat.`,
+        'SUPPORT_REQUEST',
+        { phone }
+      );
+
     } catch (e: any) {
       logger.error(`[ShortcutsManager] Error triggering handover: ${e.message}`);
     }
@@ -114,14 +169,23 @@ export class ShortcutsManager {
       // Si no, lo guardamos como una nota en el pedido o en flow_logs.
       const { error } = await supabase.from('customer_issues').insert(issueData);
       
-      if (error && error.code === 'PGRST116') {
-        // Fallback: Si no existe la tabla, loggear como nota de pedido
+      if (error) {
+        // Fallback: si la tabla no existe u otro fallo, dejar rastro como nota del pedido
+        logger.error(`[ShortcutsManager] Error inserting customer_issue: ${error.message}`);
         if (order?.id) {
-           await supabase.from('orders').update({ 
-             notes: `[SOPORTE] ${issueData.description}` 
+           await supabase.from('orders').update({
+             notes: `[SOPORTE] ${issueData.description}`
            }).eq('id', order.id);
         }
       }
+
+      // Avisar al equipo para que alguien lo contacte
+      await this.notifyTeam(
+        '⚠️ Problema con un pedido',
+        `El cliente ${phone} reportó un problema con su pedido ${order?.order_number ? `#${order.order_number}` : ''} desde WhatsApp.`,
+        'ORDER_ISSUE',
+        { phone, orderId: order?.id || null, orderNumber: order?.order_number || null }
+      );
 
       logger.info(`[ShortcutsManager] Issue reported for ${phone} (Order: ${order?.order_number || 'None'})`);
     } catch (e: any) {
